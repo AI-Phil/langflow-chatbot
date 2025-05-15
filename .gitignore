@@ -1,0 +1,23 @@
+# Node modules
+node_modules/
+
+# Build output
+dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env
+.env.*
+
+# Editor directories and files
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# TypeScript cache
+*.tsbuildinfo 

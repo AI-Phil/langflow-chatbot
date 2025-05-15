@@ -1,0 +1,28 @@
+{
+  "name": "langflow-chatbot",
+  "version": "0.1.0",
+  "description": "A Node.js package for interacting with Langflow using @datastax/langflow-client.",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/langflow-chatbot.git"
+  },
+  "keywords": [
+    "langflow",
+    "chatbot",
+    "datastax"
+  ],
+  "author": "DataStax, Inc. (Phil Miesle)",
+  "license": "MIT",
+  "dependencies": {
+    "@datastax/langflow-client": "^0.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.18",
+    "typescript": "^5.8.3"
+  }
+}
