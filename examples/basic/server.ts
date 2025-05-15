@@ -98,6 +98,7 @@ const server = http.createServer(async (req, res) => {
             const body = await parseJsonBody(req);
             const userMessage = body.message;
             const clientSessionId = body.sessionId;
+            const wantsStream = body.stream === true; // Check for the stream flag
 
             if (!userMessage || typeof userMessage !== 'string') {
                 res.statusCode = 400; res.setHeader('Content-Type', 'application/json');
@@ -115,94 +116,125 @@ const server = http.createServer(async (req, res) => {
                 delete runOptions.session_id;
             }
 
-            if (clientSessionId) {
-                console.log(`Received message for Langflow (${langflowDefaultFlowId}) from session: ${runOptions.session_id}, input_type: ${runOptions.input_type}, message: ${userMessage}`);
-            } else {
-                console.log(`Received message for Langflow (${langflowDefaultFlowId}) (new session), input_type: ${runOptions.input_type}, message: ${userMessage}`);
-            }
-            
             const flow = langflowClient.flow(langflowDefaultFlowId);
-            const langflowResponse = await flow.run(userMessage, runOptions);
-            
-            const responseSessionId = langflowResponse.sessionId;
-            let reply = "Sorry, I could not process that.";
 
-            if (langflowResponse && 
-                Array.isArray(langflowResponse.outputs) && 
-                langflowResponse.outputs.length > 0) {
+            if (wantsStream) {
+                // Streaming logic
+                console.log(`Streaming request for Langflow (${langflowDefaultFlowId}), session: ${runOptions.session_id || 'new'}, message: ${userMessage}`);
+                res.setHeader('Content-Type', 'application/x-ndjson');
+                res.setHeader('Transfer-Encoding', 'chunked');
+
+                try {
+                    const streamResponse = await flow.stream(userMessage, runOptions);
+                    for await (const event of streamResponse) {
+                        res.write(JSON.stringify(event) + '\n');
+                    }
+                    res.end();
+                } catch (streamError: any) {
+                    console.error("Error during Langflow stream:", streamError);
+                    if (!res.headersSent) {
+                        res.statusCode = 500;
+                        res.setHeader('Content-Type', 'application/json');
+                        res.end(JSON.stringify({ event: 'error', data: { message: "Failed to process stream.", detail: streamError.message || 'Unknown stream error' } }));
+                    } else {
+                        res.write(JSON.stringify({ event: 'error', data: { message: "Error during streaming.", detail: streamError.message || 'Unknown error on stream' } }) + '\n');
+                        res.end();
+                    }
+                }
+
+            } else {
+                // Non-streaming (existing) logic
+                if (clientSessionId) {
+                    console.log(`Received message for Langflow (${langflowDefaultFlowId}) from session: ${runOptions.session_id}, input_type: ${runOptions.input_type}, message: ${userMessage}`);
+                } else {
+                    console.log(`Received message for Langflow (${langflowDefaultFlowId}) (new session), input_type: ${runOptions.input_type}, message: ${userMessage}`);
+                }
                 
-                const firstOutputComponent = langflowResponse.outputs[0];
-                if (firstOutputComponent && 
-                    Array.isArray(firstOutputComponent.outputs) && 
-                    firstOutputComponent.outputs.length > 0) {
+                const langflowResponse = await flow.run(userMessage, runOptions);
+                const responseSessionId = langflowResponse.sessionId;
+                let reply = "Sorry, I could not process that.";
+
+                if (langflowResponse && 
+                    Array.isArray(langflowResponse.outputs) && 
+                    langflowResponse.outputs.length > 0) {
                     
-                    const innerOutput = firstOutputComponent.outputs[0];
-                    if (innerOutput && 
-                        innerOutput.results && 
-                        typeof innerOutput.results === 'object' && 
-                        innerOutput.results.message && 
-                        typeof innerOutput.results.message === 'object' && 
-                        typeof innerOutput.results.message.text === 'string') {
+                    const firstOutputComponent = langflowResponse.outputs[0];
+                    if (firstOutputComponent && 
+                        Array.isArray(firstOutputComponent.outputs) && 
+                        firstOutputComponent.outputs.length > 0) {
                         
-                        reply = innerOutput.results.message.text.trim();
-                        if (reply === '') {
-                            reply = "Received an empty message from Bot.";
-                        }
-                    } else if (innerOutput && innerOutput.outputs && typeof innerOutput.outputs === 'object') {
-                        const innerComponentOutputs = innerOutput.outputs as Record<string, any>;
-                        if (innerComponentOutputs.message && typeof innerComponentOutputs.message === 'object' && typeof innerComponentOutputs.message.message === 'string') {
-                            reply = innerComponentOutputs.message.message.trim();
-                        } else if (typeof innerComponentOutputs.text === 'string') {
-                            reply = innerComponentOutputs.text.trim();
+                        const innerOutput = firstOutputComponent.outputs[0];
+                        if (innerOutput && 
+                            innerOutput.results && 
+                            typeof innerOutput.results === 'object' && 
+                            innerOutput.results.message && 
+                            typeof innerOutput.results.message === 'object' && 
+                            typeof innerOutput.results.message.text === 'string') {
+                            
+                            reply = innerOutput.results.message.text.trim();
+                            if (reply === '') {
+                                reply = "Received an empty message from Bot.";
+                            }
+                        } else if (innerOutput && innerOutput.outputs && typeof innerOutput.outputs === 'object') {
+                            const innerComponentOutputs = innerOutput.outputs as Record<string, any>;
+                            if (innerComponentOutputs.message && typeof innerComponentOutputs.message === 'object' && typeof innerComponentOutputs.message.message === 'string') {
+                                reply = innerComponentOutputs.message.message.trim();
+                            } else if (typeof innerComponentOutputs.text === 'string') {
+                                reply = innerComponentOutputs.text.trim();
+                            }
                         }
                     }
                 }
-            }
-            
-            if (reply === "Sorry, I could not process that." && langflowResponse) {
-                 console.log("Primary extraction failed, attempting broader fallback...");
-                 if (Array.isArray(langflowResponse.outputs)) {
-                    for (const outputComponent of langflowResponse.outputs) {
-                        if (outputComponent && typeof outputComponent === 'object' && Array.isArray(outputComponent.outputs)) {
-                            for (const innerDocOutput of outputComponent.outputs) {
-                                if (innerDocOutput && typeof innerDocOutput === 'object') {
-                                    const componentOutputs = innerDocOutput.outputs as Record<string, any>;
-                                    if (componentOutputs && typeof componentOutputs.chat === 'string' && componentOutputs.chat.trim() !== '') {
-                                        reply = componentOutputs.chat.trim(); break;
-                                    }
-                                    if (componentOutputs && typeof componentOutputs.text === 'string' && componentOutputs.text.trim() !== '') {
-                                        reply = componentOutputs.text.trim(); break;
-                                    }
-                                    if (innerDocOutput.results && innerDocOutput.results.message && typeof innerDocOutput.results.message.text === 'string') {
-                                        reply = innerDocOutput.results.message.text.trim(); break;
-                                    }
-                                    if (innerDocOutput.artifacts && typeof innerDocOutput.artifacts.message === 'string') {
-                                        reply = innerDocOutput.artifacts.message.trim(); break;
+                
+                if (reply === "Sorry, I could not process that." && langflowResponse) {
+                     console.log("Primary extraction failed, attempting broader fallback...");
+                     if (Array.isArray(langflowResponse.outputs)) {
+                        for (const outputComponent of langflowResponse.outputs) {
+                            if (outputComponent && typeof outputComponent === 'object' && Array.isArray(outputComponent.outputs)) {
+                                for (const innerDocOutput of outputComponent.outputs) {
+                                    if (innerDocOutput && typeof innerDocOutput === 'object') {
+                                        const componentOutputs = innerDocOutput.outputs as Record<string, any>;
+                                        if (componentOutputs && typeof componentOutputs.chat === 'string' && componentOutputs.chat.trim() !== '') {
+                                            reply = componentOutputs.chat.trim(); break;
+                                        }
+                                        if (componentOutputs && typeof componentOutputs.text === 'string' && componentOutputs.text.trim() !== '') {
+                                            reply = componentOutputs.text.trim(); break;
+                                        }
+                                        if (innerDocOutput.results && innerDocOutput.results.message && typeof innerDocOutput.results.message.text === 'string') {
+                                            reply = innerDocOutput.results.message.text.trim(); break;
+                                        }
+                                        if (innerDocOutput.artifacts && typeof innerDocOutput.artifacts.message === 'string') {
+                                            reply = innerDocOutput.artifacts.message.trim(); break;
+                                        }
                                     }
                                 }
                             }
+                            if (reply !== "Sorry, I could not process that.") break;
                         }
-                        if (reply !== "Sorry, I could not process that.") break;
                     }
                 }
+
+                res.statusCode = 200; res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ reply: reply, sessionId: responseSessionId }));
             }
-
-            // Comment out extensive logging
-            // console.log("---- Full Langflow Response Start ----");
-            // console.log(JSON.stringify(langflowResponse, null, 2));
-            // console.log("---- Full Langflow Response End ----");
-            // console.log("Extracted reply before sending to client:", reply);
-            // console.log("Session ID from Langflow response:", responseSessionId);
-
-            res.statusCode = 200; res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ reply: reply, sessionId: responseSessionId }));
 
         } catch (error: any) {
             console.error("Error in /api/langflow:", error);
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: "Failed to process chat message.", detail: error.message || 'Unknown error' }));
+            // Ensure we don't try to set headers if they were already sent (e.g. in a failed stream attempt)
+            if (!res.headersSent) {
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: "Failed to process chat message.", detail: error.message || 'Unknown error' }));
+            }
         }
+    } else if (req.url === '/api/langflow/stream' && req.method === 'POST') {
+        // This else-if block for /api/langflow/stream should be removed.
+        // Its logic has been integrated into the /api/langflow block above.
+        // For now, let's make it a 404 or redirect, to avoid duplicate logic if called.
+        console.warn("/api/langflow/stream is deprecated. Use /api/langflow with 'stream: true' in the body.");
+        res.statusCode = 404;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: "Deprecated endpoint", detail: "Use /api/langflow with 'stream: true' in the request body." }));
     } else {
         res.statusCode = 404;
         res.setHeader('Content-Type', 'text/plain');
