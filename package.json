@@ -2,9 +2,12 @@
   "name": "langflow-chatbot",
   "version": "0.1.0",
   "description": "A Node.js package for interacting with Langflow using @datastax/langflow-client.",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build:tsc": "tsc",
+    "build:bundle": "esbuild src/index.ts --bundle --outfile=dist/langflow-chatbot.umd.js --format=iife --global-name=LangflowChatbot --platform=browser",
+    "build": "npm run build:tsc && npm run build:bundle",
     "test": "echo \"No tests specified\" && exit 0",
     "examples:basic": "ts-node examples/basic/server.ts"
   },
@@ -26,6 +29,9 @@
   "devDependencies": {
     "@types/ejs": "^3.1.5",
     "@types/node": "^22.15.18",
+    "@types/dotenv": "^8.2.0",
+    "dotenv": "^16.4.5",
+    "esbuild": "^0.25.4",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   }
