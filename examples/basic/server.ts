@@ -1,64 +1,45 @@
 import http from 'http';
 import path from 'path';
-import { readFile } from 'fs';
+// import { readFile } from 'fs'; // No longer needed here
 import { readFile as readFileAsync } from 'fs/promises';
 import ejs from 'ejs';
-import { LangflowClient } from '@datastax/langflow-client';
+// import { LangflowClient } from '@datastax/langflow-client'; // Will be used by the proxy service
 import dotenv from 'dotenv';
+import { LangflowProxyService, LangflowProxyConfig } from '../../src/langflow-proxy'; // Adjusted path
 
-// Load environment variables from .env file in the current directory (examples/basic/)
-// The path should be relative to where server.ts is executed, or use an absolute path if needed.
+// Load environment variables from .env file
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 const hostname = '127.0.0.1';
 const port = 3000;
 
+// Configuration for Langflow Proxy Service
 const langflowEndpointUrl = process.env.LANGFLOW_ENDPOINT_URL || 'http://127.0.0.1:7860';
-const langflowApiKeyFromEnv = process.env.LANGFLOW_API_KEY; // This can be undefined or an empty string
+const langflowApiKeyFromEnv = process.env.LANGFLOW_API_KEY; // Can be undefined
 const langflowDefaultFlowId = process.env.LANGFLOW_DEFAULT_FLOW_ID || 'YOUR_DEFAULT_FLOW_ID_PLACEHOLDER';
-const langflowIdFromEnv = process.env.LANGFLOW_ID; // A general Langflow ID, if provided for some contexts
+// const langflowIdFromEnv = process.env.LANGFLOW_ID; // This was not used for client/proxy, can be kept if used elsewhere or removed
 
-let langflowClient: LangflowClient;
+let langflowProxy: LangflowProxyService;
 
-const DATASTAX_LANGFLOW_URL = 'https://api.langflow.astra.datastax.com';
+const proxyConfig: LangflowProxyConfig = {
+    langflowEndpointUrl,
+    langflowApiKey: langflowApiKeyFromEnv,
+    langflowDefaultFlowId
+};
 
 try {
-    const clientConfig: { baseUrl: string; apiKey?: string } = {
-        baseUrl: langflowEndpointUrl
-    };
-
-    if (langflowApiKeyFromEnv && langflowApiKeyFromEnv.trim() !== '') {
-        // console.log('Using API key for Langflow authentication.'); // Commented out
-        clientConfig.apiKey = langflowApiKeyFromEnv;
-    } else {
-        // console.log('No API key provided or API key is empty. Langflow client will be initialized without it.'); // Commented out
-    }
-
-    // console.log("Attempting to initialize LangflowClient with options:", JSON.stringify(clientConfig)); // Commented out
-    langflowClient = new LangflowClient(clientConfig);
-    console.log(`LangflowClient initialized. Configured Endpoint: ${langflowEndpointUrl}, Flow ID for use: ${langflowDefaultFlowId}`);
-
+    langflowProxy = new LangflowProxyService(proxyConfig);
+    console.log(`Basic Server: LangflowProxyService initialized and ready.`);
 } catch (error) {
-    console.error("Failed to initialize LangflowClient:", error);
+    console.error("Basic Server: CRITICAL - Failed to initialize LangflowProxyService:", error);
+    // Optionally, exit if the proxy is essential and failed to initialize
+    // process.exit(1);
 }
 
-// Helper to parse JSON body
-async function parseJsonBody(req: http.IncomingMessage): Promise<any> {
-    return new Promise((resolve, reject) => {
-        let body = '';
-        req.on('data', chunk => {
-            body += chunk.toString();
-        });
-        req.on('end', () => {
-            try {
-                resolve(JSON.parse(body));
-            } catch (e) {
-                reject(new Error('Invalid JSON body'));
-            }
-        });
-        req.on('error', reject);
-    });
-}
+// const DATASTAX_LANGFLOW_URL = 'https://api.langflow.astra.datastax.com'; // Not used by client logic directly
+
+// Helper to parse JSON body is now in LangflowProxyService
+// async function parseJsonBody(req: http.IncomingMessage): Promise<any> { ... }
 
 const server = http.createServer(async (req, res) => {
     if (req.url === '/' || req.url === '/index') {
@@ -88,149 +69,16 @@ const server = http.createServer(async (req, res) => {
             console.error(`Error reading ${jsPath}:`, err);
         }
     } else if (req.url === '/api/langflow' && req.method === 'POST') {
-        if (!langflowClient) {
+        if (!langflowProxy) {
             res.statusCode = 503; // Service Unavailable
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: "LangflowClient not initialized. Check server logs." }));
+            res.end(JSON.stringify({ error: "LangflowProxyService not available. Check server startup logs." }));
             return;
         }
-        try {
-            const body = await parseJsonBody(req);
-            const userMessage = body.message;
-            const clientSessionId = body.sessionId;
-            const wantsStream = body.stream === true; // Check for the stream flag
-
-            if (!userMessage || typeof userMessage !== 'string') {
-                res.statusCode = 400; res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ error: "Message is required and must be a string." }));
-                return;
-            }
-
-            const runOptions: any = {
-                input_type: 'chat',
-                output_type: 'chat',
-                session_id: clientSessionId || undefined
-            };
-            
-            if (runOptions.session_id === undefined) {
-                delete runOptions.session_id;
-            }
-
-            const flow = langflowClient.flow(langflowDefaultFlowId);
-
-            if (wantsStream) {
-                // Streaming logic
-                console.log(`Streaming request for Langflow (${langflowDefaultFlowId}), session: ${runOptions.session_id || 'new'}, message: ${userMessage}`);
-                res.setHeader('Content-Type', 'application/x-ndjson');
-                res.setHeader('Transfer-Encoding', 'chunked');
-
-                try {
-                    const streamResponse = await flow.stream(userMessage, runOptions);
-                    for await (const event of streamResponse) {
-                        res.write(JSON.stringify(event) + '\n');
-                    }
-                    res.end();
-                } catch (streamError: any) {
-                    console.error("Error during Langflow stream:", streamError);
-                    if (!res.headersSent) {
-                        res.statusCode = 500;
-                        res.setHeader('Content-Type', 'application/json');
-                        res.end(JSON.stringify({ event: 'error', data: { message: "Failed to process stream.", detail: streamError.message || 'Unknown stream error' } }));
-                    } else {
-                        res.write(JSON.stringify({ event: 'error', data: { message: "Error during streaming.", detail: streamError.message || 'Unknown error on stream' } }) + '\n');
-                        res.end();
-                    }
-                }
-
-            } else {
-                // Non-streaming (existing) logic
-                if (clientSessionId) {
-                    console.log(`Received message for Langflow (${langflowDefaultFlowId}) from session: ${runOptions.session_id}, input_type: ${runOptions.input_type}, message: ${userMessage}`);
-                } else {
-                    console.log(`Received message for Langflow (${langflowDefaultFlowId}) (new session), input_type: ${runOptions.input_type}, message: ${userMessage}`);
-                }
-                
-                const langflowResponse = await flow.run(userMessage, runOptions);
-                const responseSessionId = langflowResponse.sessionId;
-                let reply = "Sorry, I could not process that.";
-
-                if (langflowResponse && 
-                    Array.isArray(langflowResponse.outputs) && 
-                    langflowResponse.outputs.length > 0) {
-                    
-                    const firstOutputComponent = langflowResponse.outputs[0];
-                    if (firstOutputComponent && 
-                        Array.isArray(firstOutputComponent.outputs) && 
-                        firstOutputComponent.outputs.length > 0) {
-                        
-                        const innerOutput = firstOutputComponent.outputs[0];
-                        if (innerOutput && 
-                            innerOutput.results && 
-                            typeof innerOutput.results === 'object' && 
-                            innerOutput.results.message && 
-                            typeof innerOutput.results.message === 'object' && 
-                            typeof innerOutput.results.message.text === 'string') {
-                            
-                            reply = innerOutput.results.message.text.trim();
-                            if (reply === '') {
-                                reply = "Received an empty message from Bot.";
-                            }
-                        } else if (innerOutput && innerOutput.outputs && typeof innerOutput.outputs === 'object') {
-                            const innerComponentOutputs = innerOutput.outputs as Record<string, any>;
-                            if (innerComponentOutputs.message && typeof innerComponentOutputs.message === 'object' && typeof innerComponentOutputs.message.message === 'string') {
-                                reply = innerComponentOutputs.message.message.trim();
-                            } else if (typeof innerComponentOutputs.text === 'string') {
-                                reply = innerComponentOutputs.text.trim();
-                            }
-                        }
-                    }
-                }
-                
-                if (reply === "Sorry, I could not process that." && langflowResponse) {
-                     console.log("Primary extraction failed, attempting broader fallback...");
-                     if (Array.isArray(langflowResponse.outputs)) {
-                        for (const outputComponent of langflowResponse.outputs) {
-                            if (outputComponent && typeof outputComponent === 'object' && Array.isArray(outputComponent.outputs)) {
-                                for (const innerDocOutput of outputComponent.outputs) {
-                                    if (innerDocOutput && typeof innerDocOutput === 'object') {
-                                        const componentOutputs = innerDocOutput.outputs as Record<string, any>;
-                                        if (componentOutputs && typeof componentOutputs.chat === 'string' && componentOutputs.chat.trim() !== '') {
-                                            reply = componentOutputs.chat.trim(); break;
-                                        }
-                                        if (componentOutputs && typeof componentOutputs.text === 'string' && componentOutputs.text.trim() !== '') {
-                                            reply = componentOutputs.text.trim(); break;
-                                        }
-                                        if (innerDocOutput.results && innerDocOutput.results.message && typeof innerDocOutput.results.message.text === 'string') {
-                                            reply = innerDocOutput.results.message.text.trim(); break;
-                                        }
-                                        if (innerDocOutput.artifacts && typeof innerDocOutput.artifacts.message === 'string') {
-                                            reply = innerDocOutput.artifacts.message.trim(); break;
-                                        }
-                                    }
-                                }
-                            }
-                            if (reply !== "Sorry, I could not process that.") break;
-                        }
-                    }
-                }
-
-                res.statusCode = 200; res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ reply: reply, sessionId: responseSessionId }));
-            }
-
-        } catch (error: any) {
-            console.error("Error in /api/langflow:", error);
-            // Ensure we don't try to set headers if they were already sent (e.g. in a failed stream attempt)
-            if (!res.headersSent) {
-                res.statusCode = 500;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ error: "Failed to process chat message.", detail: error.message || 'Unknown error' }));
-            }
-        }
+        // Delegate to the LangflowProxyService
+        await langflowProxy.handleRequest(req, res);
     } else if (req.url === '/api/langflow/stream' && req.method === 'POST') {
-        // This else-if block for /api/langflow/stream should be removed.
-        // Its logic has been integrated into the /api/langflow block above.
-        // For now, let's make it a 404 or redirect, to avoid duplicate logic if called.
+        // This endpoint is deprecated as its logic is merged into /api/langflow in the proxy.
         console.warn("/api/langflow/stream is deprecated. Use /api/langflow with 'stream: true' in the body.");
         res.statusCode = 404;
         res.setHeader('Content-Type', 'application/json');
@@ -247,7 +95,8 @@ server.listen(port, hostname, () => {
     if (!langflowDefaultFlowId || langflowDefaultFlowId === 'YOUR_DEFAULT_FLOW_ID_PLACEHOLDER') {
         console.warn("Reminder: LANGFLOW_DEFAULT_FLOW_ID is not set or is using the default placeholder. Update it with your actual Flow ID (environment variable LANGFLOW_DEFAULT_FLOW_ID).");
     }
-    if (!langflowClient) {
-        console.error("CRITICAL: LangflowClient failed to initialize. The /api/langflow endpoint will not work.");
+    if (!langflowProxy) {
+        // This check is redundant if the server exits on proxy init failure, but good for safety.
+        console.error("CRITICAL: LangflowProxyService failed to initialize. The /api/langflow endpoint will not work.");
     }
 }); 
