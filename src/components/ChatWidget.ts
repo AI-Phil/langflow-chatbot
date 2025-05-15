@@ -6,6 +6,7 @@ export class ChatWidget {
     private currentSessionId: string | null = null; // Added to store sessionId
     private streamToggle: HTMLInputElement | null = null; // For the stream toggle
     private currentBotMessageElement: HTMLElement | null = null; // To update during streaming
+    private sessionIdInput: HTMLInputElement | null = null; // Added for the session ID input field
 
     constructor(containerId: string, chatClient: LangflowChatClient) {
         const container = document.getElementById(containerId);
@@ -17,7 +18,15 @@ export class ChatWidget {
         }
         this.element = container;
         this.chatClient = chatClient;
-        this.render();
+        this.render(); // Render first to ensure session-id-input exists
+        
+        // Attempt to find the session ID input field from the document,
+        // as it's rendered by chatbot.ejs, not this component's render method.
+        this.sessionIdInput = document.getElementById('session-id-input') as HTMLInputElement | null;
+        
+        if (this.sessionIdInput && this.sessionIdInput.value.trim() !== '') {
+            this.currentSessionId = this.sessionIdInput.value.trim();
+        }
         // Optionally, you could try to load a sessionId from localStorage here if you want persistence across page loads
     }
 
@@ -67,6 +76,20 @@ export class ChatWidget {
 
         const useStream = this.streamToggle ? this.streamToggle.checked : true;
         
+        // Get session ID from input field if available, otherwise use currentSessionId
+        let sessionIdToSend: string | null = this.currentSessionId;
+        let sessionIdInputWasEmpty = true;
+        if (this.sessionIdInput) {
+            const sessionIdFromInput = this.sessionIdInput.value.trim();
+            if (sessionIdFromInput !== '') {
+                sessionIdToSend = sessionIdFromInput;
+                sessionIdInputWasEmpty = false;
+                if (this.currentSessionId !== sessionIdFromInput) { // User changed it
+                    this.currentSessionId = sessionIdFromInput;
+                }
+            }
+        }
+
         this.addMessageToDisplay("You", message);
         const currentMessage = message;
         chatInput.value = '';
@@ -90,7 +113,7 @@ export class ChatWidget {
             }, 500);
 
             try {
-                for await (const event of this.chatClient.streamMessage(currentMessage, this.currentSessionId)) {
+                for await (const event of this.chatClient.streamMessage(currentMessage, sessionIdToSend)) {
                     if (this.currentBotMessageElement && this.currentBotMessageElement.classList.contains('thinking')) {
                         // Clear "Thinking..." text if first token arrives or if stream ends with a reply
                         let shouldClearThinking = false;
@@ -114,6 +137,15 @@ export class ChatWidget {
                     }
 
                     switch (event.event) {
+                        case 'stream_started': // New event handler
+                            const startedData = event.data as StreamEventDataMap['stream_started'];
+                            if (startedData.sessionId) {
+                                this.currentSessionId = startedData.sessionId;
+                                if (this.sessionIdInput) {
+                                    this.sessionIdInput.value = this.currentSessionId;
+                                }
+                            }
+                            break;
                         case 'token':
                             const tokenData = event.data as StreamEventDataMap['token'];
                             accumulatedResponse += tokenData.chunk;
@@ -127,9 +159,18 @@ export class ChatWidget {
                             break;
                         case 'end':
                             const endData = event.data as StreamEventDataMap['end'];
-                            if (endData.flowResponse && endData.flowResponse.sessionId) {
-                                this.currentSessionId = endData.flowResponse.sessionId;
+                            // SessionId should ideally be set by 'stream_started' now.
+                            // This remains as a fallback or for completeness if needed, 
+                            // but primary update should happen on 'stream_started'.
+                            const sessionIdFromEndEvent: string | undefined = (endData.flowResponse?.sessionId) || (endData as any).sessionId;
+
+                            if (sessionIdFromEndEvent && !this.currentSessionId) { // Only if not already set by stream_started
+                                this.currentSessionId = sessionIdFromEndEvent;
+                                if (this.sessionIdInput) { 
+                                    this.sessionIdInput.value = this.currentSessionId; 
+                                }
                             }
+
                             if (accumulatedResponse.trim() === "" && endData.flowResponse && endData.flowResponse.reply) {
                                 if (this.currentBotMessageElement) {
                                     this.updateBotMessageContent(this.currentBotMessageElement, endData.flowResponse.reply);
@@ -181,11 +222,14 @@ export class ChatWidget {
             // Non-streaming logic
             const thinkingMsg = this.addMessageToDisplay("Bot", "Thinking...", true);
             try {
-                const botResponse: BotResponse = await this.chatClient.sendMessage(currentMessage, this.currentSessionId);
+                const botResponse: BotResponse = await this.chatClient.sendMessage(currentMessage, sessionIdToSend);
                 if(thinkingMsg) this.removeMessageElement(thinkingMsg);
 
                 if (botResponse.sessionId) {
                     this.currentSessionId = botResponse.sessionId;
+                    if (this.sessionIdInput) { // Always update the input field if it exists
+                        this.sessionIdInput.value = this.currentSessionId;
+                    }
                 }
                 if (botResponse.error) {
                     this.addMessageToDisplay("Error", `${botResponse.error}${botResponse.detail ? ": " + botResponse.detail : ""}`);

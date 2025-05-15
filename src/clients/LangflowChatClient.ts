@@ -20,6 +20,10 @@ export interface AddMessageEventData {
     // ... other fields
 }
 
+export interface StreamStartedEventData {
+    sessionId: string;
+}
+
 export interface EndEventData {
     // The 'end' event contains a full FlowResponse, which might be our BotResponse
     flowResponse: BotResponse;
@@ -29,8 +33,9 @@ export interface EndEventData {
 export interface StreamEventDataMap {
     add_message: AddMessageEventData;
     token: TokenEventData;
+    stream_started: StreamStartedEventData;
     end: EndEventData;
-    error: { message: string; detail?: string; code?: number }; // For stream-specific errors
+    error: { message: string; detail?: string; code?: number; sessionId?: string }; // Added sessionId for client errors
 }
 
 export type StreamEventType = keyof StreamEventDataMap;
@@ -47,13 +52,20 @@ export class LangflowChatClient {
         this.apiUrl = apiUrl;
     }
 
-    async sendMessage(message: string, sessionId?: string | null): Promise<BotResponse> {
-        try {
-            const requestBody: { message: string; sessionId?: string; stream?: boolean } = { message, stream: false };
-            if (sessionId) {
-                requestBody.sessionId = sessionId;
-            }
+    private generateSessionId(): string {
+        return crypto.randomUUID();
+    }
 
+    async sendMessage(message: string, sessionId?: string | null): Promise<BotResponse> {
+        const effectiveSessionId = sessionId || this.generateSessionId();
+
+        try {
+            const requestBody: { message: string; sessionId?: string; stream?: boolean } = { 
+                message, 
+                sessionId: effectiveSessionId, 
+                stream: false 
+            };
+            
             const response = await fetch(this.apiUrl, {
                 method: 'POST',
                 headers: {
@@ -73,24 +85,35 @@ export class LangflowChatClient {
                 return { 
                     error: errorData.error || `API request failed: ${response.statusText}`,
                     detail: errorData.detail,
-                    sessionId: errorData.sessionId
+                    sessionId: errorData.sessionId || effectiveSessionId // Ensure SID is returned
                 };
             }
-            return await response.json() as BotResponse;
+            // Ensure the response always includes the session ID we used or that the server confirmed.
+            const responseData = await response.json() as BotResponse;
+            responseData.sessionId = responseData.sessionId || effectiveSessionId;
+            return responseData;
+
         } catch (error: any) {
             console.error("Failed to send message or parse response:", error);
             return {
                 error: "Network error or invalid response from server.",
-                detail: error.message || 'Unknown fetch error'
+                detail: error.message || 'Unknown fetch error',
+                sessionId: effectiveSessionId // Return the sessionId used, even on error
             };
         }
     }
 
     async *streamMessage(message: string, sessionId?: string | null): AsyncGenerator<StreamEvent, void, undefined> {
-        const requestBody: { message: string; sessionId?: string; stream: boolean } = { message, stream: true };
-        if (sessionId) {
-            requestBody.sessionId = sessionId;
-        }
+        const effectiveSessionId = sessionId || this.generateSessionId();
+
+        // Yield the session ID immediately
+        yield { event: 'stream_started', data: { sessionId: effectiveSessionId } };
+
+        const requestBody: { message: string; sessionId?: string; stream: boolean } = { 
+            message, 
+            sessionId: effectiveSessionId, 
+            stream: true 
+        };
 
         try {
             const response = await fetch(this.apiUrl, {
@@ -105,23 +128,42 @@ export class LangflowChatClient {
             if (!response.ok) {
                 let errorData: BotResponse = { error: `API request failed with status ${response.status}` };
                 try {
-                    const errJson = await response.json();
+                    const errJson = await response.json(); // Error might be JSON
                     errorData = {
                         error: errJson.error || `API request failed: ${response.statusText}`,
                         detail: errJson.detail,
-                        sessionId: errJson.sessionId
+                        sessionId: errJson.sessionId || effectiveSessionId // Ensure SID in error data
                     };
                 } catch (e) {
                     errorData.detail = response.statusText;
+                    errorData.sessionId = effectiveSessionId; // Ensure SID if error parsing failed
                 }
                 console.error("API Stream Error:", response.status, errorData);
-                yield { event: 'error', data: { message: errorData.error!, detail: errorData.detail, code: response.status } };
+                // Yield a custom error event that includes the session ID
+                yield {
+                    event: 'error',
+                    data: { 
+                        message: errorData.error!,
+                        detail: errorData.detail,
+                        code: response.status,
+                        // Custom addition for LangflowChatClient: include sessionId in error event data
+                        // @ts-ignore (extending the error data type on the fly for this client)
+                        sessionId: effectiveSessionId
+                    }
+                } as StreamEvent<'error'>;
                 return;
             }
 
             if (!response.body) {
                 console.error("Response body is null");
-                yield { event: 'error', data: { message: "Response body is null" } };
+                yield { 
+                    event: 'error', 
+                    data: { 
+                        message: "Response body is null", 
+                        // @ts-ignore
+                        sessionId: effectiveSessionId 
+                    }
+                } as StreamEvent<'error'>;
                 return;
             }
 
@@ -145,10 +187,28 @@ export class LangflowChatClient {
                     const trimmedLine = line.trim();
                     if (trimmedLine.length > 0) {
                         try {
-                            yield JSON.parse(trimmedLine) as StreamEvent;
+                            let parsedEvent = JSON.parse(trimmedLine) as StreamEvent;
+                            if (parsedEvent.event === 'end') {
+                                // Ensure the session ID in the end event is the one we used/generated
+                                if (parsedEvent.data && (parsedEvent.data as EndEventData).flowResponse) {
+                                    (parsedEvent.data as EndEventData).flowResponse.sessionId = effectiveSessionId;
+                                } else if (parsedEvent.data) {
+                                     // If flowResponse is not there, add sessionId directly to data
+                                    (parsedEvent.data as any).sessionId = effectiveSessionId;
+                                }
+                            }
+                            yield parsedEvent;
                         } catch (e: any) {
                             console.error(`[Stream] Error parsing line:`, JSON.stringify(trimmedLine), e);
-                            yield { event: 'error', data: { message: `Failed to parse JSON line`, detail: e.message } };
+                            yield { 
+                                event: 'error', 
+                                data: { 
+                                    message: `Failed to parse JSON line`, 
+                                    detail: e.message,
+                                    // @ts-ignore
+                                    sessionId: effectiveSessionId 
+                                }
+                            } as StreamEvent<'error'>;
                         }
                     }
                 }
@@ -156,14 +216,50 @@ export class LangflowChatClient {
                 if (done) {
                     const lastChunk = decoder.decode();
                     if (lastChunk && lastChunk.length > 0) {
-                        buffer += lastChunk;
+                        buffer += lastChunk; // Process any remaining content in the buffer
+                        const finalLines = buffer.split('\n');
+                        for (const finalLine of finalLines) {
+                            const trimmedFinalLine = finalLine.trim();
+                            if (trimmedFinalLine.length > 0) {
+                                try {
+                                    let parsedEvent = JSON.parse(trimmedFinalLine) as StreamEvent;
+                                    if (parsedEvent.event === 'end') {
+                                        if (parsedEvent.data && (parsedEvent.data as EndEventData).flowResponse) {
+                                            (parsedEvent.data as EndEventData).flowResponse.sessionId = effectiveSessionId;
+                                        } else if (parsedEvent.data) {
+                                            (parsedEvent.data as any).sessionId = effectiveSessionId;
+                                        }
+                                    }
+                                    yield parsedEvent;
+                                } catch (e: any) {
+                                    console.error(`[Stream] Error parsing final line:`, JSON.stringify(trimmedFinalLine), e);
+                                    yield { 
+                                        event: 'error', 
+                                        data: { 
+                                            message: `Failed to parse final JSON line`, 
+                                            detail: e.message,
+                                            // @ts-ignore
+                                            sessionId: effectiveSessionId
+                                        }
+                                    } as StreamEvent<'error'>;
+                                }
+                            }
+                        }
                     }
                     break; 
                 }
             }
         } catch (error: any) {
             console.error("[Stream] Network or other error during streaming:", error);
-            yield { event: 'error', data: { message: "Network error or other issue during streaming.", detail: error.message || 'Unknown fetch error' } };
+            yield { 
+                event: 'error', 
+                data: { 
+                    message: "Network error or other issue during streaming.", 
+                    detail: error.message || 'Unknown fetch error',
+                    // @ts-ignore
+                    sessionId: effectiveSessionId
+                }
+            } as StreamEvent<'error'>;
         }
     }
 } 
