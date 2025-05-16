@@ -1,0 +1,86 @@
+<div>
+  <h1>User Management</h1>
+  <p>Enter your User ID to save it to a cookie. The (optional) User ID will be used to identify you in the chatbot.</p>
+  <label for="userid">User ID:</label>
+  <input type="text" id="useridInput" name="userid" placeholder="Enter your User ID">
+  <button id="saveUseridButton">Save User ID</button>
+  <button id="clearUseridButton">Clear User ID</button>
+</div>
+<p>Current User ID (from cookie): <span id="currentUseridDisplay">Not set</span></p>
+
+<script>
+  function setCookie(name, value, days) {
+    let expires = "";
+    if (days) {
+      const date = new Date();
+      date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+      expires = "; expires=" + date.toUTCString();
+    }
+    document.cookie = name + "=" + (value || "")  + expires + "; path=/";
+  }
+
+  function getCookie(name) {
+    const nameEQ = name + "=";
+    const ca = document.cookie.split(';');
+    for(let i = 0; i < ca.length; i++) {
+      let c = ca[i];
+      while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+      if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+    }
+    return null;
+  }
+
+  function deleteCookie(name) {
+    document.cookie = name + '=; Max-Age=-99999999; path=/;';
+  }
+
+  // Ensure the script runs after the DOM is fully loaded, even if the partial is loaded asynchronously
+  // or at different points. For partials, it's often safer to ensure elements exist directly
+  // or rely on the main document's DOMContentLoaded if the script isn't at the very end.
+  // However, since this script is now *with* its HTML, DOMContentLoaded is appropriate.
+  document.addEventListener('DOMContentLoaded', () => {
+    const useridInput = document.getElementById('useridInput');
+    const saveUseridButton = document.getElementById('saveUseridButton');
+    const clearUseridButton = document.getElementById('clearUseridButton');
+    const currentUseridDisplay = document.getElementById('currentUseridDisplay');
+
+    // It's possible these elements might not be found if the script executes too early
+    // relative to its own partial's rendering within the main page, though usually
+    // script tags at the end of a block of HTML are fine.
+    // Adding checks just in case of complex rendering scenarios.
+    if (!useridInput || !saveUseridButton || !clearUseridButton || !currentUseridDisplay) {
+        console.error("UserID partial elements not found, script might be misplaced or DOM not ready.");
+        return;
+    }
+
+    const existingUserid = getCookie('app_userid');
+    if (existingUserid) {
+      useridInput.value = existingUserid;
+      currentUseridDisplay.textContent = existingUserid;
+    }
+
+    saveUseridButton.addEventListener('click', () => {
+      const useridValue = useridInput.value.trim();
+      if (useridValue) {
+        setCookie('app_userid', useridValue, 7);
+        currentUseridDisplay.textContent = useridValue;
+      } else {
+        alert('Please enter a User ID.');
+      }
+    });
+
+    clearUseridButton.addEventListener('click', () => {
+      deleteCookie('app_userid');
+      useridInput.value = '';
+      currentUseridDisplay.textContent = 'Not set';
+    });
+
+    // Add event listener for Enter key on the input field
+    useridInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.keyCode === 13) {
+        event.preventDefault(); // Prevent default Enter key behavior (e.g., form submission)
+        saveUseridButton.click(); // Programmatically click the save button
+      }
+    });
+  });
+</script> 
