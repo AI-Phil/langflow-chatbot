@@ -64,6 +64,8 @@
       if (useridValue) {
         setCookie('app_userid', useridValue, 7);
         currentUseridDisplay.textContent = useridValue;
+        // Dispatch custom event
+        document.dispatchEvent(new CustomEvent('appUseridChanged', { detail: { userid: useridValue } }));
       } else {
         alert('Please enter a User ID.');
       }
@@ -73,6 +75,8 @@
       deleteCookie('app_userid');
       useridInput.value = '';
       currentUseridDisplay.textContent = 'Not set';
+      // Dispatch custom event
+      document.dispatchEvent(new CustomEvent('appUseridChanged', { detail: { userid: null } }));
     });
 
     // Add event listener for Enter key on the input field

@@ -1,5 +1,9 @@
 <section id="chatbot-section">
     <h1>Chatbot</h1>
+    <div id="chatbot-userid-display-container">
+        <label>Chatbot User ID:</label>
+        <span id="chatbot-userid-display">Loading...</span>
+    </div>
     <div id="session-id-controls">
         <label for="session-id-input">Session ID:</label>
         <input type="text" id="session-id-input" placeholder="Optional: Enter Session ID">
@@ -8,7 +12,95 @@
 </section> 
 <script src="/static/langflow-chatbot.js"></script>
 <script>
+  // Cookie helper functions
+  function setCookie(name, value, days) {
+    let expires = "";
+    if (days) {
+      const date = new Date();
+      date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+      expires = "; expires=" + date.toUTCString();
+    }
+    document.cookie = name + "=" + (value || "")  + expires + "; path=/";
+  }
+
+  function getCookie(name) {
+    const nameEQ = name + "=";
+    const ca = document.cookie.split(';');
+    for(let i = 0; i < ca.length; i++) {
+      let c = ca[i];
+      while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+      if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+    }
+    return null;
+  }
+
+  // Simple UUID generator
+  function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
+    // Manage chatbot_userid cookie
+    const appUserid = getCookie('app_userid');
+    let chatbotUserid = getCookie('chatbot_userid');
+
+    if (appUserid) {
+      if (!chatbotUserid || chatbotUserid !== appUserid) {
+        setCookie('chatbot_userid', appUserid, 365); // Align with app_userid
+        chatbotUserid = appUserid; // Update for current session use
+        console.log('Chatbot User ID set/updated from app_userid:', appUserid);
+      }
+    } else {
+      if (!chatbotUserid) {
+        const newChatbotUserid = generateUUID();
+        setCookie('chatbot_userid', newChatbotUserid, 365);
+        chatbotUserid = newChatbotUserid; // Update for current session use
+        console.log('New Chatbot User ID generated:', newChatbotUserid);
+      }
+    }
+    // You can now use the 'chatbotUserid' variable if needed immediately by the client script.
+    // For example, if LangflowChatClient or ChatWidget needs it during initialization.
+
+    // Display the Chatbot User ID
+    const displayElement = document.getElementById('chatbot-userid-display');
+    if (displayElement && chatbotUserid) {
+      displayElement.textContent = chatbotUserid;
+    } else if (displayElement) {
+      displayElement.textContent = 'Not set'; // Should not happen if logic is correct
+    }
+
+    // Listen for app_userid changes
+    document.addEventListener('appUseridChanged', (event) => {
+      const newAppUserid = event.detail.userid;
+      let currentChatbotUserid = getCookie('chatbot_userid'); // Get the latest from cookie
+      const displayElem = document.getElementById('chatbot-userid-display');
+
+      console.log('appUseridChanged event received in chatbot partial. New app_userid:', newAppUserid, 'Current chatbot_userid:', currentChatbotUserid);
+
+      if (newAppUserid) { // app_userid is set or changed to a new value
+        if (currentChatbotUserid !== newAppUserid) {
+          setCookie('chatbot_userid', newAppUserid, 365);
+          currentChatbotUserid = newAppUserid; // Update local var for display consistency
+          if (displayElem) {
+            displayElem.textContent = newAppUserid;
+          }
+          console.log('Chatbot User ID dynamically updated from app_userid:', newAppUserid);
+        }
+      } else {
+        // app_userid was cleared. Generate a new chatbot_userid.
+        const newGeneratedChatbotUserid = generateUUID();
+        setCookie('chatbot_userid', newGeneratedChatbotUserid, 365);
+        currentChatbotUserid = newGeneratedChatbotUserid; // Update local var for display consistency
+        if (displayElem) {
+          displayElem.textContent = newGeneratedChatbotUserid;
+        }
+        console.log('app_userid cleared. New Chatbot User ID generated:', newGeneratedChatbotUserid);
+      }
+    });
+
     try {
       // Ensure LangflowChatbot global object and its properties are available
       if (window.LangflowChatbot && window.LangflowChatbot.LangflowChatClient && window.LangflowChatbot.ChatWidget) {
