@@ -12,6 +12,111 @@ export interface ChatWidgetConfigOptions {
     // Future: Add HTML template strings or functions here
 }
 
+const DEFAULT_STYLES = `
+.chat-widget {
+    display: flex;
+    flex-direction: column;
+    height: 70vh; 
+    max-height: 500px; 
+    background-color: #fff; 
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+    border-radius: 8px;
+}
+
+.chat-messages {
+    flex-grow: 1; 
+    overflow-y: auto; 
+    padding: 10px; 
+    border-bottom: 1px solid #e0e0e0; 
+}
+
+.message-block {
+    margin-bottom: 15px;
+    padding: 5px 10px;
+    display: flex;
+    flex-direction: column;
+}
+
+.user-message.message-block {
+    align-items: flex-end;
+}
+
+.bot-message.message-block {
+    align-items: flex-start;
+}
+
+.sender-name-display {
+    font-size: 0.8em;
+    color: #555;
+    margin-bottom: 3px;
+}
+
+.message-bubble {
+    padding: 10px 14px;
+    border-radius: 18px;
+    display: inline-block;
+    max-width: 85%;
+    line-height: 1.4;
+}
+
+.user-message .message-bubble {
+    background-color: #007bff;
+    color: white;
+    border-bottom-right-radius: 6px;
+}
+
+.bot-message .message-bubble {
+    background-color: #f0f0f0;
+    color: #333;
+    border-bottom-left-radius: 6px;
+}
+
+.message-bubble .message-text-content {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.chat-input-area {
+    display: flex;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-top: 1px solid #e0e0e0;
+}
+
+.chat-input {
+    flex-grow: 1;
+    border: 1px solid #ced4da;
+    border-radius: 18px;
+    padding: 10px 15px;
+    font-size: 1rem;
+    margin-right: 8px;
+    outline: none;
+    transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+.chat-input:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}
+
+.send-button {
+    border: none;
+    background-color: #007bff;
+    color: white;
+    padding: 10px 15px;
+    border-radius: 18px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out;
+}
+.send-button:hover {
+    background-color: #0056b3;
+}
+.send-button:disabled {
+    background-color: #a0a0a0;
+    cursor: not-allowed;
+}
+`;
+
 // Define default templates
 const DEFAULT_MAIN_CONTAINER_TEMPLATE = `
     <div class="chat-widget">
@@ -31,7 +136,7 @@ const DEFAULT_INPUT_AREA_TEMPLATE = `
 
 const DEFAULT_MESSAGE_TEMPLATE = `
     <div class="{{messageClasses}}">
-        <strong>{{sender}}:</strong> 
+        <!-- <strong>{{sender}}:</strong> -->
         <span class="message-text-content" style="white-space: pre-wrap;">{{message}}</span>
     </div>
 `;
@@ -45,6 +150,8 @@ export class ChatWidget {
     private sessionIdInput: HTMLInputElement | null = null;
     private config: Required<ChatWidgetConfigOptions>;
     
+    private static stylesInjected: boolean = false;
+
     private flowId: string | null = null; // This will be the resolved UUID
     private flowName: string | null = null;
     private flowEndpointName: string | null = null;
@@ -83,7 +190,8 @@ export class ChatWidget {
             messageTemplate: configOptions.messageTemplate || DEFAULT_MESSAGE_TEMPLATE,
         };
         
-        this._validateAndPrepareTemplates(); // Call validation early
+        this._ensureStylesInjected();
+        this._validateAndPrepareTemplates();
 
         this.render(); // Render first to ensure session-id-input exists
         
@@ -94,6 +202,19 @@ export class ChatWidget {
         }
 
         this._resolveFlowAndInitialize(inputFlowIdOrName);
+    }
+
+    private _ensureStylesInjected(): void {
+        if (!ChatWidget.stylesInjected) {
+            try {
+                const styleElement = document.createElement('style');
+                styleElement.textContent = DEFAULT_STYLES;
+                document.head.appendChild(styleElement);
+                ChatWidget.stylesInjected = true;
+            } catch (error) {
+                console.error("ChatWidget: Failed to inject default styles.", error);
+            }
+        }
     }
 
     private _validateAndPrepareTemplates(): void {
