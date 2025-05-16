@@ -71,6 +71,48 @@ const DEFAULT_STYLES = `
     border-bottom-left-radius: 6px;
 }
 
+/* Styles for the thinking bubble */
+.thinking-bubble {
+    display: inline-block;
+    padding: 10px 14px; /* Adjusted padding to better fit dots */
+    background-color: #f0f0f0; /* Consistent with bot messages */
+    border-radius: 18px;
+    border-bottom-left-radius: 6px; /* Consistent with bot messages */
+    line-height: 1; /* Adjusted for better vertical alignment of dots */
+}
+
+.thinking-bubble span.dot {
+    display: inline-block;
+    width: 8px; /* Slightly larger dots */
+    height: 8px; /* Slightly larger dots */
+    background-color: #888; 
+    border-radius: 50%;
+    margin: 0 2px; /* Spacing between dots */
+    animation: pensee 1.4s infinite both;
+}
+
+.thinking-bubble span.dot:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.thinking-bubble span.dot:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+/* Removed .thinking-bubble span:nth-child(3) { animation-delay: 0s; } as it's the default */
+
+@keyframes pensee {
+    0%, 80%, 100% {
+        transform: scale(0);
+        opacity: 0;
+    }
+    40% {
+        transform: scale(1.0);
+        opacity: 1;
+    }
+}
+/* End of thinking bubble styles */
+
 .message-bubble .message-text-content {
     white-space: pre-wrap;
     word-wrap: break-word;
@@ -465,22 +507,27 @@ export class ChatWidget {
 
         this.currentBotMessageElement = null;
 
+        const thinkingBubbleHTML = '<div class="thinking-bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
+
         if (useStream) {
-            this.currentBotMessageElement = this.addMessageToDisplay(this.config.botSender, "", true); // Add 'thinking' class
+            this.currentBotMessageElement = this.addMessageToDisplay(this.config.botSender, thinkingBubbleHTML, true); // Add 'thinking' class and bubble
             let accumulatedResponse = "";
-            let thinkingText = "Thinking";
-            let dotCount = 0;
-            const thinkingInterval = setInterval(() => {
-                dotCount = (dotCount + 1) % 4;
-                if (this.currentBotMessageElement && accumulatedResponse.length === 0 && this.currentBotMessageElement.classList.contains('thinking')) {
-                    this.updateBotMessageContent(this.currentBotMessageElement, `${thinkingText}${'.'.repeat(dotCount)}`);
-                }
-            }, 500);
 
             try {
-                for await (const event of this.chatClient.streamMessage(currentMessage, this.flowId, sessionIdToSend)) {
+                for await (const event of this.chatClient.streamMessage(currentMessage, this.flowId!, sessionIdToSend)) {
+                    if (event.event === 'stream_started') {
+                        const startData = event.data as StreamEventDataMap['stream_started'];
+                        if (startData.sessionId && !this.currentSessionId) { // Check if currentSessionId is not already set
+                            this.currentSessionId = startData.sessionId;
+                             if (this.sessionIdInput) { 
+                                this.sessionIdInput.value = this.currentSessionId; 
+                            }
+                        }
+                        continue; // Skip to next event
+                    }
+
                     if (this.currentBotMessageElement && this.currentBotMessageElement.classList.contains('thinking')) {
-                        // Clear "Thinking..." text if first token arrives or if stream ends with a reply
+                        // Clear "Thinking..." bubble if first token arrives or if stream ends with a reply
                         let shouldClearThinking = false;
                         if (event.event === 'token' && (event.data as StreamEventDataMap['token']).chunk.length > 0) {
                             shouldClearThinking = true;
@@ -502,25 +549,39 @@ export class ChatWidget {
                     }
 
                     switch (event.event) {
-                        case 'stream_started': // New event handler
-                            const startedData = event.data as StreamEventDataMap['stream_started'];
-                            if (startedData.sessionId) {
-                                this.currentSessionId = startedData.sessionId;
-                                if (this.sessionIdInput) {
-                                    this.sessionIdInput.value = this.currentSessionId;
-                                }
-                            }
-                            break;
                         case 'token':
                             const tokenData = event.data as StreamEventDataMap['token'];
                             accumulatedResponse += tokenData.chunk;
                             if (this.currentBotMessageElement) {
-                                this.updateBotMessageContent(this.currentBotMessageElement, accumulatedResponse);
+                                // Append new content; ensure it's appended, not replacing existing if already cleared from thinking
+                                const textContentSpan = this.currentBotMessageElement.querySelector('.message-text-content');
+                                if (textContentSpan) {
+                                    textContentSpan.innerHTML += tokenData.chunk; // Use innerHTML for consistency, though textContent might be fine here
+                                } else {
+                                     this.updateBotMessageContent(this.currentBotMessageElement, accumulatedResponse); // Fallback
+                                }
+                            }
+                            break;
+                        case 'error':
+                            const errorData = event.data as StreamEventDataMap['error'];
+                            console.error("Streaming Error:", errorData.message, errorData.detail);
+                            if (this.currentBotMessageElement && !this.currentBotMessageElement.classList.contains('error-message')) {
+                                // If current message element is not already an error, transform it or add new
+                                this.updateBotMessageContent(this.currentBotMessageElement, `Error: ${errorData.message}`);
+                                this.currentBotMessageElement.classList.remove('bot-message', 'thinking'); // Remove bot specific classes
+                                this.currentBotMessageElement.classList.add('error-message'); // Add error class for styling
+                            } else if (!this.currentBotMessageElement) { // If no current message element, add a new error message
+                                this.addMessageToDisplay(this.config.errorSender, `Error: ${errorData.message}${errorData.detail ? " Details: " + JSON.stringify(errorData.detail) : ""}`);
                             }
                             break;
                         case 'add_message':
-                            // const addMessageData = event.data as StreamEventDataMap['add_message'];
-                            // console.log("ChatWidget: Stream event 'add_message':", addMessageData);
+                            const addMessageData = event.data as StreamEventDataMap['add_message'];
+                            // Handle additional messages if needed, perhaps system messages or mid-stream updates
+                            if (addMessageData && typeof addMessageData.message === 'string' && addMessageData.message.trim() !== '') {
+                                this.addMessageToDisplay(this.config.systemSender, addMessageData.message);
+                            } else {
+                                console.warn("ChatWidget: Received 'add_message' event with missing, undefined, or empty message content. Event data:", event.data);
+                            }
                             break;
                         case 'end':
                             const endData = event.data as StreamEventDataMap['end'];
@@ -539,52 +600,56 @@ export class ChatWidget {
                                 }
                             } else if (accumulatedResponse.trim() === "") {
                                 if (this.currentBotMessageElement) {
-                                    this.updateBotMessageContent(this.currentBotMessageElement, "(empty response)");
+                                    // If it was a thinking bubble and still is, and no content, make it (empty response)
+                                    if(this.currentBotMessageElement.classList.contains('thinking')) {
+                                        this.updateBotMessageContent(this.currentBotMessageElement, "(empty response)");
+                                        this.currentBotMessageElement.classList.remove('thinking');
+                                    } else if (this.currentBotMessageElement.querySelector('.message-text-content')?.innerHTML.trim() === "") {
+                                        // If it was cleared but no tokens came, also show (empty response)
+                                         this.updateBotMessageContent(this.currentBotMessageElement, "(empty response)");
+                                    }
                                 }
                             }
                             // Ensure thinking class is removed if somehow still present
                             if (this.currentBotMessageElement && this.currentBotMessageElement.classList.contains('thinking')) {
                                  this.currentBotMessageElement.classList.remove('thinking');
+                                 // If it was cleared to empty but was thinking, make sure it's not just an empty bubble
+                                 if (this.currentBotMessageElement.querySelector('.message-text-content')?.innerHTML.trim() === "") {
+                                     this.updateBotMessageContent(this.currentBotMessageElement, "(empty response)");
+                                 }
                             }
                             break;
-                        case 'error':
-                            const errorData = event.data as StreamEventDataMap['error'];
-                            console.error('ChatWidget: Stream error event:', errorData);
-                            if (this.currentBotMessageElement) {
-                                this.updateBotMessageContent(this.currentBotMessageElement, `Error: ${errorData.message || 'Stream error'}`);
-                                this.currentBotMessageElement.classList.add('error-message');
-                                this.currentBotMessageElement.classList.remove('bot-message', 'thinking');
-                            } else {
-                                this.addMessageToDisplay(this.config.errorSender, `Stream Error: ${errorData.message || 'Unknown stream error'}${errorData.detail ? ": " + errorData.detail : ""}`);
-                            }
-                            break;
+                        default:
+                            console.warn("ChatWidget: Received unknown stream event type: " + (event as StreamEvent<StreamEventType>).event);
                     }
                 }
             } catch (error: any) {
-                console.error("ChatWidget: Failed to process stream:", error);
-                if (this.currentBotMessageElement) {
-                    this.updateBotMessageContent(this.currentBotMessageElement, `Error: ${error.message || 'Streaming failed'}`);
+                console.error("Failed to process stream message:", error);
+                 if (this.currentBotMessageElement && this.currentBotMessageElement.classList.contains('thinking')) {
+                    this.updateBotMessageContent(this.currentBotMessageElement, "Error processing stream.");
+                    this.currentBotMessageElement.classList.remove('thinking');
                     this.currentBotMessageElement.classList.add('error-message');
-                    this.currentBotMessageElement.classList.remove('bot-message', 'thinking');
                 } else {
-                    this.addMessageToDisplay(this.config.errorSender, `Streaming communication error: ${error.message || 'Unknown error'}`);
+                    this.addMessageToDisplay(this.config.errorSender, `Stream processing error: ${error.message || 'Unknown error'}`);
                 }
             } finally {
-                clearInterval(thinkingInterval);
                  if (this.currentBotMessageElement && this.currentBotMessageElement.classList.contains('thinking')) {
                     this.currentBotMessageElement.classList.remove('thinking');
                     // If still empty and not an error, indicate no content
-                    const messageSpan = this.currentBotMessageElement.querySelector('span');
-                    if(messageSpan && messageSpan.textContent === "" && !this.currentBotMessageElement.classList.contains('error-message')){
+                    const messageSpan = this.currentBotMessageElement.querySelector('.message-text-content');
+                    if(messageSpan && messageSpan.innerHTML.trim() === "" && !this.currentBotMessageElement.classList.contains('error-message')){ // Check innerHTML
+                        this.updateBotMessageContent(this.currentBotMessageElement, "(No content streamed)");
+                    } else if (messageSpan && messageSpan.innerHTML.includes('thinking-bubble') && !this.currentBotMessageElement.classList.contains('error-message')) {
+                        // If the bubble is still there, replace it.
                         this.updateBotMessageContent(this.currentBotMessageElement, "(No content streamed)");
                     }
                 }
             }
         } else {
             // Non-streaming logic
-            const thinkingMsg = this.addMessageToDisplay(this.config.botSender, "Thinking...", true);
+            const thinkingMsg = this.addMessageToDisplay(this.config.botSender, thinkingBubbleHTML, true);
             try {
-                const botResponse: BotResponse = await this.chatClient.sendMessage(currentMessage, this.flowId, sessionIdToSend);
+                const botResponse: BotResponse = await this.chatClient.sendMessage(currentMessage, this.flowId!, sessionIdToSend);
                 if(thinkingMsg) this.removeMessageElement(thinkingMsg);
 
                 if (botResponse.sessionId) {
@@ -662,19 +727,23 @@ export class ChatWidget {
         return null;
     }
 
-    private updateBotMessageContent(messageElement: HTMLElement, text: string): void {
-        const messageSpan = messageElement.querySelector('.message-text-content'); // Updated selector
-        if (messageSpan) {
-            messageSpan.textContent = text;
+    private updateBotMessageContent(messageElement: HTMLElement, htmlOrText: string): void {
+        const textContentSpan = messageElement.querySelector('.message-text-content');
+        if (textContentSpan) {
+            textContentSpan.innerHTML = htmlOrText; // Use innerHTML to support rich content like the thinking bubble
         } else {
-            // Fallback if the specific span isn't found, though template should ensure it exists.
-            // This might happen if user provides a template without .message-text-content
-            console.warn("ChatWidget: .message-text-content span not found in message element for update. Updating entire element.");
-            messageElement.textContent = text; // Less ideal, might strip sender name if template is complex
-        }
-        const chatMessages = this.element.querySelector('.chat-messages');
-        if (chatMessages) {
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+            // Fallback if the specific span isn't found
+            let mainContentArea = messageElement.firstElementChild as HTMLElement || messageElement;
+            if(mainContentArea.classList.contains('sender-name-display')){ 
+                mainContentArea = mainContentArea.nextElementSibling as HTMLElement || messageElement;
+            }
+            // Ensure we are not trying to set innerHTML on a null or undefined element
+            if (mainContentArea) {
+                mainContentArea.innerHTML = htmlOrText; // Use innerHTML here too
+            } else {
+                 messageElement.innerHTML = htmlOrText; // Last resort, replace entire content of messageElement
+            }
+            // console.warn("ChatWidget: '.message-text-content' span not found in message element. Using fallback for content update. This might indicate an issue with your custom messageTemplate.");
         }
     }
 
