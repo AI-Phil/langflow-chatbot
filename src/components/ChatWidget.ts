@@ -7,9 +7,16 @@ export class ChatWidget {
     private enableStream: boolean; // For the stream toggle
     private currentBotMessageElement: HTMLElement | null = null; // To update during streaming
     private sessionIdInput: HTMLInputElement | null = null; // Added for the session ID input field
-    private flowId: string;
+    
+    // New class members for resolved flow details
+    private flowId: string | null = null; // This will be the resolved UUID
+    private flowName: string | null = null;
+    private flowEndpointName: string | null = null;
 
-    constructor(containerId: string, chatClient: LangflowChatClient, flowId: string, enableStream: boolean = true) {
+    private isHistoryLoaded: boolean = false;
+    private isResolvingFlow: boolean = false;
+
+    constructor(containerId: string, chatClient: LangflowChatClient, inputFlowIdOrName: string, enableStream: boolean = true) {
         const container = document.getElementById(containerId);
         if (!container) {
             throw new Error(`Container with id #${containerId} not found.`);
@@ -17,27 +24,125 @@ export class ChatWidget {
         if (!chatClient) {
             throw new Error('LangflowChatClient instance is required.');
         }
-        if (!flowId || typeof flowId !== 'string' || flowId.trim() === '') {
-            throw new Error('flowId is required and must be a non-empty string.');
+        if (!inputFlowIdOrName || typeof inputFlowIdOrName !== 'string' || inputFlowIdOrName.trim() === '') {
+            throw new Error('inputFlowIdOrName is required and must be a non-empty string.');
         }
         this.element = container;
         this.chatClient = chatClient;
-        this.flowId = flowId;
         this.enableStream = enableStream; // Store the stream preference
         this.render(); // Render first to ensure session-id-input exists
         
-        // Attempt to find the session ID input field from the document,
-        // as it's rendered by chatbot.ejs, not this component's render method.
         this.sessionIdInput = document.getElementById('session-id-input') as HTMLInputElement | null;
         
         if (this.sessionIdInput && this.sessionIdInput.value.trim() !== '') {
             this.currentSessionId = this.sessionIdInput.value.trim();
         }
-        // Optionally, you could try to load a sessionId from localStorage here if you want persistence across page loads
 
-        // Load message history if sessionId is available
-        if (this.currentSessionId) {
-            this.loadAndDisplayHistory(this.currentSessionId);
+        this._resolveFlowAndInitialize(inputFlowIdOrName);
+    }
+
+    private async _resolveFlowAndInitialize(idOrName: string): Promise<void> {
+        if (this.isResolvingFlow) return;
+        this.isResolvingFlow = true;
+        let flowDetailsResolved = false;
+
+        try {
+            // Removed attempts to get baseURL from chatClient directly for this call.
+            // The ChatWidget will use a relative path to its own backend (the proxy).
+
+            // Use a relative path, assuming ChatWidget is served from the same origin as the proxy.
+            const flowsApiUrl = '/api/langflow/flows_config'; 
+
+            console.log(`ChatWidget: Attempting to resolve flow '${idOrName}' via proxy endpoint: ${flowsApiUrl}`);
+
+            const response = await fetch(flowsApiUrl);
+            
+            // Minimal logging, assuming proxy handles detailed upstream errors.
+            if (!response.ok) {
+                let errorDetail = `Status: ${response.status} ${response.statusText}`;
+                try {
+                    const errorData = await response.json(); // Try to get JSON error from proxy
+                    errorDetail = errorData.detail || errorData.error || JSON.stringify(errorData);
+                } catch (e) {
+                    // If error response isn't JSON, use text
+                    try {
+                         errorDetail = await response.text();
+                    } catch (textErr) {
+                        // Keep original status text if all else fails
+                    }
+                }
+                console.error(`ChatWidget: Error response from proxy ${flowsApiUrl}. Detail: ${errorDetail}`);
+                this.addMessageToDisplay("Error", `System Error: Failed to fetch flow list from proxy. ${errorDetail.substring(0,100)}`);
+                this.disableChatFunctionality();
+                return;
+            }
+            
+            const responseData: {flows?: Array<{ id: string; name: string; endpoint_name?: string }>, detail?: string} | Array<{ id: string; name: string; endpoint_name?: string }> = await response.json();
+            // console.log("ChatWidget: Successfully parsed JSON from proxy:", responseData); // Can be enabled for deep debugging
+            
+            let flowsList: Array<{ id: string; name: string; endpoint_name?: string }> = [];
+
+            if (Array.isArray(responseData)) {
+                flowsList = responseData;
+            } else if (responseData && Array.isArray(responseData.flows)) {
+                flowsList = responseData.flows;
+            } else {
+                console.error(`ChatWidget: Unexpected API response structure from ${flowsApiUrl}. Expected an array of flows or an object with a 'flows' array. Got:`, responseData);
+                 this.addMessageToDisplay("Error", `System Error: Unexpected response when fetching flow list. Chat may not function.`);
+                this.disableChatFunctionality();
+                return;
+            }
+            
+            let foundFlow = null;
+            for (const flow of flowsList) {
+                if (flow.id === idOrName || flow.name === idOrName || (flow.endpoint_name && flow.endpoint_name === idOrName)) {
+                    foundFlow = flow;
+                    break;
+                }
+            }
+
+            if (foundFlow) {
+                this.flowId = foundFlow.id; // Resolved UUID
+                this.flowName = foundFlow.name;
+                this.flowEndpointName = foundFlow.endpoint_name || null;
+                console.log(`ChatWidget: Flow resolved. ID (UUID): ${this.flowId}, Name: ${this.flowName}, Endpoint: ${this.flowEndpointName || 'N/A'}`);
+                flowDetailsResolved = true;
+            } else {
+                console.error(`ChatWidget: Flow with ID or name '${idOrName}' not found in list from ${flowsApiUrl}.`);
+                this.addMessageToDisplay("Error", `Error: Flow '${idOrName}' not found. Chat is disabled.`);
+                this.disableChatFunctionality();
+            }
+        } catch (error: any) {
+            console.error("ChatWidget: Exception during flow resolution:", error);
+            this.addMessageToDisplay("Error", `System Error: Could not initialize chat by resolving flow. Details: ${error.message || 'Unknown error'}. See console.`);
+            this.disableChatFunctionality();
+        } finally {
+            this.isResolvingFlow = false;
+        }
+
+        if (flowDetailsResolved && this.currentSessionId && !this.isHistoryLoaded) {
+            await this.loadAndDisplayHistory(this.currentSessionId);
+        } else if (flowDetailsResolved && !this.currentSessionId) {
+            console.log("ChatWidget: Flow resolved, no current session ID. Ready for interaction.");
+            // Enable input if it was initially disabled
+            const chatInput = this.element.querySelector<HTMLInputElement>('.chat-input');
+            const sendButton = this.element.querySelector<HTMLButtonElement>('.send-button');
+            if (chatInput && chatInput.placeholder.startsWith("Chat disabled")) chatInput.placeholder = "Type your message...";
+            if (chatInput) chatInput.disabled = false;
+            if (sendButton) sendButton.disabled = false;
+
+        }
+    }
+
+    private disableChatFunctionality(): void {
+        const chatInput = this.element.querySelector<HTMLInputElement>('.chat-input');
+        const sendButton = this.element.querySelector<HTMLButtonElement>('.send-button');
+        if (chatInput) {
+            chatInput.disabled = true;
+            chatInput.placeholder = "Chat disabled: Flow not resolved or error.";
+        }
+        if (sendButton) {
+            sendButton.disabled = true;
         }
     }
 
@@ -77,6 +182,16 @@ export class ChatWidget {
 
     private async processMessage(message: string, chatInput: HTMLInputElement): Promise<void> {
         if (!message.trim()) {
+            return;
+        }
+
+        if (!this.flowId) { // Check for resolved flowId (UUID)
+            if (this.isResolvingFlow) {
+                this.addMessageToDisplay("System", "Chat is initializing, please wait...");
+            } else {
+                this.addMessageToDisplay("Error", "Chat is not properly initialized. Flow ID could not be resolved. Cannot send message.");
+            }
+            chatInput.value = message; // Put message back if it couldn't be sent
             return;
         }
 
@@ -314,17 +429,25 @@ export class ChatWidget {
     }
 
     private async loadAndDisplayHistory(sessionId: string): Promise<void> {
+        if (!this.flowId) { // Check for resolved flowId (UUID)
+            console.warn("ChatWidget: Cannot load history, flowId not resolved yet.");
+            // This method will be called by _resolveFlowAndInitialize once flowId is available.
+            return;
+        }
+        if (this.isHistoryLoaded) { // Prevent re-loading if already loaded
+            console.log("ChatWidget: History already loaded, skipping reload.");
+            return;
+        }
         if (!this.chatClient.getMessageHistory) {
             console.warn("ChatWidget: getMessageHistory method not available on chatClient.");
             return;
         }
         try {
-            const history = await this.chatClient.getMessageHistory(this.flowId, sessionId /*, this.userId - if/when available */);
+            const history = await this.chatClient.getMessageHistory(this.flowId, sessionId /*, this.userId - if/when available */); // Use this.flowId (resolved UUID)
             if (history && history.length > 0) {
                 const chatMessagesContainer = this.element.querySelector('.chat-messages');
                 if (chatMessagesContainer) {
-                    // Clear any existing messages like "Thinking..." from initial render or previous state
-                    // chatMessagesContainer.innerHTML = ''; // Or more selectively remove placeholder messages
+                    // chatMessagesContainer.innerHTML = ''; // Clear existing messages if needed
                 }
                 history.forEach(message => {
                     if (message.text) {
@@ -333,25 +456,28 @@ export class ChatWidget {
                             senderType = "You";
                         } else if (message.sender === 'bot') {
                             senderType = "Bot";
-                        } else if (message.sender_name) { // Fallback to sender_name if sender is ambiguous
-                            // This part might need refinement based on actual sender_name values
+                        } else if (message.sender_name) { 
                             senderType = message.sender_name; 
                         }
-                        // Add message to display without the 'thinking' animation
                         this.addMessageToDisplay(senderType, message.text, false);
                     }
                 });
                 const chatMessages = this.element.querySelector('.chat-messages');
-                if (chatMessages) { // Scroll to bottom after loading history
+                if (chatMessages) { 
                     chatMessages.scrollTop = chatMessages.scrollHeight;
                 }
-            } else if (history === null) {
-                console.log("ChatWidget: No message history returned or error fetching history.");
+                this.isHistoryLoaded = true; // Set flag on successful load and display
+            } else if (history && history.length === 0) {
+                console.log("ChatWidget: No message history found for this session.");
+                this.isHistoryLoaded = true; // Successfully checked, no history.
+            } else if (history === null) { // Typically indicates an issue or that the endpoint behaves this way for "no history"
+                console.log("ChatWidget: No message history returned (possibly empty or error fetching).");
+                // Consider if isHistoryLoaded should be true here. If null means "successfully fetched empty", then yes.
+                // If null implies an error that wasn't thrown, then no. For now, let's assume an empty array is the "no history" success case.
             }
         } catch (error) {
             console.error("ChatWidget: Error loading message history:", error);
-            // Optionally, display an error message in the chat widget
-            // this.addMessageToDisplay("Error", "Could not load message history.");
+            this.addMessageToDisplay("Error", "Could not load message history.");
         }
     }
 } 
