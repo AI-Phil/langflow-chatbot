@@ -1,14 +1,14 @@
 import { LangflowChatClient, BotResponse, StreamEvent, TokenEventData, EndEventData, AddMessageEventData, StreamEventType, StreamEventDataMap, ChatMessageData } from '../clients/LangflowChatClient'; // Adjusted import path
+import { PROXY_FLOWS_PATH } from '../config/apiPaths';
 
 export class ChatWidget {
     private element: HTMLElement;
     private chatClient: LangflowChatClient;
-    private currentSessionId: string | null = null; // Added to store sessionId
-    private enableStream: boolean; // For the stream toggle
-    private currentBotMessageElement: HTMLElement | null = null; // To update during streaming
-    private sessionIdInput: HTMLInputElement | null = null; // Added for the session ID input field
+    private currentSessionId: string | null = null;
+    private enableStream: boolean;
+    private currentBotMessageElement: HTMLElement | null = null;
+    private sessionIdInput: HTMLInputElement | null = null;
     
-    // New class members for resolved flow details
     private flowId: string | null = null; // This will be the resolved UUID
     private flowName: string | null = null;
     private flowEndpointName: string | null = null;
@@ -29,7 +29,7 @@ export class ChatWidget {
         }
         this.element = container;
         this.chatClient = chatClient;
-        this.enableStream = enableStream; // Store the stream preference
+        this.enableStream = enableStream;
         this.render(); // Render first to ensure session-id-input exists
         
         this.sessionIdInput = document.getElementById('session-id-input') as HTMLInputElement | null;
@@ -47,21 +47,16 @@ export class ChatWidget {
         let flowDetailsResolved = false;
 
         try {
-            // Removed attempts to get baseURL from chatClient directly for this call.
-            // The ChatWidget will use a relative path to its own backend (the proxy).
-
-            // Use a relative path, assuming ChatWidget is served from the same origin as the proxy.
-            const flowsApiUrl = '/api/langflow/flows_config'; 
+            const flowsApiUrl = PROXY_FLOWS_PATH; 
 
             console.log(`ChatWidget: Attempting to resolve flow '${idOrName}' via proxy endpoint: ${flowsApiUrl}`);
 
             const response = await fetch(flowsApiUrl);
             
-            // Minimal logging, assuming proxy handles detailed upstream errors.
             if (!response.ok) {
                 let errorDetail = `Status: ${response.status} ${response.statusText}`;
                 try {
-                    const errorData = await response.json(); // Try to get JSON error from proxy
+                    const errorData = await response.json();
                     errorDetail = errorData.detail || errorData.error || JSON.stringify(errorData);
                 } catch (e) {
                     // If error response isn't JSON, use text
@@ -78,7 +73,6 @@ export class ChatWidget {
             }
             
             const responseData: {flows?: Array<{ id: string; name: string; endpoint_name?: string }>, detail?: string} | Array<{ id: string; name: string; endpoint_name?: string }> = await response.json();
-            // console.log("ChatWidget: Successfully parsed JSON from proxy:", responseData); // Can be enabled for deep debugging
             
             let flowsList: Array<{ id: string; name: string; endpoint_name?: string }> = [];
 
@@ -102,7 +96,7 @@ export class ChatWidget {
             }
 
             if (foundFlow) {
-                this.flowId = foundFlow.id; // Resolved UUID
+                this.flowId = foundFlow.id;
                 this.flowName = foundFlow.name;
                 this.flowEndpointName = foundFlow.endpoint_name || null;
                 console.log(`ChatWidget: Flow resolved. ID (UUID): ${this.flowId}, Name: ${this.flowName}, Endpoint: ${this.flowEndpointName || 'N/A'}`);
@@ -280,9 +274,6 @@ export class ChatWidget {
                             break;
                         case 'end':
                             const endData = event.data as StreamEventDataMap['end'];
-                            // SessionId should ideally be set by 'stream_started' now.
-                            // This remains as a fallback or for completeness if needed, 
-                            // but primary update should happen on 'stream_started'.
                             const sessionIdFromEndEvent: string | undefined = (endData.flowResponse?.sessionId) || (endData as any).sessionId;
 
                             if (sessionIdFromEndEvent && !this.currentSessionId) { // Only if not already set by stream_started
