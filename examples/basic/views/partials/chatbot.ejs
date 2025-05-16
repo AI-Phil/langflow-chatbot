@@ -3,6 +3,10 @@
 
     <fieldset id="chatbot-settings" style="margin-bottom: 20px; border: 1px solid #ccc; padding: 10px;">
         <legend style="font-weight: bold; padding: 0 5px;">Chatbot Settings</legend>
+        <div id="chat-type-controls" style="margin-bottom: 10px;">
+            <label for="chat-type-toggle">Use Floating Widget:</label>
+            <input type="checkbox" id="chat-type-toggle" checked>
+        </div>
         <div id="flow-id-controls">
             <label for="flow-id-input">Flow ID:</label>
             <input type="text" id="flow-id-input" placeholder="Enter Flow ID (default: memory-chatbot)">
@@ -20,7 +24,9 @@
         </div>
     </fieldset>
 
-    <div id="chatbot-container" style="max-width: 600px; margin: 20px; border: 1px solid #ddd; box-shadow: 0 0 10px rgba(0,0,0,0.1); overflow: hidden; /* border-radius: 8px; moved to default CSS */"></div>
+    <div id="embedded-chatbot-container-wrapper">
+        <div id="chatbot-container" style="max-width: 600px; margin: 20px auto; border: 1px solid #ddd; box-shadow: 0 0 10px rgba(0,0,0,0.1); overflow: hidden; "></div>
+    </div>
 </section> 
 
 <style>
@@ -41,6 +47,17 @@
     .chat-input:focus {
         border-color: #28a745;
         box-shadow: 0 0 0 0.2rem rgba(40,167,69,.25);
+    }
+
+    /* Overrides for FloatingChatWidget theme */
+    .floating-chat-button {
+        background-color: #28a745 !important; /* A pleasant green */
+    }
+    .floating-chat-button:hover {
+        background-color: #1e7e34 !important; /* Darker green on hover */
+    }
+    .floating-chat-header {
+        background-color: #28a745 !important; /* A pleasant green */
     }
 </style>
 
@@ -77,8 +94,20 @@
   }
 
   let chatWidgetFlowId = "memory-chatbot";
+  let currentChatWidgetInstance = null; // To keep track of the current widget instance for cleanup
 
   function initializeChatWidget() {
+    // Clear previous widget instance if it exists
+    if (currentChatWidgetInstance && typeof currentChatWidgetInstance.destroy === 'function') {
+        currentChatWidgetInstance.destroy();
+        currentChatWidgetInstance = null;
+    }
+    // Also ensure the old container is cleared if we are switching back to embedded
+    const embeddedChatContainer = document.getElementById('chatbot-container');
+    if (embeddedChatContainer) {
+        embeddedChatContainer.innerHTML = '';
+    }
+
     const sessionIdInput = document.getElementById('session-id-input');
     const sessionId = sessionIdInput ? sessionIdInput.value.trim() : "";
     
@@ -93,17 +122,13 @@
     const streamToggleInput = document.getElementById('stream-toggle-input');
     const enableStream = streamToggleInput ? streamToggleInput.checked : true;
 
-    const chatContainer = document.getElementById('chatbot-container');
+    const chatTypeToggle = document.getElementById('chat-type-toggle');
+    const useFloatingWidget = chatTypeToggle ? chatTypeToggle.checked : false;
 
-    if (!chatContainer) {
-        console.error('Chatbot container not found.');
-        return;
-    }
-    // Clear previous widget instance
-    chatContainer.innerHTML = ''; 
+    const embeddedContainerWrapper = document.getElementById('embedded-chatbot-container-wrapper');
 
     try {
-      if (window.LangflowChatbot && window.LangflowChatbot.LangflowChatClient && window.LangflowChatbot.ChatWidget) {
+      if (window.LangflowChatbot && window.LangflowChatbot.LangflowChatClient) {
         let chatClient;
         if (sessionId) {
           console.log('Initializing LangflowChatClient with Session ID:', sessionId);
@@ -113,8 +138,7 @@
           chatClient = new window.LangflowChatbot.LangflowChatClient('/api/langflow');
         }
         
-        // Example of using the new configuration options
-        const chatWidgetConfig = {
+        const chatWidgetInternalConfig = {
             userSender: "Me", 
             botSender: "Assistant", 
             messageTemplate: `
@@ -127,19 +151,52 @@
             `
         };
 
-        new window.LangflowChatbot.ChatWidget('chatbot-container', chatClient, currentFlowId, enableStream, chatWidgetConfig);
-        console.log('ChatWidget initialized/reinitialized. FlowId:', currentFlowId, 'SessionId from input:', sessionId || "None", "Stream enabled:", enableStream, "Config:", chatWidgetConfig);
+        if (useFloatingWidget) {
+            if (embeddedContainerWrapper) embeddedContainerWrapper.style.display = 'none';
+            if (window.LangflowChatbot.FloatingChatWidget) {
+                currentChatWidgetInstance = new window.LangflowChatbot.FloatingChatWidget(
+                    chatClient, 
+                    currentFlowId, 
+                    enableStream, 
+                    {
+                        chatWidgetConfig: chatWidgetInternalConfig,
+                        widgetTitle: "Floating Assistant",
+                        position: 'bottom-right' // Example position
+                    }
+                );
+                console.log('FloatingChatWidget initialized. FlowId:', currentFlowId, 'SessionId:', sessionId || "None", "Stream:", enableStream);
+            } else {
+                console.error('FloatingChatWidget component not found on window.LangflowChatbot.');
+                alert('FloatingChatWidget component not found. Check console.');
+            }
+        } else {
+            if (embeddedContainerWrapper) embeddedContainerWrapper.style.display = 'block';
+            const chatContainer = document.getElementById('chatbot-container');
+            if (chatContainer && window.LangflowChatbot.ChatWidget) {
+                chatContainer.innerHTML = ''; // Clear it before new widget
+                currentChatWidgetInstance = new window.LangflowChatbot.ChatWidget(
+                    'chatbot-container', 
+                    chatClient, 
+                    currentFlowId, 
+                    enableStream, 
+                    chatWidgetInternalConfig
+                );
+                console.log('ChatWidget (embedded) initialized. FlowId:', currentFlowId, 'SessionId:', sessionId || "None", "Stream:", enableStream);
+            } else {
+                 if (!chatContainer) console.error('Chatbot container not found for embedded chat.');
+                 if (!window.LangflowChatbot.ChatWidget) console.error('ChatWidget component not found.');
+                 alert('Error setting up embedded chat. Check console.');
+            }
+        }
       } else {
         console.error('LangflowChatbot components not found on window.LangflowChatbot.');
-        if (chatContainer) {
-          chatContainer.innerHTML = '<p style="color: red;">Error loading chatbot components. See console.</p>';
-        }
+        const mainChatArea = document.getElementById('chatbot-container') || document.getElementById('embedded-chatbot-container-wrapper') || document.body;
+        mainChatArea.innerHTML = '<p style="color: red;">Error loading chatbot base components. See console.</p>';
       }
     } catch (error) {
       console.error("Failed to initialize/reinitialize ChatWidget:", error);
-      if (chatContainer) {
-        chatContainer.innerHTML = '<p style="color: red;">Error loading chatbot. See console for details.</p>';
-      }
+      const mainChatArea = document.getElementById('chatbot-container') || document.getElementById('embedded-chatbot-container-wrapper') || document.body;
+      mainChatArea.innerHTML = '<p style="color: red;">Error loading chatbot. See console for details.</p>';
     }
   }
 
@@ -215,6 +272,14 @@
         streamToggleCheckbox.addEventListener('change', () => {
             console.log('Stream toggle changed. Reinitializing chat widget.');
             initializeChatWidget();
+        });
+    }
+
+    const chatTypeToggleElement = document.getElementById('chat-type-toggle');
+    if (chatTypeToggleElement) {
+        chatTypeToggleElement.addEventListener('change', () => {
+            console.log('Chat type toggle changed. Reinitializing chat widget.');
+            initializeChatWidget(); 
         });
     }
   });
