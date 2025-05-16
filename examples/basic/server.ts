@@ -6,7 +6,6 @@ import dotenv from 'dotenv';
 import { LangflowProxyService, LangflowProxyConfig } from '../../src/langflow-proxy';
 import { PROXY_BASE_API_PATH } from '../../src/config/apiPaths';
 
-// Load environment variables from .env file
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 const hostname = '127.0.0.1';

@@ -104,8 +104,16 @@
           chatClient = new window.LangflowChatbot.LangflowChatClient('/api/langflow', currentChatbotUserid);
         }
         
-        new window.LangflowChatbot.ChatWidget('chatbot-container', chatClient, currentFlowId, enableStream);
-        console.log('ChatWidget initialized/reinitialized. ChatbotUserid:', currentChatbotUserid, 'FlowId:', currentFlowId, 'SessionId from input:', sessionId || "None", "Stream enabled:", enableStream);
+        // Example of using the new configuration options
+        const chatWidgetConfig = {
+            userSender: "Me", // Custom user sender name
+            botSender: "Assistant", // Custom bot sender name
+            // errorSender: "Problem", // Example of another customization
+            // systemSender: "Alert" // Example for system messages
+        };
+
+        new window.LangflowChatbot.ChatWidget('chatbot-container', chatClient, currentFlowId, enableStream, chatWidgetConfig);
+        console.log('ChatWidget initialized/reinitialized. ChatbotUserid:', currentChatbotUserid, 'FlowId:', currentFlowId, 'SessionId from input:', sessionId || "None", "Stream enabled:", enableStream, "Config:", chatWidgetConfig);
       } else {
         console.error('LangflowChatbot components not found on window.LangflowChatbot.');
         if (chatContainer) {

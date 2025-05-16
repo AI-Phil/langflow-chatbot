@@ -1,6 +1,14 @@
 import { LangflowChatClient, BotResponse, StreamEvent, TokenEventData, EndEventData, AddMessageEventData, StreamEventType, StreamEventDataMap, ChatMessageData } from '../clients/LangflowChatClient'; // Adjusted import path
 import { PROXY_FLOWS_PATH } from '../config/apiPaths';
 
+export interface ChatWidgetConfigOptions {
+    userSender?: string;
+    botSender?: string;
+    errorSender?: string;
+    systemSender?: string;
+    // Future: Add HTML template strings or functions here
+}
+
 export class ChatWidget {
     private element: HTMLElement;
     private chatClient: LangflowChatClient;
@@ -8,6 +16,7 @@ export class ChatWidget {
     private enableStream: boolean;
     private currentBotMessageElement: HTMLElement | null = null;
     private sessionIdInput: HTMLInputElement | null = null;
+    private config: Required<ChatWidgetConfigOptions>;
     
     private flowId: string | null = null; // This will be the resolved UUID
     private flowName: string | null = null;
@@ -16,7 +25,13 @@ export class ChatWidget {
     private isHistoryLoaded: boolean = false;
     private isResolvingFlow: boolean = false;
 
-    constructor(containerId: string, chatClient: LangflowChatClient, inputFlowIdOrName: string, enableStream: boolean = true) {
+    constructor(
+        containerId: string, 
+        chatClient: LangflowChatClient, 
+        inputFlowIdOrName: string, 
+        enableStream: boolean = true,
+        configOptions: ChatWidgetConfigOptions = {}
+    ) {
         const container = document.getElementById(containerId);
         if (!container) {
             throw new Error(`Container with id #${containerId} not found.`);
@@ -30,6 +45,15 @@ export class ChatWidget {
         this.element = container;
         this.chatClient = chatClient;
         this.enableStream = enableStream;
+
+        // Apply default configuration
+        this.config = {
+            userSender: configOptions.userSender || "You",
+            botSender: configOptions.botSender || "Bot",
+            errorSender: configOptions.errorSender || "Error",
+            systemSender: configOptions.systemSender || "System",
+        };
+        
         this.render(); // Render first to ensure session-id-input exists
         
         this.sessionIdInput = document.getElementById('session-id-input') as HTMLInputElement | null;
@@ -67,7 +91,7 @@ export class ChatWidget {
                     }
                 }
                 console.error(`ChatWidget: Error response from proxy ${flowsApiUrl}. Detail: ${errorDetail}`);
-                this.addMessageToDisplay("Error", `System Error: Failed to fetch flow list from proxy. ${errorDetail.substring(0,100)}`);
+                this.addMessageToDisplay(this.config.errorSender, `System Error: Failed to fetch flow list from proxy. ${errorDetail.substring(0,100)}`);
                 this.disableChatFunctionality();
                 return;
             }
@@ -82,7 +106,7 @@ export class ChatWidget {
                 flowsList = responseData.flows;
             } else {
                 console.error(`ChatWidget: Unexpected API response structure from ${flowsApiUrl}. Expected an array of flows or an object with a 'flows' array. Got:`, responseData);
-                 this.addMessageToDisplay("Error", `System Error: Unexpected response when fetching flow list. Chat may not function.`);
+                 this.addMessageToDisplay(this.config.errorSender, `System Error: Unexpected response when fetching flow list. Chat may not function.`);
                 this.disableChatFunctionality();
                 return;
             }
@@ -103,12 +127,12 @@ export class ChatWidget {
                 flowDetailsResolved = true;
             } else {
                 console.error(`ChatWidget: Flow with ID or name '${idOrName}' not found in list from ${flowsApiUrl}.`);
-                this.addMessageToDisplay("Error", `Error: Flow '${idOrName}' not found. Chat is disabled.`);
+                this.addMessageToDisplay(this.config.errorSender, `Error: Flow '${idOrName}' not found. Chat is disabled.`);
                 this.disableChatFunctionality();
             }
         } catch (error: any) {
             console.error("ChatWidget: Exception during flow resolution:", error);
-            this.addMessageToDisplay("Error", `System Error: Could not initialize chat by resolving flow. Details: ${error.message || 'Unknown error'}. See console.`);
+            this.addMessageToDisplay(this.config.errorSender, `System Error: Could not initialize chat by resolving flow. Details: ${error.message || 'Unknown error'}. See console.`);
             this.disableChatFunctionality();
         } finally {
             this.isResolvingFlow = false;
@@ -181,9 +205,9 @@ export class ChatWidget {
 
         if (!this.flowId) { // Check for resolved flowId (UUID)
             if (this.isResolvingFlow) {
-                this.addMessageToDisplay("System", "Chat is initializing, please wait...");
+                this.addMessageToDisplay(this.config.systemSender, "Chat is initializing, please wait...");
             } else {
-                this.addMessageToDisplay("Error", "Chat is not properly initialized. Flow ID could not be resolved. Cannot send message.");
+                this.addMessageToDisplay(this.config.errorSender, "Chat is not properly initialized. Flow ID could not be resolved. Cannot send message.");
             }
             chatInput.value = message; // Put message back if it couldn't be sent
             return;
@@ -205,7 +229,7 @@ export class ChatWidget {
             }
         }
 
-        this.addMessageToDisplay("You", message);
+        this.addMessageToDisplay(this.config.userSender, message);
         const currentMessage = message;
         chatInput.value = '';
 
@@ -216,7 +240,7 @@ export class ChatWidget {
         this.currentBotMessageElement = null;
 
         if (useStream) {
-            this.currentBotMessageElement = this.addMessageToDisplay("Bot", "", true); // Add 'thinking' class
+            this.currentBotMessageElement = this.addMessageToDisplay(this.config.botSender, "", true); // Add 'thinking' class
             let accumulatedResponse = "";
             let thinkingText = "Thinking";
             let dotCount = 0;
@@ -305,7 +329,7 @@ export class ChatWidget {
                                 this.currentBotMessageElement.classList.add('error-message');
                                 this.currentBotMessageElement.classList.remove('bot-message', 'thinking');
                             } else {
-                                this.addMessageToDisplay("Error", `Stream Error: ${errorData.message || 'Unknown stream error'}${errorData.detail ? ": " + errorData.detail : ""}`);
+                                this.addMessageToDisplay(this.config.errorSender, `Stream Error: ${errorData.message || 'Unknown stream error'}${errorData.detail ? ": " + errorData.detail : ""}`);
                             }
                             break;
                     }
@@ -317,7 +341,7 @@ export class ChatWidget {
                     this.currentBotMessageElement.classList.add('error-message');
                     this.currentBotMessageElement.classList.remove('bot-message', 'thinking');
                 } else {
-                    this.addMessageToDisplay("Error", `Streaming communication error: ${error.message || 'Unknown error'}`);
+                    this.addMessageToDisplay(this.config.errorSender, `Streaming communication error: ${error.message || 'Unknown error'}`);
                 }
             } finally {
                 clearInterval(thinkingInterval);
@@ -332,7 +356,7 @@ export class ChatWidget {
             }
         } else {
             // Non-streaming logic
-            const thinkingMsg = this.addMessageToDisplay("Bot", "Thinking...", true);
+            const thinkingMsg = this.addMessageToDisplay(this.config.botSender, "Thinking...", true);
             try {
                 const botResponse: BotResponse = await this.chatClient.sendMessage(currentMessage, this.flowId, sessionIdToSend);
                 if(thinkingMsg) this.removeMessageElement(thinkingMsg);
@@ -344,16 +368,16 @@ export class ChatWidget {
                     }
                 }
                 if (botResponse.error) {
-                    this.addMessageToDisplay("Error", `${botResponse.error}${botResponse.detail ? ": " + botResponse.detail : ""}`);
+                    this.addMessageToDisplay(this.config.errorSender, `${botResponse.error}${botResponse.detail ? ": " + botResponse.detail : ""}`);
                 } else if (botResponse.reply) {
-                    this.addMessageToDisplay("Bot", botResponse.reply);
+                    this.addMessageToDisplay(this.config.botSender, botResponse.reply);
                 } else {
-                    this.addMessageToDisplay("Bot", "Sorry, I couldn't get a valid response.");
+                    this.addMessageToDisplay(this.config.botSender, "Sorry, I couldn't get a valid response.");
                 }
             } catch (error: any) {
                 if(thinkingMsg) this.removeMessageElement(thinkingMsg);
                 console.error("Failed to send non-stream message via ChatClient:", error);
-                this.addMessageToDisplay("Error", `Communication error: ${error.message || 'Unknown error'}`);
+                this.addMessageToDisplay(this.config.errorSender, `Communication error: ${error.message || 'Unknown error'}`);
             }
         }
 
@@ -380,12 +404,14 @@ export class ChatWidget {
         if (chatMessages) {
             const messageElement = document.createElement('div');
             messageElement.classList.add('message');
-            if (sender === "You") {
+            if (sender === this.config.userSender) {
                 messageElement.classList.add('user-message');
-            } else if (sender === "Bot") {
+            } else if (sender === this.config.botSender) {
                 messageElement.classList.add('bot-message');
-            } else if (sender === "Error") {
+            } else if (sender === this.config.errorSender) {
                  messageElement.classList.add('error-message');
+            } else if (sender === this.config.systemSender) { // Added for completeness, though not strictly styled yet
+                messageElement.classList.add('system-message'); // You might want to add CSS for .system-message
             }
             if (isThinking) {
                 messageElement.classList.add('thinking');
@@ -442,13 +468,18 @@ export class ChatWidget {
                 }
                 history.forEach(message => {
                     if (message.text) {
-                        let senderType = "Bot"; // Default to Bot
-                        if (message.sender === 'user') {
-                            senderType = "You";
-                        } else if (message.sender === 'bot') {
-                            senderType = "Bot";
+                        // console.log("History message item:", message); 
+                        let senderType: string;
+                        if (message.sender === 'User') {
+                            senderType = this.config.userSender;
+                        } else if (message.sender === 'Machine') {
+                            senderType = this.config.botSender;
                         } else if (message.sender_name) { 
+                            // Use sender_name if sender is not User/Machine and sender_name is available
                             senderType = message.sender_name; 
+                        } else {
+                            // Fallback if sender is not User/Machine and sender_name is not available
+                            senderType = message.sender || this.config.systemSender; 
                         }
                         this.addMessageToDisplay(senderType, message.text, false);
                     }
@@ -468,7 +499,7 @@ export class ChatWidget {
             }
         } catch (error) {
             console.error("ChatWidget: Error loading message history:", error);
-            this.addMessageToDisplay("Error", "Could not load message history.");
+            this.addMessageToDisplay(this.config.errorSender, "Could not load message history.");
         }
     }
 } 
