@@ -4,12 +4,12 @@ export class ChatWidget {
     private element: HTMLElement;
     private chatClient: LangflowChatClient;
     private currentSessionId: string | null = null; // Added to store sessionId
-    private streamToggle: HTMLInputElement | null = null; // For the stream toggle
+    private enableStream: boolean; // For the stream toggle
     private currentBotMessageElement: HTMLElement | null = null; // To update during streaming
     private sessionIdInput: HTMLInputElement | null = null; // Added for the session ID input field
     private flowId: string;
 
-    constructor(containerId: string, chatClient: LangflowChatClient, flowId: string) {
+    constructor(containerId: string, chatClient: LangflowChatClient, flowId: string, enableStream: boolean = true) {
         const container = document.getElementById(containerId);
         if (!container) {
             throw new Error(`Container with id #${containerId} not found.`);
@@ -23,6 +23,7 @@ export class ChatWidget {
         this.element = container;
         this.chatClient = chatClient;
         this.flowId = flowId;
+        this.enableStream = enableStream; // Store the stream preference
         this.render(); // Render first to ensure session-id-input exists
         
         // Attempt to find the session ID input field from the document,
@@ -44,10 +45,6 @@ export class ChatWidget {
                 <div class="chat-input-area">
                     <input type="text" class="chat-input" placeholder="Type your message..." />
                     <button class="send-button">Send</button>
-                    <label class="stream-toggle-label" style="margin-left: 10px; display: inline-flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" class="stream-toggle" checked />
-                        <span style="margin-left: 4px;">Stream</span>
-                    </label>
                 </div>
             </div>
         `;
@@ -57,7 +54,6 @@ export class ChatWidget {
     private setupEventListeners(): void {
         const sendButton = this.element.querySelector('.send-button');
         const chatInput = this.element.querySelector<HTMLInputElement>('.chat-input');
-        this.streamToggle = this.element.querySelector<HTMLInputElement>('.stream-toggle');
 
         if (sendButton && chatInput) {
             sendButton.addEventListener('click', () => this.handleSendButtonClick(chatInput));
@@ -79,7 +75,7 @@ export class ChatWidget {
             return;
         }
 
-        const useStream = this.streamToggle ? this.streamToggle.checked : true;
+        const useStream = this.enableStream; // Use the class member
         
         // Get session ID from input field if available, otherwise use currentSessionId
         let sessionIdToSend: string | null = this.currentSessionId;

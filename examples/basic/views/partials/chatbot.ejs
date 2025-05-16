@@ -1,20 +1,29 @@
 <section id="chatbot-section">
     <h1>Chatbot</h1>
-    <div id="chatbot-userid-display-container">
-        <label>Chatbot User ID:</label>
-        <span id="chatbot-userid-display">Loading...</span>
-    </div>
-    <div id="flow-id-controls">
-        <label for="flow-id-input">Flow ID:</label>
-        <input type="text" id="flow-id-input" placeholder="Enter Flow ID (default: memory-chatbot)">
-        <button id="apply-flow-id-button" type="button">Apply Flow ID</button>
-    </div>
-    <div id="session-id-controls">
-        <label for="session-id-input">Session ID:</label>
-        <input type="text" id="session-id-input" placeholder="Optional: Enter Session ID">
-        <button id="apply-session-id-button" type="button">Save Session ID</button>
-        <button id="clear-session-id-button" type="button">Clear Session ID</button>
-    </div>
+
+    <fieldset id="chatbot-settings" style="margin-bottom: 20px; border: 1px solid #ccc; padding: 10px;">
+        <legend style="font-weight: bold; padding: 0 5px;">Chatbot Settings</legend>
+        <div id="chatbot-userid-display-container" style="margin-bottom: 10px;">
+            <label>Chatbot User ID:</label>
+            <span id="chatbot-userid-display">Loading...</span>
+        </div>
+        <div id="flow-id-controls">
+            <label for="flow-id-input">Flow ID:</label>
+            <input type="text" id="flow-id-input" placeholder="Enter Flow ID (default: memory-chatbot)">
+            <button id="apply-flow-id-button" type="button">Apply Flow ID</button>
+        </div>
+        <div id="stream-toggle-controls" style="margin-bottom: 10px; margin-top: 10px;">
+            <label for="stream-toggle-input">Enable Stream:</label>
+            <input type="checkbox" id="stream-toggle-input" checked>
+        </div>
+        <div id="session-id-controls">
+            <label for="session-id-input">Session ID:</label>
+            <input type="text" id="session-id-input" placeholder="Optional: Enter Session ID">
+            <button id="apply-session-id-button" type="button">Save Session ID</button>
+            <button id="clear-session-id-button" type="button">Clear Session ID</button>
+        </div>
+    </fieldset>
+
     <div id="chatbot-container"></div>
 </section> 
 <script src="/static/langflow-chatbot.js"></script>
@@ -64,6 +73,9 @@
         flowIdInput.value = chatWidgetFlowId;
     }
 
+    const streamToggleInput = document.getElementById('stream-toggle-input');
+    const enableStream = streamToggleInput ? streamToggleInput.checked : true;
+
     const chatContainer = document.getElementById('chatbot-container');
 
     if (!chatContainer) {
@@ -92,8 +104,8 @@
           chatClient = new window.LangflowChatbot.LangflowChatClient('/api/langflow', currentChatbotUserid);
         }
         
-        new window.LangflowChatbot.ChatWidget('chatbot-container', chatClient, currentFlowId);
-        console.log('ChatWidget initialized/reinitialized. ChatbotUserid:', currentChatbotUserid, 'FlowId:', currentFlowId, 'SessionId from input:', sessionId || "None");
+        new window.LangflowChatbot.ChatWidget('chatbot-container', chatClient, currentFlowId, enableStream);
+        console.log('ChatWidget initialized/reinitialized. ChatbotUserid:', currentChatbotUserid, 'FlowId:', currentFlowId, 'SessionId from input:', sessionId || "None", "Stream enabled:", enableStream);
       } else {
         console.error('LangflowChatbot components not found on window.LangflowChatbot.');
         if (chatContainer) {
@@ -200,6 +212,14 @@
           initializeChatWidget();
         }
       });
+    }
+
+    const streamToggleCheckbox = document.getElementById('stream-toggle-input');
+    if (streamToggleCheckbox) {
+        streamToggleCheckbox.addEventListener('change', () => {
+            console.log('Stream toggle changed. Reinitializing chat widget.');
+            initializeChatWidget();
+        });
     }
 
     // Listen for app_userid changes
