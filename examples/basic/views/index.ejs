@@ -9,30 +9,5 @@
   <%- include('partials/main') %>
   <%- include('partials/chatbot') %>
 
-  <script src="/static/langflow-chatbot.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      try {
-        // Ensure LangflowChatbot global object and its properties are available
-        if (window.LangflowChatbot && window.LangflowChatbot.LangflowChatClient && window.LangflowChatbot.ChatWidget) {
-          const chatClient = new window.LangflowChatbot.LangflowChatClient('/api/langflow'); // Or your specific API path
-          new window.LangflowChatbot.ChatWidget('chatbot-container', chatClient);
-          console.log('ChatWidget initialized with LangflowChatClient.');
-        } else {
-          console.error('LangflowChatbot components not found on window.LangflowChatbot.');
-          const container = document.getElementById('chatbot-container');
-          if (container) {
-            container.innerHTML = '<p style="color: red;">Error loading chatbot components. See console.</p>';
-          }
-        }
-      } catch (error) {
-        console.error("Failed to initialize ChatWidget:", error);
-        const container = document.getElementById('chatbot-container');
-        if (container) {
-          container.innerHTML = '<p style="color: red;">Error loading chatbot. See console for details.</p>';
-        }
-      }
-    });
-  </script>
 </body>
 </html> 
