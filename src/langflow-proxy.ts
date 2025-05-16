@@ -67,6 +67,7 @@ export class LangflowProxyService {
             const body = await parseJsonBody(req);
             const userMessage = body.message;
             const clientSessionId = body.sessionId;
+            const userId = body.user_id; // Extract user_id
             const wantsStream = body.stream === true; // Check for the stream flag
             const flowIdToUse = body.flowId || this.defaultFlowId; // Allow overriding flowId from request
 
@@ -80,17 +81,24 @@ export class LangflowProxyService {
             const runOptions: any = { // Consider defining a specific type for runOptions if available from the client lib
                 input_type: 'chat',
                 output_type: 'chat',
-                session_id: clientSessionId || undefined
+                session_id: clientSessionId || undefined,
+                // Pass user_id if available. The LangflowClient might have a specific way to pass this,
+                // but often custom parameters can be passed directly in runOptions.
+                // Assuming the underlying Langflow flow is designed to accept a 'user_id' input.
+                user_id: userId || undefined 
             };
             
             if (runOptions.session_id === undefined) {
                 delete runOptions.session_id; // Remove if undefined to let Langflow handle session creation
             }
+            if (runOptions.user_id === undefined) { // Remove user_id if undefined
+                delete runOptions.user_id;
+            }
 
             const flow = this.langflowClient.flow(flowIdToUse);
 
             if (wantsStream) {
-                console.log(`LangflowProxyService: Streaming request for Flow (${flowIdToUse}), session: ${runOptions.session_id || 'new'}, message: "${userMessage.substring(0, 50)}..."`);
+                console.log(`LangflowProxyService: Streaming request for Flow (${flowIdToUse}), session: ${runOptions.session_id || 'new'}, user: ${userId || 'anonymous'}, message: "${userMessage.substring(0, 50)}..."`);
                 res.setHeader('Content-Type', 'application/x-ndjson');
                 res.setHeader('Transfer-Encoding', 'chunked'); // Necessary for streaming
 
@@ -115,11 +123,15 @@ export class LangflowProxyService {
 
             } else {
                 // Non-streaming logic
+                let logMessage = `LangflowProxyService: Non-streaming request for Flow (${flowIdToUse})`;
                 if (clientSessionId) {
-                    console.log(`LangflowProxyService: Non-streaming request for Flow (${flowIdToUse}), session: ${runOptions.session_id}, input_type: ${runOptions.input_type}, message: "${userMessage.substring(0,50)}..."`);
-                } else {
-                    console.log(`LangflowProxyService: Non-streaming request for Flow (${flowIdToUse}) (new session), input_type: ${runOptions.input_type}, message: "${userMessage.substring(0,50)}..."`);
+                    logMessage += `, session: ${runOptions.session_id}`;
                 }
+                if (userId) {
+                    logMessage += `, user: ${userId}`;
+                }
+                logMessage += `, input_type: ${runOptions.input_type}, message: "${userMessage.substring(0,50)}..."`;
+                console.log(logMessage);
                 
                 const langflowResponse = await flow.run(userMessage, runOptions);
                 const responseSessionId = langflowResponse.sessionId;

@@ -77,12 +77,6 @@ const server = http.createServer(async (req, res) => {
         }
         // Delegate to the LangflowProxyService
         await langflowProxy.handleRequest(req, res);
-    } else if (req.url === '/api/langflow/stream' && req.method === 'POST') {
-        // This endpoint is deprecated as its logic is merged into /api/langflow in the proxy.
-        console.warn("/api/langflow/stream is deprecated. Use /api/langflow with 'stream: true' in the body.");
-        res.statusCode = 404;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ error: "Deprecated endpoint", detail: "Use /api/langflow with 'stream: true' in the request body." }));
     } else {
         res.statusCode = 404;
         res.setHeader('Content-Type', 'text/plain');

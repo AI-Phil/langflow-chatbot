@@ -47,9 +47,11 @@ export interface StreamEvent<K extends StreamEventType = StreamEventType> {
 
 export class LangflowChatClient {
     private apiUrl: string;
+    private userId?: string;
 
-    constructor(apiUrl: string = '/api/langflow') {
+    constructor(apiUrl: string = '/api/langflow', userId?: string) {
         this.apiUrl = apiUrl;
+        this.userId = userId;
     }
 
     private generateSessionId(): string {
@@ -60,10 +62,11 @@ export class LangflowChatClient {
         const effectiveSessionId = sessionId || this.generateSessionId();
 
         try {
-            const requestBody: { message: string; sessionId?: string; stream?: boolean } = { 
-                message, 
-                sessionId: effectiveSessionId, 
-                stream: false 
+            const requestBody: { message: string; sessionId?: string; stream?: boolean; user_id?: string } = {
+                message,
+                sessionId: effectiveSessionId,
+                stream: false,
+                user_id: this.userId || undefined
             };
             
             const response = await fetch(this.apiUrl, {
@@ -109,10 +112,11 @@ export class LangflowChatClient {
         // Yield the session ID immediately
         yield { event: 'stream_started', data: { sessionId: effectiveSessionId } };
 
-        const requestBody: { message: string; sessionId?: string; stream: boolean } = { 
-            message, 
-            sessionId: effectiveSessionId, 
-            stream: true 
+        const requestBody: { message: string; sessionId?: string; stream: boolean; user_id?: string } = {
+            message,
+            sessionId: effectiveSessionId,
+            stream: true,
+            user_id: this.userId || undefined
         };
 
         try {

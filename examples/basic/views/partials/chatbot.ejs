@@ -7,6 +7,8 @@
     <div id="session-id-controls">
         <label for="session-id-input">Session ID:</label>
         <input type="text" id="session-id-input" placeholder="Optional: Enter Session ID">
+        <button id="apply-session-id-button" type="button">Save Session ID</button>
+        <button id="clear-session-id-button" type="button">Clear Session ID</button>
     </div>
     <div id="chatbot-container"></div>
 </section> 
@@ -42,84 +44,155 @@
     });
   }
 
+  let currentChatbotUserid; // To store the determined chatbot user ID
+
+  function initializeChatWidget() {
+    const sessionIdInput = document.getElementById('session-id-input');
+    const sessionId = sessionIdInput ? sessionIdInput.value.trim() : "";
+    const chatContainer = document.getElementById('chatbot-container');
+
+    if (!chatContainer) {
+        console.error('Chatbot container not found.');
+        return;
+    }
+    // Clear previous widget instance
+    chatContainer.innerHTML = ''; 
+
+    if (!currentChatbotUserid) {
+        console.error('Chatbot User ID not set. Cannot initialize chat widget.');
+        if (chatContainer) {
+            chatContainer.innerHTML = '<p style="color: red;">Error: Chatbot User ID not available. Ensure it is set before initializing.</p>';
+        }
+        return;
+    }
+
+    try {
+      if (window.LangflowChatbot && window.LangflowChatbot.LangflowChatClient && window.LangflowChatbot.ChatWidget) {
+        let chatClient;
+        if (sessionId) {
+          console.log('Initializing LangflowChatClient with Session ID:', sessionId);
+          chatClient = new window.LangflowChatbot.LangflowChatClient('/api/langflow', currentChatbotUserid, sessionId);
+        } else {
+          console.log('Initializing LangflowChatClient without a specific Session ID from input.');
+          chatClient = new window.LangflowChatbot.LangflowChatClient('/api/langflow', currentChatbotUserid);
+        }
+        
+        new window.LangflowChatbot.ChatWidget('chatbot-container', chatClient);
+        console.log('ChatWidget initialized/reinitialized. ChatbotUserid:', currentChatbotUserid, 'SessionId from input:', sessionId || "None");
+      } else {
+        console.error('LangflowChatbot components not found on window.LangflowChatbot.');
+        if (chatContainer) {
+          chatContainer.innerHTML = '<p style="color: red;">Error loading chatbot components. See console.</p>';
+        }
+      }
+    } catch (error) {
+      console.error("Failed to initialize/reinitialize ChatWidget:", error);
+      if (chatContainer) {
+        chatContainer.innerHTML = '<p style="color: red;">Error loading chatbot. See console for details.</p>';
+      }
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     // Manage chatbot_userid cookie
     const appUserid = getCookie('app_userid');
-    let chatbotUserid = getCookie('chatbot_userid');
+    let initialChatbotUserid = getCookie('chatbot_userid');
 
     if (appUserid) {
-      if (!chatbotUserid || chatbotUserid !== appUserid) {
-        setCookie('chatbot_userid', appUserid, 365); // Align with app_userid
-        chatbotUserid = appUserid; // Update for current session use
+      if (!initialChatbotUserid || initialChatbotUserid !== appUserid) {
+        setCookie('chatbot_userid', appUserid, 365);
+        initialChatbotUserid = appUserid;
         console.log('Chatbot User ID set/updated from app_userid:', appUserid);
       }
     } else {
-      if (!chatbotUserid) {
+      if (!initialChatbotUserid) {
         const newChatbotUserid = generateUUID();
         setCookie('chatbot_userid', newChatbotUserid, 365);
-        chatbotUserid = newChatbotUserid; // Update for current session use
+        initialChatbotUserid = newChatbotUserid;
         console.log('New Chatbot User ID generated:', newChatbotUserid);
       }
     }
-    // You can now use the 'chatbotUserid' variable if needed immediately by the client script.
-    // For example, if LangflowChatClient or ChatWidget needs it during initialization.
+    currentChatbotUserid = initialChatbotUserid; // Set the accessible variable
 
-    // Display the Chatbot User ID
     const displayElement = document.getElementById('chatbot-userid-display');
-    if (displayElement && chatbotUserid) {
-      displayElement.textContent = chatbotUserid;
+    if (displayElement && currentChatbotUserid) {
+      displayElement.textContent = currentChatbotUserid;
     } else if (displayElement) {
-      displayElement.textContent = 'Not set'; // Should not happen if logic is correct
+      displayElement.textContent = 'Not set'; 
+    }
+
+    // Initial call to set up the chat widget
+    initializeChatWidget();
+
+    // Event listener for the Apply Session ID button
+    const applyButton = document.getElementById('apply-session-id-button');
+    if (applyButton) {
+      applyButton.addEventListener('click', () => {
+        console.log('Save Session ID button clicked. Reinitializing chat widget with current input value.');
+        initializeChatWidget();
+      });
+    }
+
+    // Event listener for the clear session ID button
+    const clearButton = document.getElementById('clear-session-id-button');
+    if (clearButton) {
+      clearButton.addEventListener('click', () => {
+        const sessionIdInput = document.getElementById('session-id-input');
+        if (sessionIdInput) {
+          sessionIdInput.value = '';
+        }
+        console.log('Session ID input cleared. Reinitializing chat widget.');
+        initializeChatWidget();
+      });
+    }
+
+    // Event listener for Enter key in the session ID input field
+    const sessionIdInput = document.getElementById('session-id-input');
+    if (sessionIdInput) {
+      sessionIdInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault(); // Prevent default action if any (e.g., form submission)
+          console.log('Enter key pressed in Session ID input. Reinitializing chat widget.');
+          initializeChatWidget();
+        }
+      });
     }
 
     // Listen for app_userid changes
     document.addEventListener('appUseridChanged', (event) => {
       const newAppUserid = event.detail.userid;
-      let currentChatbotUserid = getCookie('chatbot_userid'); // Get the latest from cookie
+      // Get the latest chatbot_userid from cookie after potential changes
+      let updatedChatbotUserid = getCookie('chatbot_userid'); 
       const displayElem = document.getElementById('chatbot-userid-display');
 
-      console.log('appUseridChanged event received in chatbot partial. New app_userid:', newAppUserid, 'Current chatbot_userid:', currentChatbotUserid);
+      console.log('appUseridChanged event received in chatbot partial. New app_userid:', newAppUserid, 'Current chatbot_userid from cookie:', updatedChatbotUserid);
 
-      if (newAppUserid) { // app_userid is set or changed to a new value
-        if (currentChatbotUserid !== newAppUserid) {
+      if (newAppUserid) {
+        if (updatedChatbotUserid !== newAppUserid) {
           setCookie('chatbot_userid', newAppUserid, 365);
-          currentChatbotUserid = newAppUserid; // Update local var for display consistency
+          currentChatbotUserid = newAppUserid; // Update accessible variable
           if (displayElem) {
             displayElem.textContent = newAppUserid;
           }
           console.log('Chatbot User ID dynamically updated from app_userid:', newAppUserid);
+          initializeChatWidget(); // Reinitialize with new/updated chatbotUserid
+        } else {
+          // If appUserid is set but chatbot_userid already matches, ensure currentChatbotUserid var is also aligned if it somehow differed.
+          currentChatbotUserid = newAppUserid; 
         }
       } else {
-        // app_userid was cleared. Generate a new chatbot_userid.
         const newGeneratedChatbotUserid = generateUUID();
         setCookie('chatbot_userid', newGeneratedChatbotUserid, 365);
-        currentChatbotUserid = newGeneratedChatbotUserid; // Update local var for display consistency
+        currentChatbotUserid = newGeneratedChatbotUserid; // Update accessible variable
         if (displayElem) {
           displayElem.textContent = newGeneratedChatbotUserid;
         }
         console.log('app_userid cleared. New Chatbot User ID generated:', newGeneratedChatbotUserid);
+        initializeChatWidget(); // Reinitialize with new chatbotUserid
       }
     });
 
-    try {
-      // Ensure LangflowChatbot global object and its properties are available
-      if (window.LangflowChatbot && window.LangflowChatbot.LangflowChatClient && window.LangflowChatbot.ChatWidget) {
-        const chatClient = new window.LangflowChatbot.LangflowChatClient('/api/langflow'); // Or your specific API path
-        new window.LangflowChatbot.ChatWidget('chatbot-container', chatClient);
-        console.log('ChatWidget initialized with LangflowChatClient.');
-      } else {
-        console.error('LangflowChatbot components not found on window.LangflowChatbot.');
-        const container = document.getElementById('chatbot-container');
-        if (container) {
-          container.innerHTML = '<p style="color: red;">Error loading chatbot components. See console.</p>';
-        }
-      }
-    } catch (error) {
-      console.error("Failed to initialize ChatWidget:", error);
-      const container = document.getElementById('chatbot-container');
-      if (container) {
-        container.innerHTML = '<p style="color: red;">Error loading chatbot. See console for details.</p>';
-      }
-    }
+    // The original try-catch block for chat widget initialization is now encapsulated within initializeOrReinitializeChatWidget()
+    // and called at the appropriate times.
   });
 </script> 
