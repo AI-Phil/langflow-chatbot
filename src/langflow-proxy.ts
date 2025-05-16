@@ -244,7 +244,6 @@ export class LangflowProxyService {
             const body = await parseJsonBody(req);
             const userMessage = body.message;
             const clientSessionId = body.sessionId;
-            const userId = body.user_id;
             const wantsStream = body.stream === true;
             const flowIdToUse = body.flowId;
 
@@ -266,20 +265,16 @@ export class LangflowProxyService {
                 input_type: 'chat',
                 output_type: 'chat',
                 session_id: clientSessionId || undefined,
-                user_id: userId || undefined 
             };
             
             if (runOptions.session_id === undefined) {
                 delete runOptions.session_id;
             }
-            if (runOptions.user_id === undefined) {
-                delete runOptions.user_id;
-            }
 
             const flow = this.langflowClient.flow(flowIdToUse);
 
             if (wantsStream) {
-                console.log(`LangflowProxyService: Streaming request for Flow (${flowIdToUse}), session: ${runOptions.session_id || 'new'}, user: ${userId || 'anonymous'}, message: "${userMessage.substring(0, 50)}..."`);
+                console.log(`LangflowProxyService: Streaming request for Flow (${flowIdToUse}), session: ${runOptions.session_id || 'new'}, message: \"${userMessage.substring(0, 50)}...\"`);
                 res.setHeader('Content-Type', 'application/x-ndjson');
                 res.setHeader('Transfer-Encoding', 'chunked');
 
@@ -306,10 +301,7 @@ export class LangflowProxyService {
                 if (clientSessionId) {
                     logMessage += `, session: ${runOptions.session_id}`;
                 }
-                if (userId) {
-                    logMessage += `, user: ${userId}`;
-                }
-                logMessage += `, input_type: ${runOptions.input_type}, message: "${userMessage.substring(0,50)}..."`;
+                logMessage += `, input_type: ${runOptions.input_type}, message: \"${userMessage.substring(0,50)}...\"`;
                 console.log(logMessage);
                 
                 const langflowResponse = await flow.run(userMessage, runOptions);

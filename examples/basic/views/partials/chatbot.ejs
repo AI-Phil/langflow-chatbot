@@ -3,10 +3,6 @@
 
     <fieldset id="chatbot-settings" style="margin-bottom: 20px; border: 1px solid #ccc; padding: 10px;">
         <legend style="font-weight: bold; padding: 0 5px;">Chatbot Settings</legend>
-        <div id="chatbot-userid-display-container" style="margin-bottom: 10px;">
-            <label>Chatbot User ID:</label>
-            <span id="chatbot-userid-display">Loading...</span>
-        </div>
         <div id="flow-id-controls">
             <label for="flow-id-input">Flow ID:</label>
             <input type="text" id="flow-id-input" placeholder="Enter Flow ID (default: memory-chatbot)">
@@ -80,7 +76,6 @@
     });
   }
 
-  let currentChatbotUserid; // To store the determined chatbot user ID
   let chatWidgetFlowId = "memory-chatbot";
 
   function initializeChatWidget() {
@@ -107,23 +102,15 @@
     // Clear previous widget instance
     chatContainer.innerHTML = ''; 
 
-    if (!currentChatbotUserid) {
-        console.error('Chatbot User ID not set. Cannot initialize chat widget.');
-        if (chatContainer) {
-            chatContainer.innerHTML = '<p style="color: red;">Error: Chatbot User ID not available. Ensure it is set before initializing.</p>';
-        }
-        return;
-    }
-
     try {
       if (window.LangflowChatbot && window.LangflowChatbot.LangflowChatClient && window.LangflowChatbot.ChatWidget) {
         let chatClient;
         if (sessionId) {
           console.log('Initializing LangflowChatClient with Session ID:', sessionId);
-          chatClient = new window.LangflowChatbot.LangflowChatClient('/api/langflow', currentChatbotUserid, sessionId);
+          chatClient = new window.LangflowChatbot.LangflowChatClient('/api/langflow', sessionId);
         } else {
           console.log('Initializing LangflowChatClient without a specific Session ID from input.');
-          chatClient = new window.LangflowChatbot.LangflowChatClient('/api/langflow', currentChatbotUserid);
+          chatClient = new window.LangflowChatbot.LangflowChatClient('/api/langflow');
         }
         
         // Example of using the new configuration options
@@ -141,7 +128,7 @@
         };
 
         new window.LangflowChatbot.ChatWidget('chatbot-container', chatClient, currentFlowId, enableStream, chatWidgetConfig);
-        console.log('ChatWidget initialized/reinitialized. ChatbotUserid:', currentChatbotUserid, 'FlowId:', currentFlowId, 'SessionId from input:', sessionId || "None", "Stream enabled:", enableStream, "Config:", chatWidgetConfig);
+        console.log('ChatWidget initialized/reinitialized. FlowId:', currentFlowId, 'SessionId from input:', sessionId || "None", "Stream enabled:", enableStream, "Config:", chatWidgetConfig);
       } else {
         console.error('LangflowChatbot components not found on window.LangflowChatbot.');
         if (chatContainer) {
@@ -157,33 +144,6 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    // Manage chatbot_userid cookie
-    const appUserid = getCookie('app_userid');
-    let initialChatbotUserid = getCookie('chatbot_userid');
-
-    if (appUserid) {
-      if (!initialChatbotUserid || initialChatbotUserid !== appUserid) {
-        setCookie('chatbot_userid', appUserid, 365);
-        initialChatbotUserid = appUserid;
-        console.log('Chatbot User ID set/updated from app_userid:', appUserid);
-      }
-    } else {
-      if (!initialChatbotUserid) {
-        const newChatbotUserid = generateUUID();
-        setCookie('chatbot_userid', newChatbotUserid, 365);
-        initialChatbotUserid = newChatbotUserid;
-        console.log('New Chatbot User ID generated:', newChatbotUserid);
-      }
-    }
-    currentChatbotUserid = initialChatbotUserid; // Set the accessible variable
-
-    const displayElement = document.getElementById('chatbot-userid-display');
-    if (displayElement && currentChatbotUserid) {
-      displayElement.textContent = currentChatbotUserid;
-    } else if (displayElement) {
-      displayElement.textContent = 'Not set'; 
-    }
-
     const flowIdInput = document.getElementById('flow-id-input');
     if (flowIdInput) {
         flowIdInput.value = chatWidgetFlowId;
@@ -257,42 +217,5 @@
             initializeChatWidget();
         });
     }
-
-    // Listen for app_userid changes
-    document.addEventListener('appUseridChanged', (event) => {
-      const newAppUserid = event.detail.userid;
-      // Get the latest chatbot_userid from cookie after potential changes
-      let updatedChatbotUserid = getCookie('chatbot_userid'); 
-      const displayElem = document.getElementById('chatbot-userid-display');
-
-      console.log('appUseridChanged event received in chatbot partial. New app_userid:', newAppUserid, 'Current chatbot_userid from cookie:', updatedChatbotUserid);
-
-      if (newAppUserid) {
-        if (updatedChatbotUserid !== newAppUserid) {
-          setCookie('chatbot_userid', newAppUserid, 365);
-          currentChatbotUserid = newAppUserid; // Update accessible variable
-          if (displayElem) {
-            displayElem.textContent = newAppUserid;
-          }
-          console.log('Chatbot User ID dynamically updated from app_userid:', newAppUserid);
-          initializeChatWidget(); // Reinitialize with new/updated chatbotUserid
-        } else {
-          // If appUserid is set but chatbot_userid already matches, ensure currentChatbotUserid var is also aligned if it somehow differed.
-          currentChatbotUserid = newAppUserid; 
-        }
-      } else {
-        const newGeneratedChatbotUserid = generateUUID();
-        setCookie('chatbot_userid', newGeneratedChatbotUserid, 365);
-        currentChatbotUserid = newGeneratedChatbotUserid; // Update accessible variable
-        if (displayElem) {
-          displayElem.textContent = newGeneratedChatbotUserid;
-        }
-        console.log('app_userid cleared. New Chatbot User ID generated:', newGeneratedChatbotUserid);
-        initializeChatWidget(); // Reinitialize with new chatbotUserid
-      }
-    });
-
-    // The original try-catch block for chat widget initialization is now encapsulated within initializeOrReinitializeChatWidget()
-    // and called at the appropriate times.
   });
 </script> 

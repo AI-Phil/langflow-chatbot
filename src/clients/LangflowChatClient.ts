@@ -66,11 +66,9 @@ import {
 
 export class LangflowChatClient {
     private baseApiUrl: string;
-    private userId?: string;
 
-    constructor(baseApiUrl: string = PROXY_BASE_API_PATH, userId?: string) {
+    constructor(baseApiUrl: string = PROXY_BASE_API_PATH) {
         this.baseApiUrl = baseApiUrl.replace(/\/$/, ''); // Remove trailing slash if present
-        this.userId = userId;
     }
 
     private generateSessionId(): string {
@@ -81,12 +79,11 @@ export class LangflowChatClient {
         const effectiveSessionId = sessionId || this.generateSessionId();
 
         try {
-            const requestBody: { message: string; flowId: string; sessionId?: string; stream?: boolean; user_id?: string } = {
+            const requestBody: { message: string; flowId: string; sessionId?: string; stream?: boolean; } = {
                 message,
                 flowId,
                 sessionId: effectiveSessionId,
                 stream: false,
-                user_id: this.userId || undefined
             };
             
             const chatUrl = `${this.baseApiUrl}${PROXY_CHAT_ENDPOINT_SUFFIX}`; // Construct specific chat endpoint
@@ -133,12 +130,11 @@ export class LangflowChatClient {
         // Yield the session ID immediately
         yield { event: 'stream_started', data: { sessionId: effectiveSessionId } };
 
-        const requestBody: { message: string; flowId: string; sessionId?: string; stream: boolean; user_id?: string } = {
+        const requestBody: { message: string; flowId: string; sessionId?: string; stream: boolean; } = {
             message,
             flowId,
             sessionId: effectiveSessionId,
             stream: true,
-            user_id: this.userId || undefined
         };
 
         try {
@@ -304,14 +300,11 @@ export class LangflowChatClient {
         }
     }
 
-    async getMessageHistory(flowId: string, sessionId: string, userId?: string): Promise<ChatMessageData[] | null> {
+    async getMessageHistory(flowId: string, sessionId: string): Promise<ChatMessageData[] | null> {
         // Construct the query parameters
         const params = new URLSearchParams();
         params.append('flow_id', flowId);
         params.append('session_id', sessionId);
-        if (userId || this.userId) {
-            params.append('user_id', userId || this.userId!);
-        }
 
         const historyUrl = `${this.baseApiUrl}${PROXY_MESSAGES_ENDPOINT_SUFFIX}?${params.toString()}`;
         

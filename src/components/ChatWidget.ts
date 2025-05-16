@@ -693,7 +693,7 @@ export class ChatWidget {
             return;
         }
         try {
-            const history = await this.chatClient.getMessageHistory(this.flowId, sessionId /*, this.userId - if/when available */); // Use this.flowId (resolved UUID)
+            const history = await this.chatClient.getMessageHistory(this.flowId, sessionId); // Use this.flowId (resolved UUID)
             if (history && history.length > 0) {
                 const chatMessagesContainer = this.element.querySelector('.chat-messages');
                 if (chatMessagesContainer) {
