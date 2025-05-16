@@ -11,7 +11,7 @@ import { LangflowProxyService, LangflowProxyConfig } from '../../src/langflow-pr
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 const hostname = '127.0.0.1';
-const port = 3000;
+const port = 3001;
 
 // Configuration for Langflow Proxy Service
 const langflowEndpointUrl = process.env.LANGFLOW_ENDPOINT_URL || 'http://127.0.0.1:7860';
@@ -68,7 +68,7 @@ const server = http.createServer(async (req, res) => {
             res.end('JavaScript bundle not found');
             console.error(`Error reading ${jsPath}:`, err);
         }
-    } else if (req.url === '/api/langflow' && req.method === 'POST') {
+    } else if (req.url?.startsWith('/api/langflow')) {
         if (!langflowProxy) {
             res.statusCode = 503; // Service Unavailable
             res.setHeader('Content-Type', 'application/json');

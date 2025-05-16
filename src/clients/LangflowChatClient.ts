@@ -45,6 +45,19 @@ export interface StreamEvent<K extends StreamEventType = StreamEventType> {
     data: StreamEventDataMap[K];
 }
 
+// Added interface for historical messages
+export interface ChatMessageData {
+    id?: string;
+    flow_id?: string;
+    timestamp?: string; // date-time
+    sender?: string;    // "user" or "bot"
+    sender_name?: string;
+    session_id?: string;
+    text?: string;
+    files?: string[];
+    // other optional fields from docs: edit, duration, properties, category, content_blocks
+}
+
 export class LangflowChatClient {
     private apiUrl: string;
     private userId?: string;
@@ -266,6 +279,48 @@ export class LangflowChatClient {
                     sessionId: effectiveSessionId
                 }
             } as StreamEvent<'error'>;
+        }
+    }
+
+    async getMessageHistory(flowId: string, sessionId: string, userId?: string): Promise<ChatMessageData[] | null> {
+        // userId is for future proofing, not currently used in this API call
+        const params = new URLSearchParams({
+            flow_id: flowId,
+            session_id: sessionId,
+            // order_by: 'timestamp' // Assuming default order is chronological, or API handles it.
+                                   // Docs mention 'order_by Order By' but not specific values.
+                                   // Common practice is 'timestamp ASC' or 'timestamp DESC'.
+                                   // Let's rely on API default for now.
+        });
+
+        const url = `${this.apiUrl}/messages?${params.toString()}`;
+
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                let errorData: any = { error: `API request failed with status ${response.status}` };
+                try {
+                    errorData = await response.json();
+                } catch (e) {
+                    // Ignore if response is not JSON
+                }
+                console.error("API Error (getMessageHistory):", response.status, errorData);
+                // Optionally, could return an empty array or a custom error object
+                return null; 
+            }
+            const messages = await response.json() as ChatMessageData[];
+            return messages;
+
+        } catch (error: any) {
+            console.error("Failed to get message history or parse response:", error);
+            // Optionally, could return an empty array or a custom error object
+            return null;
         }
     }
 } 

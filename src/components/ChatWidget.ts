@@ -1,4 +1,4 @@
-import { LangflowChatClient, BotResponse, StreamEvent, TokenEventData, EndEventData, AddMessageEventData, StreamEventType, StreamEventDataMap } from '../clients/LangflowChatClient'; // Adjusted import path
+import { LangflowChatClient, BotResponse, StreamEvent, TokenEventData, EndEventData, AddMessageEventData, StreamEventType, StreamEventDataMap, ChatMessageData } from '../clients/LangflowChatClient'; // Adjusted import path
 
 export class ChatWidget {
     private element: HTMLElement;
@@ -34,6 +34,11 @@ export class ChatWidget {
             this.currentSessionId = this.sessionIdInput.value.trim();
         }
         // Optionally, you could try to load a sessionId from localStorage here if you want persistence across page loads
+
+        // Load message history if sessionId is available
+        if (this.currentSessionId) {
+            this.loadAndDisplayHistory(this.currentSessionId);
+        }
     }
 
     private render(): void {
@@ -305,6 +310,48 @@ export class ChatWidget {
         const chatMessages = this.element.querySelector('.chat-messages');
         if (chatMessages) {
             chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    }
+
+    private async loadAndDisplayHistory(sessionId: string): Promise<void> {
+        if (!this.chatClient.getMessageHistory) {
+            console.warn("ChatWidget: getMessageHistory method not available on chatClient.");
+            return;
+        }
+        try {
+            const history = await this.chatClient.getMessageHistory(this.flowId, sessionId /*, this.userId - if/when available */);
+            if (history && history.length > 0) {
+                const chatMessagesContainer = this.element.querySelector('.chat-messages');
+                if (chatMessagesContainer) {
+                    // Clear any existing messages like "Thinking..." from initial render or previous state
+                    // chatMessagesContainer.innerHTML = ''; // Or more selectively remove placeholder messages
+                }
+                history.forEach(message => {
+                    if (message.text) {
+                        let senderType = "Bot"; // Default to Bot
+                        if (message.sender === 'user') {
+                            senderType = "You";
+                        } else if (message.sender === 'bot') {
+                            senderType = "Bot";
+                        } else if (message.sender_name) { // Fallback to sender_name if sender is ambiguous
+                            // This part might need refinement based on actual sender_name values
+                            senderType = message.sender_name; 
+                        }
+                        // Add message to display without the 'thinking' animation
+                        this.addMessageToDisplay(senderType, message.text, false);
+                    }
+                });
+                const chatMessages = this.element.querySelector('.chat-messages');
+                if (chatMessages) { // Scroll to bottom after loading history
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+            } else if (history === null) {
+                console.log("ChatWidget: No message history returned or error fetching history.");
+            }
+        } catch (error) {
+            console.error("ChatWidget: Error loading message history:", error);
+            // Optionally, display an error message in the chat widget
+            // this.addMessageToDisplay("Error", "Could not load message history.");
         }
     }
 } 

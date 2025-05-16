@@ -31,10 +31,12 @@ export class LangflowProxyService {
     private langflowClient: LangflowClient;
     // private defaultFlowId: string;
     private langflowEndpointUrl: string;
+    private langflowApiKey?: string; // Store API key for direct calls
 
     constructor(config: LangflowProxyConfig) {
         // this.defaultFlowId = config.langflowDefaultFlowId;
         this.langflowEndpointUrl = config.langflowEndpointUrl;
+        this.langflowApiKey = config.langflowApiKey; // Store for later use
 
         const clientConfig: { baseUrl: string; apiKey?: string } = {
             baseUrl: config.langflowEndpointUrl,
@@ -55,6 +57,84 @@ export class LangflowProxyService {
     }
 
     public async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+        if (req.method === 'GET' && req.url?.startsWith('/api/langflow/messages')) {
+            await this.handleGetMessagesRequest(req, res);
+        } else if (req.method === 'POST' && req.url === '/api/langflow') {
+            await this.handleChatMessageRequest(req, res);
+        } else {
+            res.statusCode = 404;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: "Endpoint not found or method not supported." }));
+        }
+    }
+
+    private async handleGetMessagesRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+        console.log(`LangflowProxyService: Received GET request for messages: ${req.url}`);
+        if (!this.langflowEndpointUrl) {
+            res.statusCode = 503;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: "Langflow endpoint URL not configured in proxy." }));
+            return;
+        }
+
+        // Extract query parameters from the incoming request URL
+        const incomingUrl = new URL(req.url!, `http://${req.headers.host}`); // Base is needed for URL constructor
+        const flowId = incomingUrl.searchParams.get('flow_id');
+        const sessionId = incomingUrl.searchParams.get('session_id');
+        // const userId = incomingUrl.searchParams.get('user_id'); // For future use if API supports it
+
+        if (!flowId || !sessionId) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: "flow_id and session_id are required query parameters." }));
+            return;
+        }
+
+        // Construct the target URL for the actual Langflow API
+        // Langflow's API for messages is typically /api/v1/monitor/messages
+        const targetPath = `/api/v1/monitor/messages`;
+        const targetUrl = new URL(targetPath, this.langflowEndpointUrl);
+        targetUrl.searchParams.append('flow_id', flowId);
+        targetUrl.searchParams.append('session_id', sessionId);
+        // if (userId) targetUrl.searchParams.append('user_id', userId); // If/when supported
+
+        console.log(`LangflowProxyService: Forwarding GET request to Langflow: ${targetUrl.toString()}`);
+
+        try {
+            const headers: HeadersInit = {
+                'Accept': 'application/json',
+            };
+            if (this.langflowApiKey) {
+                headers['Authorization'] = `Bearer ${this.langflowApiKey}`;
+            }
+
+            const langflowApiResponse = await fetch(targetUrl.toString(), {
+                method: 'GET',
+                headers: headers,
+            });
+
+            res.statusCode = langflowApiResponse.status;
+            res.setHeader('Content-Type', langflowApiResponse.headers.get('Content-Type') || 'application/json');
+            
+            const responseBody = await langflowApiResponse.text(); // Get as text to handle various content types or empty bodies
+            if (responseBody) {
+                res.end(responseBody);
+            } else {
+                res.end();
+            }
+
+        } catch (error: any) {
+            console.error(`LangflowProxyService: Error forwarding GET request to Langflow for messages:`, error);
+            if (!res.headersSent) {
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: "Failed to fetch message history from Langflow.", detail: error.message }));
+            }
+        }
+    }
+    
+    // Renamed original POST logic to handleChatMessageRequest
+    private async handleChatMessageRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
         if (!this.langflowClient) {
             // This case should ideally be prevented by the constructor throwing an error if client init fails.
             res.statusCode = 503; // Service Unavailable
