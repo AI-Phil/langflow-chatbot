@@ -24,8 +24,114 @@
         </div>
     </fieldset>
 
-    <div id="chatbot-container"></div>
+    <div id="chatbot-container" style="max-width: 600px; margin: 20px; /* Changed auto to 20px for left alignment */ border: 1px solid #ddd; box-shadow: 0 0 10px rgba(0,0,0,0.1); overflow: hidden; border-radius: 8px;"></div>
 </section> 
+
+<style>
+    .chat-widget { /* Targeting the root element rendered by ChatWidget.ts */
+        display: flex;
+        flex-direction: column;
+        height: 70vh; /* Example height, adjust as needed */
+        max-height: 500px; /* Max height to prevent it from becoming too tall */
+        background-color: #fff; /* Ensure widget has a background */
+    }
+
+    .chat-messages {
+        flex-grow: 1; /* Allows this area to take up available vertical space */
+        overflow-y: auto; /* Enables vertical scrolling */
+        padding: 10px; /* Some padding inside the message area */
+        border-bottom: 1px solid #e0e0e0; /* Visual separation from input if input area has no top border */
+    }
+
+    .message-block {
+        margin-bottom: 15px; 
+        padding: 5px 10px; 
+        display: flex; 
+        flex-direction: column;
+    }
+
+    .user-message.message-block {
+        align-items: flex-end; 
+    }
+
+    .bot-message.message-block {
+        align-items: flex-start; 
+    }
+
+    .sender-name-display {
+        font-size: 0.8em;
+        color: #555;
+        margin-bottom: 3px;
+    }
+
+    .message-bubble {
+        padding: 10px 14px;
+        border-radius: 18px;
+        display: inline-block; 
+        max-width: 85%; 
+        line-height: 1.4;
+    }
+
+    .user-message .message-bubble {
+        background-color: #007bff;
+        color: white;
+        border-bottom-right-radius: 6px; 
+    }
+
+    .bot-message .message-bubble {
+        background-color: #f0f0f0;
+        color: #333;
+        border-bottom-left-radius: 6px; 
+    }
+
+    .message-bubble .message-text-content {
+        white-space: pre-wrap; 
+        word-wrap: break-word; 
+    }
+
+    /* Input Area Styling */
+    .chat-input-area {
+        display: flex;
+        padding: 10px;
+        background-color: #f8f9fa; 
+        border-top: 1px solid #e0e0e0;
+    }
+
+    .chat-input {
+        flex-grow: 1;
+        border: 1px solid #ced4da;
+        border-radius: 18px; 
+        padding: 10px 15px;
+        font-size: 1rem;
+        margin-right: 8px;
+        outline: none; 
+        transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+    .chat-input:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25); 
+    }
+
+    .send-button {
+        border: none;
+        background-color: #007bff; 
+        color: white;
+        padding: 10px 15px;
+        border-radius: 18px; 
+        font-size: 1rem;
+        cursor: pointer;
+        transition: background-color 0.2s ease-in-out;
+    }
+    .send-button:hover {
+        background-color: #0056b3; 
+    }
+    .send-button:disabled {
+        background-color: #a0a0a0;
+        cursor: not-allowed;
+    }
+
+</style>
+
 <script src="/static/langflow-chatbot.js"></script>
 <script>
   // Cookie helper functions
@@ -106,10 +212,16 @@
         
         // Example of using the new configuration options
         const chatWidgetConfig = {
-            userSender: "Me", // Custom user sender name
-            botSender: "Assistant", // Custom bot sender name
-            // errorSender: "Problem", // Example of another customization
-            // systemSender: "Alert" // Example for system messages
+            userSender: "Me", 
+            botSender: "Assistant", 
+            messageTemplate: `
+                <div class="{{messageClasses}} message-block">
+                    <div class="sender-name-display">{{sender}}</div>
+                    <div class="message-bubble">
+                        <span class="message-text-content">{{message}}</span>
+                    </div>
+                </div>
+            `
         };
 
         new window.LangflowChatbot.ChatWidget('chatbot-container', chatClient, currentFlowId, enableStream, chatWidgetConfig);

@@ -6,8 +6,35 @@ export interface ChatWidgetConfigOptions {
     botSender?: string;
     errorSender?: string;
     systemSender?: string;
+    mainContainerTemplate?: string;
+    inputAreaTemplate?: string;
+    messageTemplate?: string;
     // Future: Add HTML template strings or functions here
 }
+
+// Define default templates
+const DEFAULT_MAIN_CONTAINER_TEMPLATE = `
+    <div class="chat-widget">
+        <div class="chat-messages">
+            <!-- Messages will appear here -->
+        </div>
+        <div id="chat-input-area-container"></div> <!-- Renamed for clarity -->
+    </div>
+`;
+
+const DEFAULT_INPUT_AREA_TEMPLATE = `
+    <div class="chat-input-area">
+        <input type="text" class="chat-input" placeholder="Type your message..." />
+        <button class="send-button">Send</button>
+    </div>
+`;
+
+const DEFAULT_MESSAGE_TEMPLATE = `
+    <div class="{{messageClasses}}">
+        <strong>{{sender}}:</strong> 
+        <span class="message-text-content" style="white-space: pre-wrap;">{{message}}</span>
+    </div>
+`;
 
 export class ChatWidget {
     private element: HTMLElement;
@@ -46,14 +73,18 @@ export class ChatWidget {
         this.chatClient = chatClient;
         this.enableStream = enableStream;
 
-        // Apply default configuration
         this.config = {
             userSender: configOptions.userSender || "You",
             botSender: configOptions.botSender || "Bot",
             errorSender: configOptions.errorSender || "Error",
             systemSender: configOptions.systemSender || "System",
+            mainContainerTemplate: configOptions.mainContainerTemplate || DEFAULT_MAIN_CONTAINER_TEMPLATE,
+            inputAreaTemplate: configOptions.inputAreaTemplate || DEFAULT_INPUT_AREA_TEMPLATE,
+            messageTemplate: configOptions.messageTemplate || DEFAULT_MESSAGE_TEMPLATE,
         };
         
+        this._validateAndPrepareTemplates(); // Call validation early
+
         this.render(); // Render first to ensure session-id-input exists
         
         this.sessionIdInput = document.getElementById('session-id-input') as HTMLInputElement | null;
@@ -63,6 +94,36 @@ export class ChatWidget {
         }
 
         this._resolveFlowAndInitialize(inputFlowIdOrName);
+    }
+
+    private _validateAndPrepareTemplates(): void {
+        if (!this.config.mainContainerTemplate.includes('id="chat-input-area-container"')) {
+            console.warn('ChatWidget: Custom mainContainerTemplate is missing id="chat-input-area-container". Input area might not be placed correctly.');
+        }
+
+        // Validate messageTemplate for .message-text-content using DOM parsing
+        const tempMessageDiv = document.createElement('div');
+        // We inject a dummy message to ensure placeholders don't break the structure too much for querySelector
+        const testRenderedTemplate = this.config.messageTemplate
+            .replace("{{messageClasses}}", "message")
+            .replace("{{sender}}", "test")
+            .replace("{{message}}", "test");
+        tempMessageDiv.innerHTML = testRenderedTemplate;
+        if (!tempMessageDiv.querySelector('.message-text-content')) {
+            console.error('ChatWidget: Custom messageTemplate is missing an element with class "message-text-content". Streaming updates will not work correctly. Reverting to default message template.');
+            this.config.messageTemplate = DEFAULT_MESSAGE_TEMPLATE;
+        }
+
+        // {{sender}} is now optional
+        // if (!this.config.messageTemplate.includes('{{sender}}')) {
+        //     console.warn('ChatWidget: Custom messageTemplate is missing the {{sender}} placeholder.');
+        // }
+        if (!this.config.messageTemplate.includes('{{message}}')) {
+            console.warn('ChatWidget: Custom messageTemplate is missing the {{message}} placeholder. This is critical for displaying messages.');
+        }
+        if (!this.config.messageTemplate.includes('{{messageClasses}}')) {
+            console.warn('ChatWidget: Custom messageTemplate is missing the {{messageClasses}} placeholder. This is important for message styling.');
+        }
     }
 
     private async _resolveFlowAndInitialize(idOrName: string): Promise<void> {
@@ -165,17 +226,61 @@ export class ChatWidget {
     }
 
     private render(): void {
-        this.element.innerHTML = `
-            <div class="chat-widget">
-                <div class="chat-messages">
-                    <!-- Messages will appear here -->
+        // Use the configured main container template
+        this.element.innerHTML = this.config.mainContainerTemplate;
+
+        // Find the container and inject the input area template
+        const inputAreaContainer = this.element.querySelector('#chat-input-area-container'); // Renamed selector
+        if (inputAreaContainer) {
+            inputAreaContainer.innerHTML = this.config.inputAreaTemplate; 
+        } else {
+            console.warn("ChatWidget: #chat-input-area-container not found in mainContainerTemplate. Input area will be appended to .chat-widget if possible.");
+            const chatWidgetDiv = this.element.querySelector('.chat-widget');
+            if (chatWidgetDiv) {
+                // Create a temporary div to parse the inputAreaTemplate
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = this.config.inputAreaTemplate;
+                // Append the first child of tempDiv (which should be the .chat-input-area div)
+                if (tempDiv.firstElementChild) {
+                    chatWidgetDiv.appendChild(tempDiv.firstElementChild);
+                } else {
+                     // Fallback if inputAreaTemplate was empty or invalid
+                    const defaultInputWrapper = document.createElement('div');
+                    defaultInputWrapper.innerHTML = DEFAULT_INPUT_AREA_TEMPLATE;
+                    chatWidgetDiv.appendChild(defaultInputWrapper.firstElementChild!);
+                }
+            } else {
+                 console.error("ChatWidget: Critical rendering error. Neither #chat-input-area-container nor .chat-widget found. Reverting to full default.");
+                 this.element.innerHTML = DEFAULT_MAIN_CONTAINER_TEMPLATE;
+                 const container = this.element.querySelector('#chat-input-area-container');
+                 if(container) container.innerHTML = DEFAULT_INPUT_AREA_TEMPLATE;
+            }
+        }
+
+        // Validate essential elements
+        const chatMessages = this.element.querySelector('.chat-messages');
+        const chatInput = this.element.querySelector<HTMLInputElement>('.chat-input');
+        const sendButton = this.element.querySelector<HTMLButtonElement>('.send-button');
+
+        if (!chatMessages || !chatInput || !sendButton) {
+            console.error(
+                "ChatWidget: Essential elements (.chat-messages, .chat-input, .send-button) not found after rendering custom templates. " +
+                "Functionality may be impaired. Reverting to default full template."
+            );
+            // Fallback to the original known good structure
+            this.element.innerHTML = `
+                <div class="chat-widget">
+                    <div class="chat-messages">
+                        <!-- Messages will appear here -->
+                    </div>
+                    <div class="chat-input-area">
+                        <input type="text" class="chat-input" placeholder="Type your message..." />
+                        <button class="send-button">Send</button>
+                    </div>
                 </div>
-                <div class="chat-input-area">
-                    <input type="text" class="chat-input" placeholder="Type your message..." />
-                    <button class="send-button">Send</button>
-                </div>
-            </div>
-        `;
+            `;
+        }
+
         this.setupEventListeners();
     }
 
@@ -402,42 +507,49 @@ export class ChatWidget {
     private addMessageToDisplay(sender: string, message: string, isThinking: boolean = false): HTMLElement | null {
         const chatMessages = this.element.querySelector('.chat-messages');
         if (chatMessages) {
-            const messageElement = document.createElement('div');
-            messageElement.classList.add('message');
+            let messageClasses = "message";
             if (sender === this.config.userSender) {
-                messageElement.classList.add('user-message');
+                messageClasses += " user-message";
             } else if (sender === this.config.botSender) {
-                messageElement.classList.add('bot-message');
+                messageClasses += " bot-message";
             } else if (sender === this.config.errorSender) {
-                 messageElement.classList.add('error-message');
-            } else if (sender === this.config.systemSender) { // Added for completeness, though not strictly styled yet
-                messageElement.classList.add('system-message'); // You might want to add CSS for .system-message
+                messageClasses += " error-message";
+            } else if (sender === this.config.systemSender) {
+                messageClasses += " system-message";
             }
             if (isThinking) {
-                messageElement.classList.add('thinking');
+                messageClasses += " thinking";
             }
-            const senderStrong = document.createElement('strong');
-            senderStrong.textContent = `${sender}: `;
-            const messageSpan = document.createElement('span');
-            messageSpan.style.whiteSpace = 'pre-wrap';
-            messageSpan.textContent = message;
 
-            messageElement.appendChild(senderStrong);
-            messageElement.appendChild(messageSpan);
+            // Populate the template
+            let populatedTemplate = this.config.messageTemplate
+                .replace("{{messageClasses}}", messageClasses)
+                .replace("{{sender}}", sender)
+                .replace("{{message}}", message);
             
-            chatMessages.appendChild(messageElement);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-            return messageElement;
+            // Create element from template string
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = populatedTemplate.trim();
+            const messageElement = tempDiv.firstElementChild as HTMLElement | null;
+
+            if (messageElement) {
+                chatMessages.appendChild(messageElement);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                return messageElement;
+            }
         }
         return null;
     }
 
     private updateBotMessageContent(messageElement: HTMLElement, text: string): void {
-        const messageSpan = messageElement.querySelector('span');
+        const messageSpan = messageElement.querySelector('.message-text-content'); // Updated selector
         if (messageSpan) {
             messageSpan.textContent = text;
         } else {
-            messageElement.textContent = text;
+            // Fallback if the specific span isn't found, though template should ensure it exists.
+            // This might happen if user provides a template without .message-text-content
+            console.warn("ChatWidget: .message-text-content span not found in message element for update. Updating entire element.");
+            messageElement.textContent = text; // Less ideal, might strip sender name if template is complex
         }
         const chatMessages = this.element.querySelector('.chat-messages');
         if (chatMessages) {
