@@ -7,8 +7,9 @@ export class ChatWidget {
     private streamToggle: HTMLInputElement | null = null; // For the stream toggle
     private currentBotMessageElement: HTMLElement | null = null; // To update during streaming
     private sessionIdInput: HTMLInputElement | null = null; // Added for the session ID input field
+    private flowId: string;
 
-    constructor(containerId: string, chatClient: LangflowChatClient) {
+    constructor(containerId: string, chatClient: LangflowChatClient, flowId: string) {
         const container = document.getElementById(containerId);
         if (!container) {
             throw new Error(`Container with id #${containerId} not found.`);
@@ -16,8 +17,12 @@ export class ChatWidget {
         if (!chatClient) {
             throw new Error('LangflowChatClient instance is required.');
         }
+        if (!flowId || typeof flowId !== 'string' || flowId.trim() === '') {
+            throw new Error('flowId is required and must be a non-empty string.');
+        }
         this.element = container;
         this.chatClient = chatClient;
+        this.flowId = flowId;
         this.render(); // Render first to ensure session-id-input exists
         
         // Attempt to find the session ID input field from the document,
@@ -113,7 +118,7 @@ export class ChatWidget {
             }, 500);
 
             try {
-                for await (const event of this.chatClient.streamMessage(currentMessage, sessionIdToSend)) {
+                for await (const event of this.chatClient.streamMessage(currentMessage, this.flowId, sessionIdToSend)) {
                     if (this.currentBotMessageElement && this.currentBotMessageElement.classList.contains('thinking')) {
                         // Clear "Thinking..." text if first token arrives or if stream ends with a reply
                         let shouldClearThinking = false;
@@ -222,7 +227,7 @@ export class ChatWidget {
             // Non-streaming logic
             const thinkingMsg = this.addMessageToDisplay("Bot", "Thinking...", true);
             try {
-                const botResponse: BotResponse = await this.chatClient.sendMessage(currentMessage, sessionIdToSend);
+                const botResponse: BotResponse = await this.chatClient.sendMessage(currentMessage, this.flowId, sessionIdToSend);
                 if(thinkingMsg) this.removeMessageElement(thinkingMsg);
 
                 if (botResponse.sessionId) {

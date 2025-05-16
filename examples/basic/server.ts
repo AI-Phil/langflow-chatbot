@@ -16,7 +16,7 @@ const port = 3000;
 // Configuration for Langflow Proxy Service
 const langflowEndpointUrl = process.env.LANGFLOW_ENDPOINT_URL || 'http://127.0.0.1:7860';
 const langflowApiKeyFromEnv = process.env.LANGFLOW_API_KEY; // Can be undefined
-const langflowDefaultFlowId = process.env.LANGFLOW_DEFAULT_FLOW_ID || 'YOUR_DEFAULT_FLOW_ID_PLACEHOLDER';
+// const langflowDefaultFlowId = process.env.LANGFLOW_DEFAULT_FLOW_ID || 'YOUR_DEFAULT_FLOW_ID_PLACEHOLDER'; // Removed
 // const langflowIdFromEnv = process.env.LANGFLOW_ID; // This was not used for client/proxy, can be kept if used elsewhere or removed
 
 let langflowProxy: LangflowProxyService;
@@ -24,7 +24,7 @@ let langflowProxy: LangflowProxyService;
 const proxyConfig: LangflowProxyConfig = {
     langflowEndpointUrl,
     langflowApiKey: langflowApiKeyFromEnv,
-    langflowDefaultFlowId
+    // langflowDefaultFlowId // Removed
 };
 
 try {
@@ -86,9 +86,9 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(port, hostname, () => {
     console.log(`Server running at http://${hostname}:${port}/`);
-    if (!langflowDefaultFlowId || langflowDefaultFlowId === 'YOUR_DEFAULT_FLOW_ID_PLACEHOLDER') {
-        console.warn("Reminder: LANGFLOW_DEFAULT_FLOW_ID is not set or is using the default placeholder. Update it with your actual Flow ID (environment variable LANGFLOW_DEFAULT_FLOW_ID).");
-    }
+    // if (!langflowDefaultFlowId || langflowDefaultFlowId === 'YOUR_DEFAULT_FLOW_ID_PLACEHOLDER') { // Removed warning for default flow id
+    //     console.warn("Reminder: LANGFLOW_DEFAULT_FLOW_ID is not set or is using the default placeholder. Update it with your actual Flow ID (environment variable LANGFLOW_DEFAULT_FLOW_ID).");
+    // }
     if (!langflowProxy) {
         // This check is redundant if the server exits on proxy init failure, but good for safety.
         console.error("CRITICAL: LangflowProxyService failed to initialize. The /api/langflow endpoint will not work.");

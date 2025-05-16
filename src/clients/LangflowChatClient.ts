@@ -58,12 +58,13 @@ export class LangflowChatClient {
         return crypto.randomUUID();
     }
 
-    async sendMessage(message: string, sessionId?: string | null): Promise<BotResponse> {
+    async sendMessage(message: string, flowId: string, sessionId?: string | null): Promise<BotResponse> {
         const effectiveSessionId = sessionId || this.generateSessionId();
 
         try {
-            const requestBody: { message: string; sessionId?: string; stream?: boolean; user_id?: string } = {
+            const requestBody: { message: string; flowId: string; sessionId?: string; stream?: boolean; user_id?: string } = {
                 message,
+                flowId,
                 sessionId: effectiveSessionId,
                 stream: false,
                 user_id: this.userId || undefined
@@ -106,14 +107,15 @@ export class LangflowChatClient {
         }
     }
 
-    async *streamMessage(message: string, sessionId?: string | null): AsyncGenerator<StreamEvent, void, undefined> {
+    async *streamMessage(message: string, flowId: string, sessionId?: string | null): AsyncGenerator<StreamEvent, void, undefined> {
         const effectiveSessionId = sessionId || this.generateSessionId();
 
         // Yield the session ID immediately
         yield { event: 'stream_started', data: { sessionId: effectiveSessionId } };
 
-        const requestBody: { message: string; sessionId?: string; stream: boolean; user_id?: string } = {
+        const requestBody: { message: string; flowId: string; sessionId?: string; stream: boolean; user_id?: string } = {
             message,
+            flowId,
             sessionId: effectiveSessionId,
             stream: true,
             user_id: this.userId || undefined

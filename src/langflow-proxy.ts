@@ -6,7 +6,7 @@ import { LangflowClient } from '@datastax/langflow-client';
 export interface LangflowProxyConfig {
     langflowEndpointUrl: string;
     langflowApiKey?: string;
-    langflowDefaultFlowId: string;
+    // langflowDefaultFlowId: string;
 }
 
 // Helper to parse JSON body (adapted from server.ts)
@@ -29,11 +29,11 @@ async function parseJsonBody(req: http.IncomingMessage): Promise<any> {
 
 export class LangflowProxyService {
     private langflowClient: LangflowClient;
-    private defaultFlowId: string;
+    // private defaultFlowId: string;
     private langflowEndpointUrl: string;
 
     constructor(config: LangflowProxyConfig) {
-        this.defaultFlowId = config.langflowDefaultFlowId;
+        // this.defaultFlowId = config.langflowDefaultFlowId;
         this.langflowEndpointUrl = config.langflowEndpointUrl;
 
         const clientConfig: { baseUrl: string; apiKey?: string } = {
@@ -46,7 +46,7 @@ export class LangflowProxyService {
         
         try {
             this.langflowClient = new LangflowClient(clientConfig);
-            console.log(`LangflowProxyService: LangflowClient initialized. Configured Endpoint: ${this.langflowEndpointUrl}, Default Flow ID: ${this.defaultFlowId}`);
+            console.log(`LangflowProxyService: LangflowClient initialized. Configured Endpoint: ${this.langflowEndpointUrl}`);
         } catch (error) {
             console.error("LangflowProxyService: Failed to initialize LangflowClient:", error);
             // Propagate the error to allow the calling application to handle it, e.g., by not starting the server.
@@ -69,12 +69,19 @@ export class LangflowProxyService {
             const clientSessionId = body.sessionId;
             const userId = body.user_id; // Extract user_id
             const wantsStream = body.stream === true; // Check for the stream flag
-            const flowIdToUse = body.flowId || this.defaultFlowId; // Allow overriding flowId from request
+            const flowIdToUse = body.flowId;
 
             if (!userMessage || typeof userMessage !== 'string') {
                 res.statusCode = 400;
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify({ error: "Message is required and must be a string." }));
+                return;
+            }
+
+            if (!flowIdToUse || typeof flowIdToUse !== 'string' || flowIdToUse.trim() === '') {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: "flowId is required in the request body and must be a non-empty string." }));
                 return;
             }
 
@@ -195,7 +202,7 @@ export class LangflowProxyService {
             }
 
         } catch (error: any) {
-            console.error(`LangflowProxyService: Error handling request for flow ${this.defaultFlowId}:`, error);
+            console.error(`LangflowProxyService: Error handling request:`, error);
             // Ensure we don't try to set headers if they were already sent (e.g. in a failed stream attempt)
             if (!res.headersSent) {
                 res.statusCode = 500;
