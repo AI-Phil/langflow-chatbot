@@ -57,6 +57,19 @@ const server = http.createServer(async (req, res) => {
             res.end('JavaScript bundle not found');
             console.error(`Error reading ${jsPath}:`, err);
         }
+    } else if (req.url === '/static/LangflowChatbotPlugin.js') {
+        const pluginPath = path.join(__dirname, '..', '..', 'dist', 'plugins', 'LangflowChatbotPlugin.js');
+        try {
+            const data = await readFileAsync(pluginPath);
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/javascript');
+            res.end(data);
+        } catch (err) {
+            res.statusCode = 404;
+            res.setHeader('Content-Type', 'text/plain');
+            res.end('Plugin JS file not found');
+            console.error(`Error reading ${pluginPath}:`, err);
+        }
     } else if (req.url === '/static/langflow-chatbot.css') {
         const cssPath = path.join(__dirname, '..', '..', 'dist', 'styles', 'langflow-chatbot.css');
         try {
