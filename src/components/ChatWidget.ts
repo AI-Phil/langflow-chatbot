@@ -14,11 +14,11 @@ export interface ChatWidgetConfigOptions {
 
 // Define default templates
 const DEFAULT_MAIN_CONTAINER_TEMPLATE = `
-    <div class="chat-widget">
-        <div class="chat-messages">
+    <div class="chat-widget" style="display: flex; flex-direction: column; height: 100%;">
+        <div class="chat-messages" style="flex-grow: 1; overflow-y: auto; padding: 10px;">
             <!-- Messages will appear here -->
         </div>
-        <div id="chat-input-area-container"></div> <!-- Renamed for clarity -->
+        <div id="chat-input-area-container" style="flex-shrink: 0;"></div> <!-- Renamed for clarity -->
     </div>
 `;
 
@@ -394,8 +394,9 @@ export class ChatWidget {
                                 const textContentSpan = this.currentBotMessageElement.querySelector('.message-text-content');
                                 if (textContentSpan) {
                                     textContentSpan.innerHTML += tokenData.chunk; // Use innerHTML for consistency, though textContent might be fine here
+                                    this.scrollChatToBottom(); // Scroll after direct token append
                                 } else {
-                                     this.updateBotMessageContent(this.currentBotMessageElement, accumulatedResponse); // Fallback
+                                     this.updateBotMessageContent(this.currentBotMessageElement, accumulatedResponse); // Fallback, will also scroll
                                 }
                             }
                             break;
@@ -557,7 +558,7 @@ export class ChatWidget {
 
             if (messageElement) {
                 chatMessages.appendChild(messageElement);
-                chatMessages.scrollTop = chatMessages.scrollHeight;
+                this.scrollChatToBottom();
                 return messageElement;
             }
         }
@@ -581,6 +582,16 @@ export class ChatWidget {
                  messageElement.innerHTML = htmlOrText; // Last resort, replace entire content of messageElement
             }
             // console.warn("ChatWidget: '.message-text-content' span not found in message element. Using fallback for content update. This might indicate an issue with your custom messageTemplate.");
+        }
+        this.scrollChatToBottom(); // Ensure scroll after update
+    }
+
+    private scrollChatToBottom(): void {
+        const chatMessages = this.element.querySelector('.chat-messages');
+        if (chatMessages) {
+            requestAnimationFrame(() => {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            });
         }
     }
 
