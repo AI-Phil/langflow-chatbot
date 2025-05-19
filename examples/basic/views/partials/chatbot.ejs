@@ -1,47 +1,124 @@
 <section id="chatbot-section">
     <h1>Chatbot</h1>
-
-    <fieldset id="chatbot-settings" style="margin-bottom: 20px; border: 1px solid #ccc; padding: 10px;">
-        <legend style="font-weight: bold; padding: 0 5px;">Chatbot Settings</legend>
-        <div id="chat-type-controls" style="margin-bottom: 10px;">
-            <label for="chat-type-toggle">Use Floating Widget:</label>
-            <input type="checkbox" id="chat-type-toggle" checked>
+    <div style="max-width: 1300px; margin: 40px auto 0 auto; padding: 0 32px;">
+        <div id="chatbot-flex-wrapper" style="display: flex; align-items: flex-start; gap: 40px;">
+            <!-- Left column: Configuration only -->
+            <div id="chatbot-config-column" style="flex: 0 0 600px; min-width: 320px; background: #fafbfc; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); padding: 24px;">
+                <fieldset id="chatbot-configuration" style="margin-bottom: 20px; border: 1px solid #ccc; border-radius: 6px; padding: 18px; background: #fff;">
+                    <legend style="font-weight: bold; padding: 0 5px;">Chatbot Configuration</legend>
+                    <div style="display: flex; gap: 24px; margin-bottom: 16px;">
+                        <div>
+                            <label for="chat-type-toggle" style="display: block; margin-bottom: 4px;">Use Floating Widget:</label>
+                            <input type="checkbox" id="chat-type-toggle">
+                        </div>
+                        <div>
+                            <label for="stream-toggle-input" style="display: block; margin-bottom: 4px;">Enable Stream:</label>
+                            <input type="checkbox" id="stream-toggle-input">
+                        </div>
+                    </div>
+                    <div id="float-position-controls" style="margin-bottom: 16px; display: none;">
+                        <label for="float-position-select" style="display: block; margin-bottom: 4px;">Floating Widget Position:</label>
+                        <select id="float-position-select" style="width: 100%;">
+                            <option value="bottom-right">Bottom Right</option>
+                            <option value="bottom-left">Bottom Left</option>
+                            <option value="top-right">Top Right</option>
+                            <option value="top-left">Top Left</option>
+                        </select>
+                    </div>
+                    <div id="flow-id-controls" style="margin-bottom: 16px;">
+                        <label for="flow-id-input" style="display: block; margin-bottom: 4px;">Flow ID:</label>
+                        <input type="text" id="flow-id-input" style="width: 100%;">
+                    </div>
+                    <div id="widget-title-controls" style="margin-bottom: 16px;">
+                        <label for="widget-title-input" style="display: block; margin-bottom: 4px;">Widget Title:</label>
+                        <input type="text" id="widget-title-input" style="width: 100%;">
+                    </div>
+                    <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                        <div style="flex: 1 1 0;">
+                            <label for="user-sender-input" style="display: block; margin-bottom: 4px;">User Sender Name:</label>
+                            <input type="text" id="user-sender-input" style="width: 100%;">
+                        </div>
+                        <div style="flex: 1 1 0;">
+                            <label for="bot-sender-input" style="display: block; margin-bottom: 4px;">Bot Sender Name:</label>
+                            <input type="text" id="bot-sender-input" style="width: 100%;">
+                        </div>
+                    </div>
+                    <div id="message-template-controls" style="margin-bottom: 16px;">
+                        <label for="message-template-input" style="display: block; margin-bottom: 4px;">Message Template:</label>
+                        <textarea id="message-template-input" rows="6" style="width: 100%; font-family: monospace;"></textarea>
+                    </div>
+                    <button id="launch-chatbot-button" type="button" style="margin-top: 12px; width: 100%;">Launch Chatbot</button>
+                </fieldset>
+            </div>
+            <!-- Right column: Session Management and Embedded Chatbot -->
+            <div id="embedded-chatbot-container-wrapper" style="flex: 1; min-width: 350px;">
+                <fieldset id="session-management" style="margin-bottom: 20px; border: 1px solid #ccc; border-radius: 6px; padding: 18px; background: #fff; max-width: 600px; width: 100%; margin-left: auto; margin-right: auto;">
+                    <legend style="font-weight: bold; padding: 0 5px;">Session Management</legend>
+                    <div id="session-id-controls" style="margin-bottom: 0;">
+                        <label for="session-id-input" style="display: block; margin-bottom: 4px;">Session ID:</label>
+                        <input type="text" id="session-id-input" placeholder="Optional: Enter Session ID" style="width: 100%; margin-bottom: 8px;">
+                        <button id="apply-session-id-button" type="button" style="width: 100%; margin-bottom: 8px;">Apply Session ID to Active Chat</button>
+                        <button id="clear-session-id-button" type="button" style="width: 100%;">Clear Session ID & Restart Chat</button>
+                    </div>
+                </fieldset>
+                <div id="chatbot-container" style="max-width: 600px; border: 1px solid #ddd; box-shadow: 0 0 10px rgba(0,0,0,0.1); overflow: hidden; margin-left: auto; margin-right: auto;"></div>
+            </div>
         </div>
-        <div id="flow-id-controls">
-            <label for="flow-id-input">Flow ID:</label>
-            <input type="text" id="flow-id-input" placeholder="Enter Flow ID (default: memory-chatbot)">
-            <button id="apply-flow-id-button" type="button">Apply Flow ID</button>
-        </div>
-        <div id="stream-toggle-controls" style="margin-bottom: 10px; margin-top: 10px;">
-            <label for="stream-toggle-input">Enable Stream:</label>
-            <input type="checkbox" id="stream-toggle-input" checked>
-        </div>
-        <div id="session-id-controls">
-            <label for="session-id-input">Session ID:</label>
-            <input type="text" id="session-id-input" placeholder="Optional: Enter Session ID">
-            <button id="apply-session-id-button" type="button">Save Session ID</button>
-            <button id="clear-session-id-button" type="button">Clear Session ID</button>
-        </div>
-    </fieldset>
-
-    <div id="embedded-chatbot-container-wrapper">
-        <div id="chatbot-container" style="max-width: 600px; margin: 20px auto; border: 1px solid #ddd; box-shadow: 0 0 10px rgba(0,0,0,0.1); overflow: hidden; "></div>
     </div>
 </section> 
 
 <link rel="stylesheet" href="/static/langflow-chatbot.css">
 <style>
     :root { 
-        /* Let's change the primary theme color to a pleasant green, similar to the original example */
-        --langflow-chatbot-palette-primary: #28a745;
-        --langflow-chatbot-palette-primary-hover: #1e7e34; /* Darker green for hover states */
-        --langflow-chatbot-palette-focus-ring: rgba(40, 167, 69, 0.25);
+        /* 
+         * Example of overriding default styles.
+         * In a production environment, you would typically define these in your own CSS file
+         * or directly in a style tag after loading langflow-chatbot.css.
+         * These variables control the color palette of the chatbot components.
+         */
+        --langflow-chatbot-palette-primary: #28a745; /* Main theme color (buttons, icons) */
+        --langflow-chatbot-palette-primary-hover: #1e7e34; /* Darker shade for hover states */
+        --langflow-chatbot-palette-focus-ring: rgba(40, 167, 69, 0.25); /* Focus ring for accessibility */
+        /* You can also override other variables like:
+           --langflow-chatbot-palette-secondary, 
+           --langflow-chatbot-font-family,
+           --langflow-chatbot-font-size-normal,
+           --langflow-chatbot-border-radius,
+           etc. 
+           Refer to the langflow-chatbot.css for a full list of available CSS variables.
+        */
+    }
+    @media (max-width: 900px) {
+        #chatbot-flex-wrapper {
+            flex-direction: column;
+        }
+        #embedded-chatbot-container-wrapper {
+            margin-left: 0 !important;
+        }
+        #chatbot-config-column {
+            min-width: 0 !important;
+            width: 100% !important;
+            box-sizing: border-box;
+        }
     }
 </style>
 
 <script src="/static/langflow-chatbot.js"></script>
 <script>
-  // Cookie helper functions
+  /*
+   * This script demonstrates how to integrate and configure the Langflow Chatbot.
+   * In a typical production setup:
+   * 1. You would include langflow-chatbot.js.
+   * 2. Define your desired configuration (flowId, streaming, appearance, etc.).
+   *    This might be hardcoded in script, or dynamically set by your backend.
+   * 3. Optionally, apply CSS overrides for theming.
+   * 4. Instantiate the FloatingChatWidget or ChatWidget.
+   *
+   * This example includes UI controls to dynamically change settings for demonstration purposes.
+   * In a live deployment, these controls would likely not be present; settings would be pre-defined.
+   */
+
+  // Cookie helper functions (typically, you'd have your own utility library or handle sessions server-side)
   function setCookie(name, value, days) {
     let expires = "";
     if (days) {
@@ -72,6 +149,8 @@
   }
 
   // Unified Chat Configuration
+  // In a real deployment, you would set these options based on your application's needs.
+  // This object demonstrates the available settings. Modify these defaults as needed.
   let globalChatConfig = {
     flowId: "memory-chatbot", // Default Flow ID
     enableStream: true,
@@ -80,12 +159,12 @@
     userSender: "Me",
     botSender: "Assistant",
     messageTemplate: `
-        <div class="{{messageClasses}} message-block">
-            <div class="sender-name-display">{{sender}}</div>
-            <div class="message-bubble">
-                <span class="message-text-content">{{message}}</span>
-            </div>
-        </div>
+<div class="{{messageClasses}} message-block">
+    <div class="sender-name-display">{{sender}}</div>
+    <div class="message-bubble">
+        <span class="message-text-content">{{message}}</span>
+    </div>
+</div>
     `,
     // Floating specific (used if useFloating is true)
     floatPosition: 'bottom-right',
@@ -95,9 +174,11 @@
 
   let currentChatWidgetInstance = null; // To keep track of the current widget instance for cleanup
 
+  // Reads configuration from the UI elements and updates globalChatConfig
+  // In a production environment, you might not need this if settings are hardcoded or come from a backend.
   function updateGlobalConfigFromUI() {
     const flowIdInput = document.getElementById('flow-id-input');
-    if (flowIdInput) globalChatConfig.flowId = flowIdInput.value.trim() || "memory-chatbot";
+    if (flowIdInput) globalChatConfig.flowId = flowIdInput.value.trim() || "memory-chatbot"; // Default if empty
 
     const streamToggleInput = document.getElementById('stream-toggle-input');
     if (streamToggleInput) globalChatConfig.enableStream = streamToggleInput.checked;
@@ -105,11 +186,38 @@
     const chatTypeToggle = document.getElementById('chat-type-toggle');
     if (chatTypeToggle) globalChatConfig.useFloating = chatTypeToggle.checked;
     
-    // Potentially add UI elements for widgetTitle, floatPosition etc. if they need to be dynamic
-    // For now, they use defaults or values set in globalChatConfig object.
+    const widgetTitleInput = document.getElementById('widget-title-input');
+    if (widgetTitleInput) globalChatConfig.widgetTitle = widgetTitleInput.value.trim() || "Chat Assistant";
+
+    const userSenderInput = document.getElementById('user-sender-input');
+    if (userSenderInput) globalChatConfig.userSender = userSenderInput.value.trim() || "Me";
+
+    const botSenderInput = document.getElementById('bot-sender-input');
+    if (botSenderInput) globalChatConfig.botSender = botSenderInput.value.trim() || "Assistant";
+
+    const messageTemplateInput = document.getElementById('message-template-input');
+    if (messageTemplateInput) globalChatConfig.messageTemplate = messageTemplateInput.value.trim() || `
+        <div class="{{messageClasses}} message-block">
+            <div class="sender-name-display">{{sender}}</div>
+            <div class="message-bubble">
+                <span class="message-text-content">{{message}}</span>
+            </div>
+        </div>
+    `;
+
+    const floatPositionSelect = document.getElementById('float-position-select');
+    if (floatPositionSelect) globalChatConfig.floatPosition = floatPositionSelect.value || 'bottom-right';
+
+    // Other configurations like widgetTitle, userSender, botSender, messageTemplate, floatPosition
+    // are currently taken from the initial globalChatConfig.
+    // If you had UI elements for these, you would update them here as well.
+    // For example:
+    // const titleInput = document.getElementById('widget-title-input');
+    // if (titleInput) globalChatConfig.widgetTitle = titleInput.value.trim() || "Chat Assistant";
   }
 
-  function initializeChatWidget() {
+  // Initializes or re-initializes the chat widget based on globalChatConfig
+  function initializeChatWidget() { 
     // Clear previous widget instance if it exists
     if (currentChatWidgetInstance && typeof currentChatWidgetInstance.destroy === 'function') {
         currentChatWidgetInstance.destroy();
@@ -121,7 +229,7 @@
         embeddedChatContainer.innerHTML = '';
     }
 
-    updateGlobalConfigFromUI(); // Update config from UI elements
+    updateGlobalConfigFromUI(); // Ensure config is up-to-date before initializing
 
     const sessionIdInput = document.getElementById('session-id-input');
     const sessionId = sessionIdInput ? sessionIdInput.value.trim() : "";
@@ -148,7 +256,9 @@
         };
 
         if (globalChatConfig.useFloating) {
-            if (embeddedContainerWrapper) embeddedContainerWrapper.style.display = 'none';
+            // Only hide the chatbot-container, not the wrapper (so session management stays visible)
+            const chatContainer = document.getElementById(globalChatConfig.targetContainerId);
+            if (chatContainer) chatContainer.style.display = 'none';
             if (window.LangflowChatbot.FloatingChatWidget) {
                 currentChatWidgetInstance = new window.LangflowChatbot.FloatingChatWidget(
                     chatClient, 
@@ -166,8 +276,8 @@
                 alert('FloatingChatWidget component not found. Check console.');
             }
         } else {
-            if (embeddedContainerWrapper) embeddedContainerWrapper.style.display = 'block';
             const chatContainer = document.getElementById(globalChatConfig.targetContainerId);
+            if (chatContainer) chatContainer.style.display = 'block';
             if (chatContainer && window.LangflowChatbot.ChatWidget) {
                 // chatContainer.innerHTML = ''; // Already cleared above
                 currentChatWidgetInstance = new window.LangflowChatbot.ChatWidget(
@@ -197,40 +307,73 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    // Set initial values for new config fields
     const flowIdInput = document.getElementById('flow-id-input');
-    if (flowIdInput) {
-        flowIdInput.value = globalChatConfig.flowId; // Set initial value from global config
-    }
+    if (flowIdInput) flowIdInput.value = globalChatConfig.flowId;
     const streamToggleInput = document.getElementById('stream-toggle-input');
-    if (streamToggleInput) {
-        streamToggleInput.checked = globalChatConfig.enableStream;
-    }
+    if (streamToggleInput) streamToggleInput.checked = globalChatConfig.enableStream;
     const chatTypeToggle = document.getElementById('chat-type-toggle');
+    if (chatTypeToggle) chatTypeToggle.checked = globalChatConfig.useFloating;
+
+    // New fields
+    const widgetTitleInput = document.getElementById('widget-title-input');
+    if (widgetTitleInput) widgetTitleInput.value = globalChatConfig.widgetTitle;
+    const userSenderInput = document.getElementById('user-sender-input');
+    if (userSenderInput) userSenderInput.value = globalChatConfig.userSender;
+    const botSenderInput = document.getElementById('bot-sender-input');
+    if (botSenderInput) botSenderInput.value = globalChatConfig.botSender;
+    const messageTemplateInput = document.getElementById('message-template-input');
+    if (messageTemplateInput) messageTemplateInput.value = globalChatConfig.messageTemplate.trim();
+    const floatPositionSelect = document.getElementById('float-position-select');
+    if (floatPositionSelect) floatPositionSelect.value = globalChatConfig.floatPosition;
+
+    // Show/hide float position selector based on floating toggle
+    function updateFloatPositionVisibility() {
+      const floatControls = document.getElementById('float-position-controls');
+      if (chatTypeToggle && floatControls) {
+        floatControls.style.display = chatTypeToggle.checked ? 'block' : 'none';
+      }
+    }
+    updateFloatPositionVisibility();
     if (chatTypeToggle) {
-        chatTypeToggle.checked = globalChatConfig.useFloating;
+      chatTypeToggle.addEventListener('change', updateFloatPositionVisibility);
     }
 
-    initializeChatWidget();
+    // Add event listeners for new fields to update config
+    if (widgetTitleInput) widgetTitleInput.addEventListener('input', updateGlobalConfigFromUI);
+    if (userSenderInput) userSenderInput.addEventListener('input', updateGlobalConfigFromUI);
+    if (botSenderInput) botSenderInput.addEventListener('input', updateGlobalConfigFromUI);
+    if (messageTemplateInput) messageTemplateInput.addEventListener('input', updateGlobalConfigFromUI);
+    if (floatPositionSelect) floatPositionSelect.addEventListener('change', updateGlobalConfigFromUI);
 
-    const applyFlowIdButton = document.getElementById('apply-flow-id-button');
-    if (applyFlowIdButton) {
-      applyFlowIdButton.addEventListener('click', () => {
-        console.log('Apply Flow ID button clicked. Reinitializing chat widget with current input value.');
-        const flowIdInputElem = document.getElementById('flow-id-input');
-        if (flowIdInputElem && flowIdInputElem.value.trim() === "") {
-            // flowIdInputElem.value = chatWidgetFlowId; // Old way
-            // console.log('Flow ID input was empty, reset to default:', chatWidgetFlowId);
-            // No need to reset to default here, updateGlobalConfigFromUI will handle empty with its default
-        }
-        initializeChatWidget(); // This will call updateGlobalConfigFromUI
-      });
+    // Initialize the chat widget on page load with default/initial config
+    // In a production setting, you might call this directly without UI or delay.
+    // For this demo, we will wait for the "Launch Chatbot" button.
+    // initializeChatWidget(); // REMOVED - Wait for button press
+
+    // Event listener for the "Launch Chatbot" button
+    const launchChatbotButton = document.getElementById('launch-chatbot-button');
+    if (launchChatbotButton) {
+        launchChatbotButton.addEventListener('click', () => {
+            console.log('Launch Chatbot button clicked. Initializing chat widget with current settings.');
+            updateGlobalConfigFromUI(); // Ensure config is fresh from UI before launch
+            initializeChatWidget();
+        });
     }
+
+    // The following event listeners for individual configuration controls (Flow ID, Stream, Chat Type)
+    // will now only update the globalChatConfig. The actual re-initialization
+    // happens when "Launch Chatbot" or a session-related button is clicked.
+
+    // No separate "Apply Flow ID" button anymore. Flow ID is read by updateGlobalConfigFromUI().
 
     const applySessionIdButton = document.getElementById('apply-session-id-button');
     if (applySessionIdButton) {
       applySessionIdButton.addEventListener('click', () => {
-        console.log('Save Session ID button clicked. Reinitializing chat widget with current input value.');
-        initializeChatWidget();
+        console.log('Apply Session ID button clicked. Reinitializing chat widget with current session ID.');
+        // Session ID changes require re-initialization of the chat client and widget.
+        updateGlobalConfigFromUI(); // Read other settings too, in case they changed
+        initializeChatWidget(); 
       });
     }
 
@@ -242,32 +385,39 @@
           sessionIdInput.value = '';
         }
         console.log('Session ID input cleared. Reinitializing chat widget.');
-        initializeChatWidget();
+        updateGlobalConfigFromUI(); // Read other settings
+        initializeChatWidget(); 
       });
     }
 
+    // Optional: Auto-apply Session ID on Enter key within its input field
     const sessionIdInput = document.getElementById('session-id-input');
     if (sessionIdInput) {
       sessionIdInput.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
-          event.preventDefault(); // Prevent default action if any (e.g., form submission)
+          event.preventDefault();
           console.log('Enter key pressed in Session ID input. Reinitializing chat widget.');
-          initializeChatWidget();
+          updateGlobalConfigFromUI(); // Read other settings
+          initializeChatWidget(); 
         }
       });
     }
 
+    // Event listeners for configuration inputs to update globalChatConfig on change.
+    // The user then clicks "Launch Chatbot" to see the effect.
+
     const flowIdInputField = document.getElementById('flow-id-input');
     if (flowIdInputField) {
+      flowIdInputField.addEventListener('input', () => { 
+        updateGlobalConfigFromUI(); 
+        console.log('Flow ID input changed. Config updated. Press "Launch Chatbot" to apply.');
+      });
+      // Optional: Allow Enter key in Flow ID to also trigger launch
       flowIdInputField.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
           event.preventDefault();
-          console.log('Enter key pressed in Flow ID input. Reinitializing chat widget.');
-          // if (flowIdInputField.value.trim() === "") { // Old way
-          //   flowIdInputField.value = chatWidgetFlowId;
-          //   console.log('Flow ID input was empty, reset to default:', chatWidgetFlowId);
-          // }
-          initializeChatWidget(); // This will call updateGlobalConfigFromUI
+          console.log('Enter key pressed in Flow ID input. Triggering Launch Chatbot.');
+          document.getElementById('launch-chatbot-button').click(); 
         }
       });
     }
@@ -275,16 +425,18 @@
     const streamToggleCheckbox = document.getElementById('stream-toggle-input');
     if (streamToggleCheckbox) {
         streamToggleCheckbox.addEventListener('change', () => {
-            console.log('Stream toggle changed. Reinitializing chat widget.');
-            initializeChatWidget();
+            updateGlobalConfigFromUI();
+            console.log('Stream toggle changed. Config updated. Press "Launch Chatbot" to apply.');
         });
     }
 
     const chatTypeToggleElement = document.getElementById('chat-type-toggle');
     if (chatTypeToggleElement) {
         chatTypeToggleElement.addEventListener('change', () => {
-            console.log('Chat type toggle changed. Reinitializing chat widget.');
-            initializeChatWidget(); 
+            updateGlobalConfigFromUI();
+            console.log('Chat type toggle changed. Config updated. Press "Launch Chatbot" to apply.');
+            // If you want immediate re-launch on chat type change (e.g., floating to embedded),
+            // you could call initializeChatWidget() here, but the current design is to wait for "Launch Chatbot".
         });
     }
   });
