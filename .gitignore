@@ -21,4 +21,7 @@ yarn-error.log*
 *.swp
 
 # TypeScript cache
-*.tsbuildinfo 
+*.tsbuildinfo
+
+# Compiled JavaScript from TypeScript examples
+examples/basic/static/example-app-logic.js 

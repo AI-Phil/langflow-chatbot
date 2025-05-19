@@ -9,8 +9,9 @@
     "build:tsc": "tsc",
     "build:bundle": "esbuild src/index.ts --bundle --outfile=dist/langflow-chatbot.umd.js --format=iife --global-name=LangflowChatbot --platform=browser",
     "build:plugin": "esbuild src/plugins/LangflowChatbotPlugin.ts --bundle --outfile=dist/plugins/LangflowChatbotPlugin.js --format=iife --global-name=LangflowChatbotPlugin --platform=browser",
+    "build:example-ui-logic": "esbuild examples/basic/static/example-app-logic.ts --bundle --outfile=examples/basic/static/example-app-logic.js --format=iife --platform=browser",
     "build:copy-assets": "mkdir -p dist/styles && cp src/styles/langflow-chatbot.css dist/styles/langflow-chatbot.css",
-    "build": "npm run clean && npm run build:tsc && npm run build:bundle && npm run build:plugin && npm run build:copy-assets",
+    "build": "npm run clean && npm run build:tsc && npm run build:bundle && npm run build:plugin && npm run build:example-ui-logic && npm run build:copy-assets",
     "test": "echo \"No tests specified\" && exit 0",
     "examples:basic": "ts-node examples/basic/server.ts"
   },

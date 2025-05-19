@@ -2,26 +2,21 @@
     <h1>Chatbot</h1>
     <div style="max-width: 1300px; margin: 40px auto 0 auto; padding: 0 32px;">
         <div id="chatbot-flex-wrapper" style="display: flex; align-items: flex-start; gap: 40px;">
-            <!-- Left column: Simplified Configuration -->
+            <!-- Left column: Configuration -->
             <div id="chatbot-config-column" style="flex: 0 0 300px; min-width: 280px; background: #fafbfc; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); padding: 24px;">
                 <fieldset style="margin-bottom: 20px; border: 1px solid #ccc; border-radius: 6px; padding: 18px; background: #fff;">
-                    <legend style="font-weight: bold; padding: 0 5px;">Launch Chatbot</legend>
+                    <legend style="font-weight: bold; padding: 0 5px;">Chatbot Configuration</legend>
                     <div style="margin-bottom: 16px;">
                         <label for="proxy-endpoint-id-select" style="display: block; margin-bottom: 4px;">Chatbot Profile:</label>
                         <select id="proxy-endpoint-id-select" style="width: 100%;"></select>
                     </div>
-                    <button id="launch-chatbot-button" type="button" style="width: 100%;">Launch Chatbot</button>
+                    <div style="margin-bottom: 16px;">
+                        <label for="session-id-input" style="display: block; margin-bottom: 4px;">Session ID (Optional):</label>
+                        <input type="text" id="session-id-input" placeholder="Leave blank for new session" style="width: 100%;">
+                    </div>
+                    <button id="launch-chatbot-button" type="button" style="width: 100%;">Launch / Re-launch Chatbot</button>
                 </fieldset>
 
-                <fieldset id="session-management" style="margin-bottom: 20px; border: 1px solid #ccc; border-radius: 6px; padding: 18px; background: #fff; /*max-width: 600px; width: 100%; margin-left: auto; margin-right: auto;*/">
-                    <legend style="font-weight: bold; padding: 0 5px;">Session Management</legend>
-                    <div id="session-id-controls" style="margin-bottom: 0;">
-                        <label for="session-id-input" style="display: block; margin-bottom: 4px;">Session ID:</label>
-                        <input type="text" id="session-id-input" placeholder="Optional: Enter Session ID or auto-assigned" style="width: 100%; margin-bottom: 8px;">
-                        <button id="apply-session-id-button" type="button" style="width: 100%; margin-bottom: 8px;">Apply Session ID to Active Chat</button>
-                        <button id="clear-session-id-button" type="button" style="width: 100%;">Clear Session ID & Restart Chat</button>
-                    </div>
-                </fieldset>
             </div>
             <!-- Right column: Embedded Chatbot -->
             <div id="embedded-chatbot-container-wrapper" style="flex: 1; min-width: 350px;">
@@ -70,137 +65,112 @@
 
 <script src="/static/langflow-chatbot.js"></script>
 <script src="/static/LangflowChatbotPlugin.js"></script>
+<script src="/static/example-app-logic.js"></script> 
 <script>
   let currentChatbotInstance = null;
 
-  function getConfigFromUI() {
-    // Simplified: only proxyEndpointId and sessionId are taken from the UI for plugin initialization
-    // The plugin will fetch the rest of its config.
-    const profileSelect = document.getElementById('proxy-endpoint-id-select');
-    return {
-      containerId: 'chatbot-container',
-      proxyEndpointId: profileSelect ? profileSelect.value : 'memory', // Default if select not found
-      sessionId: document.getElementById('session-id-input').value.trim() || undefined,
-    };
-  }
-
   async function launchChatbot() {
+    console.log("launchChatbot (in ejs) called");
+    // Get configuration from our example app's UI logic
+    // In a real application, this might come from a different source or be hardcoded.
+    const userConfig = window.ChatbotExampleApp.ui.getUserProvidedConfig();
+    
+    if (!userConfig.proxyEndpointId) {
+        alert("No Chatbot Profile selected or available. Cannot launch chatbot.");
+        console.error("Launch cancelled by ejs: No proxyEndpointId provided from UI.");
+        return;
+    }
+
+    // --- Beyond the minimal: Handling re-launch --- 
+    // If an instance already exists (e.g., user changed profile or session ID and clicked launch again),
+    // it's good practice to destroy it to clean up resources and event listeners.
     if (currentChatbotInstance && typeof currentChatbotInstance.destroy === 'function') {
+      console.log("Destroying existing chatbot instance...");
       currentChatbotInstance.destroy();
       currentChatbotInstance = null;
     }
-    // uiConfig now only contains essential info for the plugin to fetch its full config
-    const uiConfig = getConfigFromUI(); 
+
+    // --- Core Plugin Configuration --- 
+    const pluginConfig = {
+      containerId: 'chatbot-container', // REQUIRED: The ID of the div where the chatbot will be rendered.
+      proxyEndpointId: userConfig.proxyEndpointId, // REQUIRED: Identifies the chatbot profile to use.
+      sessionId: userConfig.sessionId, // OPTIONAL: Provide a session ID to resume a conversation.
+                                       // If undefined, the plugin will typically start a new session.
+    };
     
     try {
-      // Ensure LangflowChatbotPlugin and its init method are available globally
-      if (window.LangflowChatbotPlugin && typeof window.LangflowChatbotPlugin.init === 'function') {
-        currentChatbotInstance = await window.LangflowChatbotPlugin.init(uiConfig);
-        console.log("Chatbot instance launched/re-launched.");
-
-        // Listen for sessionChanged event from the plugin
-        if (currentChatbotInstance && typeof currentChatbotInstance.on === 'function') {
-          currentChatbotInstance.on('sessionChanged', (newSessionId) => {
-            const sessionIdInput = document.getElementById('session-id-input');
-            if (sessionIdInput) {
-              sessionIdInput.value = newSessionId;
-              console.log('UI Session ID field updated to:', newSessionId);
-            }
-          });
-        }
-
-      } else {
+      console.log("Initializing LangflowChatbotPlugin with config:", pluginConfig);
+      if (!window.LangflowChatbotPlugin || typeof window.LangflowChatbotPlugin.init !== 'function') {
         console.error("LangflowChatbotPlugin.init is not available. Ensure the plugin script is loaded correctly.");
-        alert("Error: Chatbot plugin not loaded!");
+        alert("Critical Error: Chatbot plugin core not loaded!");
+        return;
       }
+
+      // --- Creating the Chatbot Object --- 
+      // This is the core step: initializing the plugin with the configuration.
+      // The `init` method returns a promise that resolves to the chatbot instance.
+      currentChatbotInstance = await window.LangflowChatbotPlugin.init(pluginConfig);
+      console.log("Chatbot instance launched/re-launched successfully.", currentChatbotInstance);
+
+      // --- Beyond the minimal: Interacting with the Chatbot Instance --- 
+      // Once initialized, you can interact with the chatbot instance, primarily by listening to events.
+      if (currentChatbotInstance && typeof currentChatbotInstance.on === 'function') {
+        // Example: Listen for session ID changes (e.g., if a new session is started by the plugin)
+        currentChatbotInstance.on('sessionChanged', (newSessionId) => {
+          console.log('Chatbot (in ejs) received sessionChanged event:', newSessionId);
+          // Update the UI input field (this specific UI update is handled by example-app-logic.js)
+          window.ChatbotExampleApp.ui.updateSessionIdField(newSessionId);
+        });
+        
+        // --- Beyond the minimal: More event listeners ---
+        // Listen for other events to integrate more deeply with your application.
+        // Common events might include:
+        // - 'messageSent': When the user sends a message.
+        // - 'messageReceived': When the chatbot responds.
+        // - 'historyLoaded': When chat history is loaded.
+        // - 'chatOpened', 'chatClosed': For UI state changes.
+        // - 'error': To handle errors from the plugin.
+        // Example: 
+        // currentChatbotInstance.on('messageReceived', (messageData) => {
+        //   console.log("Chatbot message received:", messageData);
+        //   // You could trigger analytics, update other UI parts, etc.
+        // });
+        // currentChatbotInstance.on('error', (errorDetails) => {
+        //   console.error("Chatbot plugin error:", errorDetails);
+        //   // Display a user-friendly error message or attempt recovery.
+        // });
+      } else {
+        console.warn("Chatbot instance does not support .on() method or is not fully initialized.");
+      }
+
     } catch (error) {
-      console.error("Error launching chatbot:", error);
-      alert(`Failed to launch chatbot: ${error.message}`);
+      console.error("Error launching chatbot (in ejs):", error);
+      alert(`Failed to launch chatbot: ${(error instanceof Error ? error.message : String(error))}`);
+      // --- Beyond the minimal: Robust error handling ---
+      // Ensure the instance is cleared on failure to prevent issues with subsequent launches.
+      // You might also want to update the UI to reflect the error state.
+      if (currentChatbotInstance) {
+        try { currentChatbotInstance.destroy(); } catch (e) { /* ignore destroy error on top of launch error */ }
+        currentChatbotInstance = null;
+      }
     }
   }
 
-  document.addEventListener('DOMContentLoaded', async () => {
-    const profileSelect = document.getElementById('proxy-endpoint-id-select');
-    const launchButton = document.getElementById('launch-chatbot-button');
-
-    try {
-        const response = await fetch('/api/langflow/profiles');
-        if (!response.ok) {
-            throw new Error(`Failed to fetch profiles: ${response.status} ${response.statusText}`);
-        }
-        const profiles = await response.json();
-
-        if (profiles && profiles.length > 0) {
-            profiles.forEach(profile => {
-                const option = document.createElement('option');
-                option.value = profile.proxyEndpointId;
-                option.textContent = profile.widgetTitle || profile.proxyEndpointId;
-                if (profileSelect) profileSelect.appendChild(option);
-            });
-            // Set the first profile as default if select exists
-            if (profileSelect) profileSelect.value = profiles[0].proxyEndpointId;
-        } else {
-            console.warn("No chatbot profiles received from server or profiles list is empty.");
-            if (profileSelect) {
-                const option = document.createElement('option');
-                option.textContent = 'No profiles available';
-                option.disabled = true;
-                profileSelect.appendChild(option);
-            }
-            if (launchButton) launchButton.disabled = true;
-        }
-    } catch (error) {
-        console.error("Error fetching chatbot profiles:", error);
-        if (profileSelect) {
-            const option = document.createElement('option');
-            option.textContent = 'Error loading profiles';
-            option.disabled = true;
-            profileSelect.appendChild(option);
-        }
-        if (launchButton) launchButton.disabled = true; 
-        alert(`Could not load chatbot profiles: ${error.message}. Please check server logs or try refreshing.`);
-    }
-    
-    // Removed default proxyEndpointId setting for the old input field
-    // document.getElementById('proxy-endpoint-id-input').value = 'memory'; 
-
-    // Make session ID input readonly as it will be updated by the plugin event
-    const sessionIdElement = document.getElementById('session-id-input');
-    if (sessionIdElement) {
-        // sessionIdElement.readOnly = true; // Decided against making it readonly to allow user to paste one in
+  document.addEventListener('DOMContentLoaded', () => {
+    // This example uses an external script (example-app-logic.js) to manage the
+    // example-specific UI elements (profile dropdown, session input, launch button).
+    if (window.ChatbotExampleApp && window.ChatbotExampleApp.ui && typeof window.ChatbotExampleApp.ui.initializeUI === 'function') {
+      // Initialize the UI elements and provide the launchChatbot function (defined above in this ejs file) 
+      // as a callback. The UI logic will call this function when the user interacts with the launch button
+      // or when an auto-launch condition is met.
+      window.ChatbotExampleApp.ui.initializeUI(launchChatbot)
+        .catch(error => {
+            console.error("Error during UI initialization:", error);
+            alert("Failed to initialize the chatbot example UI.");
+        });
     } else {
-        console.warn("Session ID input field not found on DOMContentLoaded");
+      console.error("ChatbotExampleApp.ui.initializeUI not found. Ensure example-app-logic.js is loaded correctly.");
+      alert("Critical Error: Failed to initialize chatbot example application UI logic.");
     }
-
-    document.getElementById('launch-chatbot-button').addEventListener('click', launchChatbot);
-    
-    document.getElementById('apply-session-id-button').addEventListener('click', () => {
-        // User wants to apply a manually entered/pasted session ID
-        // We will re-launch the chatbot. The getConfigFromUI will pick up the new value.
-        const sessionIdInput = document.getElementById('session-id-input');
-        if (sessionIdInput && sessionIdInput.value.trim() === "") {
-            // if user clears it and hits apply, treat as wanting a new session (like clear button)
-             document.getElementById('session-id-input').value = ''; // ensure it's truly empty for getConfigFromUI
-        }
-        launchChatbot(); 
-    });
-
-    document.getElementById('clear-session-id-button').addEventListener('click', () => {
-      const sessionIdInput = document.getElementById('session-id-input');
-      if (sessionIdInput) {
-        sessionIdInput.value = '';
-      }
-      launchChatbot(); 
-    });
-
-    // Removed keydown for session-id-input as apply button is clearer -- Reinstating for Enter key functionality
-    document.getElementById('session-id-input').addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') {
-        event.preventDefault(); // Prevent default form submission if it were in a form
-        document.getElementById('apply-session-id-button').click();
-      }
-    });
-
-    // launchChatbot(); // Optional: auto-launch on load
   });
-</script> 
+</script>

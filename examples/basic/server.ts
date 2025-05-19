@@ -81,6 +81,19 @@ const server = http.createServer(async (req, res) => {
             res.end('CSS file not found');
             console.error(`Error reading ${cssPath}:`, err);
         }
+    } else if (req.url === '/static/example-app-logic.js') {
+        const exampleLogicPath = path.join(__dirname, 'static', 'example-app-logic.js');
+        try {
+            const data = await readFileAsync(exampleLogicPath);
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/javascript');
+            res.end(data);
+        } catch (err) {
+            res.statusCode = 404;
+            res.setHeader('Content-Type', 'text/plain');
+            res.end('Example App Logic JS file not found');
+            console.error(`Error reading ${exampleLogicPath}:`, err);
+        }
     } else if (req.url?.startsWith(PROXY_BASE_API_PATH)) {
         if (!langflowProxy) {
             res.statusCode = 503; // Service Unavailable
