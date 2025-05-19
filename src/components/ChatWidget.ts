@@ -9,12 +9,16 @@ export interface ChatWidgetConfigOptions {
     mainContainerTemplate?: string;
     inputAreaTemplate?: string;
     messageTemplate?: string;
+    widgetTitle?: string;
     // Future: Add HTML template strings or functions here
 }
 
 // Define default templates
 const DEFAULT_MAIN_CONTAINER_TEMPLATE = `
     <div class="chat-widget" style="display: flex; flex-direction: column; height: 100%;">
+        <div class="chat-widget-header" style="padding: 10px 15px; background-color: #f0f0f0; text-align: left; font-weight: bold; border-bottom: 1px solid #ddd; display: none;">
+            <span class="chat-widget-title-text"></span>
+        </div>
         <div class="chat-messages" style="flex-grow: 1; overflow-y: auto; padding: 10px;">
             <!-- Messages will appear here -->
         </div>
@@ -43,7 +47,7 @@ export class ChatWidget {
     private enableStream: boolean;
     private currentBotMessageElement: HTMLElement | null = null;
     private sessionIdInput: HTMLInputElement | null = null;
-    private config: Required<ChatWidgetConfigOptions>;
+    private config: Omit<Required<ChatWidgetConfigOptions>, 'widgetTitle'> & { widgetTitle?: string }; // Allow widgetTitle to be optional
     
     private flowId: string | null = null; // This will be the resolved UUID
     private flowName: string | null = null;
@@ -81,6 +85,7 @@ export class ChatWidget {
             mainContainerTemplate: configOptions.mainContainerTemplate || DEFAULT_MAIN_CONTAINER_TEMPLATE,
             inputAreaTemplate: configOptions.inputAreaTemplate || DEFAULT_INPUT_AREA_TEMPLATE,
             messageTemplate: configOptions.messageTemplate || DEFAULT_MESSAGE_TEMPLATE,
+            widgetTitle: configOptions.widgetTitle, // Assign directly, it can be undefined
         };
         
         this._validateAndPrepareTemplates();
@@ -228,6 +233,28 @@ export class ChatWidget {
     private render(): void {
         // Use the configured main container template
         this.element.innerHTML = this.config.mainContainerTemplate;
+
+        // Display widget title if provided
+        if (this.config.widgetTitle) {
+            const headerElement = this.element.querySelector<HTMLElement>('.chat-widget-header');
+            const titleTextElement = this.element.querySelector<HTMLElement>('.chat-widget-title-text');
+            if (headerElement && titleTextElement) {
+                titleTextElement.textContent = this.config.widgetTitle;
+                headerElement.style.display = 'block';
+                // Adjust chat-messages height if header is visible
+                const chatMessagesElement = this.element.querySelector<HTMLElement>('.chat-messages');
+                if (chatMessagesElement) {
+                    // Assuming header height is approx 40px (padding + line height). This might need to be more dynamic or CSS-driven.
+                    // For simplicity, let's use calc. Ensure the chat-messages div can handle this.
+                    // It might be better to handle this with flexbox in CSS if the header is part of the flex layout.
+                    // The current structure has header, messages, input-area as children of chat-widget.
+                    // If chat-widget is display:flex, flex-direction:column, then chat-messages (flex-grow:1) should adapt.
+                    // No explicit height change needed here if CSS is set up correctly.
+                }
+            } else {
+                console.warn("ChatWidget: widgetTitle is set, but '.chat-widget-header' or '.chat-widget-title-text' not found in mainContainerTemplate.");
+            }
+        }
 
         // Find the container and inject the input area template
         const inputAreaContainer = this.element.querySelector('#chat-input-area-container'); // Renamed selector

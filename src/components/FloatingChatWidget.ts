@@ -4,7 +4,7 @@ import { ChatWidget, ChatWidgetConfigOptions } from './ChatWidget';
 export interface FloatingChatWidgetConfig {
     chatWidgetConfig?: ChatWidgetConfigOptions;
     position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
-    widgetTitle?: string;
+    // widgetTitle?: string; // Removed, will come from chatWidgetConfig
     // More config options for the floater itself can be added here
 }
 
@@ -45,7 +45,7 @@ export class FloatingChatWidget {
         this.config = {
             chatWidgetConfig: options.chatWidgetConfig || {},
             position: options.position || 'bottom-right',
-            widgetTitle: options.widgetTitle || "Chat with Assistant",
+            // widgetTitle: options.widgetTitle || "Chat with Assistant", // Removed
         };
 
         this._createElements();
@@ -61,15 +61,15 @@ export class FloatingChatWidget {
 
         // Create chat widget container
         this.chatContainer = document.createElement('div');
-        this.chatContainer.className = `chat-widget-container ${this.config.position}`;
+        this.chatContainer.className = `floating-chat-panel ${this.config.position}`;
         
         // Create header
         const header = document.createElement('div');
-        header.className = 'floating-chat-header';
+        header.className = 'chat-widget-header';
         
         const titleSpan = document.createElement('span');
-        titleSpan.className = 'title';
-        titleSpan.textContent = this.config.widgetTitle;
+        titleSpan.className = 'chat-widget-title-text';
+        titleSpan.textContent = this.config.chatWidgetConfig?.widgetTitle || "Chat with Assistant"; // Get from chatWidgetConfig, provide default
         
         const minimizeButton = document.createElement('button');
         minimizeButton.className = 'minimize-button';
@@ -102,7 +102,11 @@ export class FloatingChatWidget {
                 this.chatClient,
                 this.inputFlowIdOrName,
                 this.enableStream,
-                this.config.chatWidgetConfig
+                // Pass all chatWidgetConfig EXCEPT widgetTitle, as FloatingChatWidget handles its own title
+                { 
+                    ...this.config.chatWidgetConfig,
+                    widgetTitle: undefined // Explicitly prevent inner widget from rendering a title
+                }
             );
              // Adjust ChatWidget's main element style if needed.
             // The ChatWidget's main element is chatWidgetDiv.firstElementChild

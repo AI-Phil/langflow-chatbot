@@ -57,8 +57,13 @@
     .floating-chat-button:hover {
         background-color: #1e7e34 !important; /* Darker green on hover */
     }
-    .floating-chat-header {
-        background-color: #28a745 !important; /* A pleasant green */
+    .floating-chat-header, /* This class is no longer used, but we target .chat-widget-header now */
+    .chat-widget-header {
+        background-color: #28a745 !important; /* A pleasant green for any header */
+        color: white !important; /* Ensure title text is visible */
+    }
+    .chat-widget-header .chat-widget-title-text {
+        color: white !important; /* Explicitly set title text color */
     }
 </style>
 
@@ -94,8 +99,43 @@
     });
   }
 
-  let chatWidgetFlowId = "memory-chatbot";
+  // Unified Chat Configuration
+  let globalChatConfig = {
+    flowId: "memory-chatbot", // Default Flow ID
+    enableStream: true,
+    useFloating: true, // Default to floating
+    widgetTitle: "Chat Assistant", // Default title for both
+    userSender: "Me",
+    botSender: "Assistant",
+    messageTemplate: `
+        <div class="{{messageClasses}} message-block">
+            <div class="sender-name-display">{{sender}}</div>
+            <div class="message-bubble">
+                <span class="message-text-content">{{message}}</span>
+            </div>
+        </div>
+    `,
+    // Floating specific (used if useFloating is true)
+    floatPosition: 'bottom-right',
+    // Embedded specific (used if useFloating is false)
+    targetContainerId: 'chatbot-container' 
+  };
+
   let currentChatWidgetInstance = null; // To keep track of the current widget instance for cleanup
+
+  function updateGlobalConfigFromUI() {
+    const flowIdInput = document.getElementById('flow-id-input');
+    if (flowIdInput) globalChatConfig.flowId = flowIdInput.value.trim() || "memory-chatbot";
+
+    const streamToggleInput = document.getElementById('stream-toggle-input');
+    if (streamToggleInput) globalChatConfig.enableStream = streamToggleInput.checked;
+
+    const chatTypeToggle = document.getElementById('chat-type-toggle');
+    if (chatTypeToggle) globalChatConfig.useFloating = chatTypeToggle.checked;
+    
+    // Potentially add UI elements for widgetTitle, floatPosition etc. if they need to be dynamic
+    // For now, they use defaults or values set in globalChatConfig object.
+  }
 
   function initializeChatWidget() {
     // Clear previous widget instance if it exists
@@ -104,28 +144,16 @@
         currentChatWidgetInstance = null;
     }
     // Also ensure the old container is cleared if we are switching back to embedded
-    const embeddedChatContainer = document.getElementById('chatbot-container');
+    const embeddedChatContainer = document.getElementById(globalChatConfig.targetContainerId);
     if (embeddedChatContainer) {
         embeddedChatContainer.innerHTML = '';
     }
 
+    updateGlobalConfigFromUI(); // Update config from UI elements
+
     const sessionIdInput = document.getElementById('session-id-input');
     const sessionId = sessionIdInput ? sessionIdInput.value.trim() : "";
     
-    const flowIdInput = document.getElementById('flow-id-input');
-    let currentFlowId = chatWidgetFlowId;
-    if (flowIdInput && flowIdInput.value.trim() !== "") {
-        currentFlowId = flowIdInput.value.trim();
-    } else if (flowIdInput) {
-        flowIdInput.value = chatWidgetFlowId;
-    }
-
-    const streamToggleInput = document.getElementById('stream-toggle-input');
-    const enableStream = streamToggleInput ? streamToggleInput.checked : true;
-
-    const chatTypeToggle = document.getElementById('chat-type-toggle');
-    const useFloatingWidget = chatTypeToggle ? chatTypeToggle.checked : false;
-
     const embeddedContainerWrapper = document.getElementById('embedded-chatbot-container-wrapper');
 
     try {
@@ -139,52 +167,47 @@
           chatClient = new window.LangflowChatbot.LangflowChatClient('/api/langflow');
         }
         
-        const chatWidgetInternalConfig = {
-            userSender: "Me", 
-            botSender: "Assistant", 
-            messageTemplate: `
-                <div class="{{messageClasses}} message-block">
-                    <div class="sender-name-display">{{sender}}</div>
-                    <div class="message-bubble">
-                        <span class="message-text-content">{{message}}</span>
-                    </div>
-                </div>
-            `
+        // Construct the core ChatWidgetConfigOptions from globalChatConfig
+        const coreChatConfig = {
+            userSender: globalChatConfig.userSender,
+            botSender: globalChatConfig.botSender,
+            messageTemplate: globalChatConfig.messageTemplate,
+            widgetTitle: globalChatConfig.widgetTitle
         };
 
-        if (useFloatingWidget) {
+        if (globalChatConfig.useFloating) {
             if (embeddedContainerWrapper) embeddedContainerWrapper.style.display = 'none';
             if (window.LangflowChatbot.FloatingChatWidget) {
                 currentChatWidgetInstance = new window.LangflowChatbot.FloatingChatWidget(
                     chatClient, 
-                    currentFlowId, 
-                    enableStream, 
+                    globalChatConfig.flowId, 
+                    globalChatConfig.enableStream, 
                     {
-                        chatWidgetConfig: chatWidgetInternalConfig,
-                        widgetTitle: "Floating Assistant",
-                        position: 'bottom-right' // Example position
+                        chatWidgetConfig: coreChatConfig, // Pass the extracted core config
+                        position: globalChatConfig.floatPosition,
+                        // widgetTitle is now part of chatWidgetConfig, so not set directly here
                     }
                 );
-                console.log('FloatingChatWidget initialized. FlowId:', currentFlowId, 'SessionId:', sessionId || "None", "Stream:", enableStream);
+                console.log('FloatingChatWidget initialized. FlowId:', globalChatConfig.flowId, 'SessionId:', sessionId || "None", "Stream:", globalChatConfig.enableStream, "Title:", globalChatConfig.widgetTitle);
             } else {
                 console.error('FloatingChatWidget component not found on window.LangflowChatbot.');
                 alert('FloatingChatWidget component not found. Check console.');
             }
         } else {
             if (embeddedContainerWrapper) embeddedContainerWrapper.style.display = 'block';
-            const chatContainer = document.getElementById('chatbot-container');
+            const chatContainer = document.getElementById(globalChatConfig.targetContainerId);
             if (chatContainer && window.LangflowChatbot.ChatWidget) {
-                chatContainer.innerHTML = ''; // Clear it before new widget
+                // chatContainer.innerHTML = ''; // Already cleared above
                 currentChatWidgetInstance = new window.LangflowChatbot.ChatWidget(
-                    'chatbot-container', 
+                    globalChatConfig.targetContainerId, 
                     chatClient, 
-                    currentFlowId, 
-                    enableStream, 
-                    chatWidgetInternalConfig
+                    globalChatConfig.flowId, 
+                    globalChatConfig.enableStream, 
+                    coreChatConfig // Pass the extracted core config
                 );
-                console.log('ChatWidget (embedded) initialized. FlowId:', currentFlowId, 'SessionId:', sessionId || "None", "Stream:", enableStream);
+                console.log('ChatWidget (embedded) initialized. FlowId:', globalChatConfig.flowId, 'SessionId:', sessionId || "None", "Stream:", globalChatConfig.enableStream, "Title:", globalChatConfig.widgetTitle);
             } else {
-                 if (!chatContainer) console.error('Chatbot container not found for embedded chat.');
+                 if (!chatContainer) console.error('Chatbot container (' + globalChatConfig.targetContainerId + ') not found for embedded chat.');
                  if (!window.LangflowChatbot.ChatWidget) console.error('ChatWidget component not found.');
                  alert('Error setting up embedded chat. Check console.');
             }
@@ -204,7 +227,15 @@
   document.addEventListener('DOMContentLoaded', () => {
     const flowIdInput = document.getElementById('flow-id-input');
     if (flowIdInput) {
-        flowIdInput.value = chatWidgetFlowId;
+        flowIdInput.value = globalChatConfig.flowId; // Set initial value from global config
+    }
+    const streamToggleInput = document.getElementById('stream-toggle-input');
+    if (streamToggleInput) {
+        streamToggleInput.checked = globalChatConfig.enableStream;
+    }
+    const chatTypeToggle = document.getElementById('chat-type-toggle');
+    if (chatTypeToggle) {
+        chatTypeToggle.checked = globalChatConfig.useFloating;
     }
 
     initializeChatWidget();
@@ -215,10 +246,11 @@
         console.log('Apply Flow ID button clicked. Reinitializing chat widget with current input value.');
         const flowIdInputElem = document.getElementById('flow-id-input');
         if (flowIdInputElem && flowIdInputElem.value.trim() === "") {
-            flowIdInputElem.value = chatWidgetFlowId;
-             console.log('Flow ID input was empty, reset to default:', chatWidgetFlowId);
+            // flowIdInputElem.value = chatWidgetFlowId; // Old way
+            // console.log('Flow ID input was empty, reset to default:', chatWidgetFlowId);
+            // No need to reset to default here, updateGlobalConfigFromUI will handle empty with its default
         }
-        initializeChatWidget();
+        initializeChatWidget(); // This will call updateGlobalConfigFromUI
       });
     }
 
@@ -259,11 +291,11 @@
         if (event.key === 'Enter') {
           event.preventDefault();
           console.log('Enter key pressed in Flow ID input. Reinitializing chat widget.');
-          if (flowIdInputField.value.trim() === "") {
-            flowIdInputField.value = chatWidgetFlowId;
-            console.log('Flow ID input was empty, reset to default:', chatWidgetFlowId);
-          }
-          initializeChatWidget();
+          // if (flowIdInputField.value.trim() === "") { // Old way
+          //   flowIdInputField.value = chatWidgetFlowId;
+          //   console.log('Flow ID input was empty, reset to default:', chatWidgetFlowId);
+          // }
+          initializeChatWidget(); // This will call updateGlobalConfigFromUI
         }
       });
     }
