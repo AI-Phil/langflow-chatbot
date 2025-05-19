@@ -31,39 +31,11 @@
 
 <link rel="stylesheet" href="/static/langflow-chatbot.css">
 <style>
-    /* Example of overriding default styles in chatbot.ejs */
-    /* Let's change the user message bubble to a green color */
-    .user-message .message-bubble {
-        background-color: #28a745; /* A pleasant green */
-        color: white;
-    }
-
-    /* And maybe make the send button match this new user color */
-    .send-button {
-        background-color: #28a745;
-    }
-    .send-button:hover {
-        background-color: #1e7e34; /* Darker green on hover */
-    }
-    .chat-input:focus {
-        border-color: #28a745;
-        box-shadow: 0 0 0 0.2rem rgba(40,167,69,.25);
-    }
-
-    /* Overrides for FloatingChatWidget theme */
-    .floating-chat-button {
-        background-color: #28a745 !important; /* A pleasant green */
-    }
-    .floating-chat-button:hover {
-        background-color: #1e7e34 !important; /* Darker green on hover */
-    }
-    .floating-chat-header, /* This class is no longer used, but we target .chat-widget-header now */
-    .chat-widget-header {
-        background-color: #28a745 !important; /* A pleasant green for any header */
-        color: white !important; /* Ensure title text is visible */
-    }
-    .chat-widget-header .chat-widget-title-text {
-        color: white !important; /* Explicitly set title text color */
+    :root { 
+        /* Let's change the primary theme color to a pleasant green, similar to the original example */
+        --langflow-chatbot-palette-primary: #28a745;
+        --langflow-chatbot-palette-primary-hover: #1e7e34; /* Darker green for hover states */
+        --langflow-chatbot-palette-focus-ring: rgba(40, 167, 69, 0.25);
     }
 </style>
 

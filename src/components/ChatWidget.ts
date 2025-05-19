@@ -16,10 +16,10 @@ export interface ChatWidgetConfigOptions {
 // Define default templates
 const DEFAULT_MAIN_CONTAINER_TEMPLATE = `
     <div class="chat-widget" style="display: flex; flex-direction: column; height: 100%;">
-        <div class="chat-widget-header" style="padding: 10px 15px; background-color: #f0f0f0; text-align: left; font-weight: bold; border-bottom: 1px solid #ddd; display: none;">
+        <div class="chat-widget-header" style="display: none;">
             <span class="chat-widget-title-text"></span>
         </div>
-        <div class="chat-messages" style="flex-grow: 1; overflow-y: auto; padding: 10px;">
+        <div class="chat-messages">
             <!-- Messages will appear here -->
         </div>
         <div id="chat-input-area-container" style="flex-shrink: 0;"></div> <!-- Renamed for clarity -->

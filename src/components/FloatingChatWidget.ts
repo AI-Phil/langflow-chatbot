@@ -84,12 +84,13 @@ export class FloatingChatWidget {
         const chatWidgetDiv = document.createElement('div');
         const chatWidgetInnerId = `chat-widget-inner-container-${Date.now()}-${Math.random().toString(36).substring(2)}`;
         chatWidgetDiv.id = chatWidgetInnerId;
+        chatWidgetDiv.className = 'chat-widget-inner-host'; // Assign a class
         // Set a specific height for the inner chat widget area
         // This is crucial for the ChatWidget's internal scrolling to work correctly.
         // e.g., 400px height for message area + input area
-        chatWidgetDiv.style.height = 'calc(100% - 40px)'; // Assuming header is 40px
-        chatWidgetDiv.style.display = 'flex';
-        chatWidgetDiv.style.flexDirection = 'column';
+        // chatWidgetDiv.style.height = 'calc(100% - 40px)'; // Assuming header is 40px - REMOVED
+        // chatWidgetDiv.style.display = 'flex'; // REMOVED
+        // chatWidgetDiv.style.flexDirection = 'column'; // REMOVED
 
 
         this.chatContainer.appendChild(chatWidgetDiv);
@@ -121,7 +122,7 @@ export class FloatingChatWidget {
         } catch (error) {
             console.error("FloatingChatWidget: Failed to instantiate ChatWidget.", error);
             // Optionally display an error message in the chatContainer
-            chatWidgetDiv.innerHTML = '<p style="color: red; padding: 10px;">Error: Could not load chat.</p>';
+            chatWidgetDiv.innerHTML = '<p class="chat-load-error">Error: Could not load chat.</p>'; // Use class for error message
         }
 
         // Explicitly set initial visibility state
