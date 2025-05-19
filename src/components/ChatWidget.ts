@@ -1,6 +1,7 @@
 import { LangflowChatClient, BotResponse, StreamEvent, TokenEventData, EndEventData, AddMessageEventData, StreamEventType, StreamEventDataMap, ChatMessageData } from '../clients/LangflowChatClient'; // Adjusted import path
 // import { PROXY_FLOWS_PATH } from '../config/apiPaths'; // No longer needed for flow resolution
 import { format as formatDate, formatDistanceToNow } from 'date-fns';
+import { Logger } from './logger';
 
 export interface ChatWidgetConfigOptions {
     userSender?: string;
@@ -84,11 +85,14 @@ export class ChatWidget {
     // Add pluggable datetime handler
     private datetimeHandler: DatetimeHandler = defaultDatetimeHandler;
 
+    private logger: Logger; // Logger is always present
+
     constructor(
         containerId: string, 
         chatClient: LangflowChatClient, 
         enableStream: boolean = true,
         configOptions: ChatWidgetConfigOptions = {},
+        logger: Logger, // Logger is required and comes before optional params
         initialSessionId?: string,
         onSessionIdUpdate?: (sessionId: string) => void // Added callback parameter
     ) {
@@ -104,6 +108,7 @@ export class ChatWidget {
         this.chatClient = chatClient;
         this.enableStream = enableStream;
         this.onSessionIdUpdateCallback = onSessionIdUpdate; // Store the callback
+        this.logger = logger;
 
         this.config = {
             userSender: configOptions.userSender || "You",
@@ -121,33 +126,33 @@ export class ChatWidget {
         
         if (initialSessionId) {
             this.updateCurrentSessionId(initialSessionId, false); // Use a unified method, don't call callback yet
-            console.log(`ChatWidget: Initialized with session ID: ${this.currentSessionId}`);
+            this.logger.info(`Initialized with session ID: ${this.currentSessionId}`);
             // Load history if session ID is provided
             if (!this.isHistoryLoaded) { // ensure not to reload if already loaded by some other means (though unlikely here)
                 this.loadAndDisplayHistory(this.currentSessionId!);
             }
         } else {
-            console.log("ChatWidget: Initialized without a session ID.");
+            this.logger.info("Initialized without a session ID.");
         }
     }
 
     private updateCurrentSessionId(newSessionId: string | null, notify: boolean = true) {
         if (newSessionId && this.currentSessionId !== newSessionId) {
             this.currentSessionId = newSessionId;
-            console.log(`ChatWidget: Session ID updated to: ${this.currentSessionId}`);
+            this.logger.debug(`Session ID updated to: ${this.currentSessionId}`);
             if (notify && this.onSessionIdUpdateCallback && this.currentSessionId) {
                 this.onSessionIdUpdateCallback(this.currentSessionId);
             }
         } else if (newSessionId === null && this.currentSessionId !== null) {
              this.currentSessionId = null;
-             console.log("ChatWidget: Session ID cleared.");
+             this.logger.debug("Session ID cleared.");
              // Typically, we don't notify for clearing, but depends on desired behavior
         }
     }
 
     private _validateAndPrepareTemplates(): void {
         if (!this.config.mainContainerTemplate.includes('id="chat-input-area-container"')) {
-            console.warn('ChatWidget: Custom mainContainerTemplate is missing id="chat-input-area-container". Input area might not be placed correctly.');
+            this.logger.warn('Custom mainContainerTemplate is missing id="chat-input-area-container". Input area might not be placed correctly.');
         }
 
         const tempMessageDiv = document.createElement('div');
@@ -157,15 +162,15 @@ export class ChatWidget {
             .replace("{{message}}", "test");
         tempMessageDiv.innerHTML = testRenderedTemplate;
         if (!tempMessageDiv.querySelector('.message-text-content')) {
-            console.error('ChatWidget: Custom messageTemplate is missing an element with class "message-text-content". Streaming updates will not work correctly. Reverting to default message template.');
+            this.logger.error('Custom messageTemplate is missing an element with class "message-text-content". Streaming updates will not work correctly. Reverting to default message template.');
             this.config.messageTemplate = DEFAULT_MESSAGE_TEMPLATE;
         }
 
         if (!this.config.messageTemplate.includes('{{message}}')) {
-            console.warn('ChatWidget: Custom messageTemplate is missing the {{message}} placeholder. This is critical for displaying messages.');
+            this.logger.warn('Custom messageTemplate is missing the {{message}} placeholder. This is critical for displaying messages.');
         }
         if (!this.config.messageTemplate.includes('{{messageClasses}}')) {
-            console.warn('ChatWidget: Custom messageTemplate is missing the {{messageClasses}} placeholder. This is important for message styling.');
+            this.logger.warn('Custom messageTemplate is missing the {{messageClasses}} placeholder. This is important for message styling.');
         }
     }
 
@@ -179,7 +184,7 @@ export class ChatWidget {
                 titleTextElement.textContent = this.config.widgetTitle;
                 headerElement.style.display = 'block';
             } else {
-                console.warn("ChatWidget: widgetTitle is set, but '.chat-widget-header' or '.chat-widget-title-text' not found in mainContainerTemplate.");
+                this.logger.warn("widgetTitle is set, but '.chat-widget-header' or '.chat-widget-title-text' not found in mainContainerTemplate.");
             }
         }
 
@@ -187,7 +192,7 @@ export class ChatWidget {
         if (inputAreaContainer) {
             inputAreaContainer.innerHTML = this.config.inputAreaTemplate; 
         } else {
-            console.warn("ChatWidget: #chat-input-area-container not found in mainContainerTemplate. Input area will be appended to .chat-widget if possible.");
+            this.logger.warn("#chat-input-area-container not found in mainContainerTemplate. Input area will be appended to .chat-widget if possible.");
             const chatWidgetDiv = this.element.querySelector('.chat-widget');
             if (chatWidgetDiv) {
                 const tempDiv = document.createElement('div');
@@ -200,7 +205,7 @@ export class ChatWidget {
                     chatWidgetDiv.appendChild(defaultInputWrapper.firstElementChild!);
                 }
             } else {
-                 console.error("ChatWidget: Critical rendering error. Neither #chat-input-area-container nor .chat-widget found. Reverting to full default.");
+                 this.logger.error("Critical rendering error. Neither #chat-input-area-container nor .chat-widget found. Reverting to full default.");
                  this.element.innerHTML = DEFAULT_MAIN_CONTAINER_TEMPLATE;
                  const container = this.element.querySelector('#chat-input-area-container');
                  if(container) container.innerHTML = DEFAULT_INPUT_AREA_TEMPLATE;
@@ -212,8 +217,8 @@ export class ChatWidget {
         const sendButton = this.element.querySelector<HTMLButtonElement>('.send-button');
 
         if (!chatMessages || !chatInput || !sendButton) {
-            console.error(
-                "ChatWidget: Essential elements (.chat-messages, .chat-input, .send-button) not found after rendering custom templates. " +
+            this.logger.error(
+                "Essential elements (.chat-messages, .chat-input, .send-button) not found after rendering custom templates. " +
                 "Functionality may be impaired. Reverting to default full template."
             );
             this.element.innerHTML = `
@@ -340,7 +345,7 @@ export class ChatWidget {
                             break;
                         case 'error':
                             const errorData = event.data as StreamEventDataMap['error'];
-                            console.error("Streaming Error:", errorData.message, errorData.detail);
+                            this.logger.error("Streaming Error:", errorData.message, errorData.detail);
                             if (this.currentBotMessageElement && !this.currentBotMessageElement.classList.contains('error-message')) {
                                 this.updateBotMessageContent(this.currentBotMessageElement, `Error: ${errorData.message}`);
                                 this.currentBotMessageElement.classList.remove('bot-message', 'thinking');
@@ -350,7 +355,7 @@ export class ChatWidget {
                             }
                             break;
                         case 'add_message':
-                            console.log("ChatWidget: Received 'add_message' event. Data:", event.data);
+                            this.logger.debug("Received 'add_message' event. Data:", event.data);
                             break;
                         case 'end':
                             const endData = event.data as StreamEventDataMap['end'];
@@ -382,11 +387,11 @@ export class ChatWidget {
                             }
                             break;
                         default:
-                            console.warn("ChatWidget: Received unknown stream event type: " + (event as StreamEvent<StreamEventType>).event);
+                            this.logger.warn("Received unknown stream event type: " + (event as StreamEvent<StreamEventType>).event);
                     }
                 }
             } catch (error: any) {
-                console.error("Failed to process stream message:", error);
+                this.logger.error("Failed to process stream message:", error);
                  if (this.currentBotMessageElement && this.currentBotMessageElement.classList.contains('thinking')) {
                     this.updateBotMessageContent(this.currentBotMessageElement, "Error processing stream.");
                     this.currentBotMessageElement.classList.remove('thinking');
@@ -423,7 +428,7 @@ export class ChatWidget {
                 }
             } catch (error: any) {
                 if(thinkingMsg) this.removeMessageElement(thinkingMsg);
-                console.error("Failed to send non-stream message via ChatClient:", error);
+                this.logger.error("Failed to send non-stream message via ChatClient:", error);
                 this.addMessageToDisplay(this.config.errorSender, `Communication error: ${error.message || 'Unknown error'}`, false, new Date().toLocaleString());
             }
         }
@@ -518,15 +523,15 @@ export class ChatWidget {
 
     private async loadAndDisplayHistory(sessionId: string): Promise<void> {
         if (this.isHistoryLoaded && this.currentSessionId === sessionId) { 
-            console.log("ChatWidget: History already loaded for this session, skipping reload.");
+            this.logger.debug("History already loaded for this session, skipping reload.");
             return;
         }
         if (!sessionId) {
-            console.log("ChatWidget: No session ID provided, cannot load history.");
+            this.logger.debug("No session ID provided, cannot load history.");
             return;
         }
 
-        console.log(`ChatWidget: Loading history for session ID: ${sessionId}`);
+        this.logger.info(`Loading history for session ID: ${sessionId}`);
         this.isHistoryLoaded = false; // Reset for the new session if different
         const chatMessagesContainer = this.element.querySelector('.chat-messages');
         if (chatMessagesContainer) {
@@ -534,7 +539,7 @@ export class ChatWidget {
         }
 
         if (!this.chatClient.getMessageHistory) {
-            console.warn("ChatWidget: getMessageHistory method not available on chatClient.");
+            this.logger.warn("ChatWidget: getMessageHistory method not available on chatClient.");
             return;
         }
         try {
@@ -568,16 +573,16 @@ export class ChatWidget {
                 this.isHistoryLoaded = true;
                 this.updateCurrentSessionId(sessionId); // Confirm current session after loading its history
             } else if (history && history.length === 0) {
-                console.log("ChatWidget: No message history found for this session.");
+                this.logger.info("ChatWidget: No message history found for this session.");
                 this.isHistoryLoaded = true;
                 this.updateCurrentSessionId(sessionId);
             } else if (history === null) {
-                console.log("ChatWidget: No message history returned (possibly empty or error fetching).");
+                this.logger.info("ChatWidget: No message history returned (possibly empty or error fetching).");
                 this.isHistoryLoaded = true; // Consider it checked
                 this.updateCurrentSessionId(sessionId);
             }
         } catch (error) {
-            console.error("ChatWidget: Error loading message history:", error);
+            this.logger.error("ChatWidget: Error loading message history:", error);
             this.addMessageToDisplay(this.config.errorSender, "Could not load message history.", false, new Date().toLocaleString());
         }
     }
@@ -585,16 +590,16 @@ export class ChatWidget {
     public async setSessionIdAndLoadHistory(newSessionId: string | null): Promise<void> {
         if (newSessionId && newSessionId.trim() !== "") {
             if (this.currentSessionId !== newSessionId) {
-                console.log(`ChatWidget: External call to set session ID to: ${newSessionId}`);
+                this.logger.info(`External call to set session ID to: ${newSessionId}`);
                 this.isHistoryLoaded = false; 
                 this.updateCurrentSessionId(newSessionId, false); // Update internally first, don't notify yet
                 await this.loadAndDisplayHistory(this.currentSessionId!); // Then load history
                 // After history load, if successful, loadAndDisplayHistory will call updateCurrentSessionId again to notify
             } else {
-                console.log("ChatWidget: Session ID is already set to", newSessionId, "Not reloading history.");
+                this.logger.debug("Session ID is already set to", newSessionId, "Not reloading history.");
             }
         } else {
-            console.log("ChatWidget: External call to clear session ID.");
+            this.logger.info("External call to clear session ID.");
             this.updateCurrentSessionId(null);
             this.isHistoryLoaded = false;
             const chatMessagesContainer = this.element.querySelector('.chat-messages');
@@ -613,7 +618,7 @@ export class ChatWidget {
         this.isHistoryLoaded = false;
         this.updateCurrentSessionId(null, false); // Clear session ID without notifying
         // Any other cleanup specific to ChatWidget
-        console.log("ChatWidget: Instance destroyed.");
+        this.logger.info("Instance destroyed.");
     }
 
     // Allow user to register a custom datetime handler

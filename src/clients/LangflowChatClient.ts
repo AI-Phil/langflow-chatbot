@@ -1,3 +1,5 @@
+import { Logger } from '../components/logger';
+
 export interface BotResponse {
     reply?: string;
     sessionId?: string;
@@ -68,8 +70,9 @@ export class LangflowChatClient {
     private proxyEndpointId: string;
     private chatEndpoint: string;
     private historyEndpoint: string;
+    private logger: Logger;
 
-    constructor(proxyEndpointId: string, baseApiUrl: string = PROXY_BASE_API_PATH) {
+    constructor(proxyEndpointId: string, baseApiUrl: string = PROXY_BASE_API_PATH, logger?: Logger) {
         if (!proxyEndpointId || proxyEndpointId.trim() === '') {
             throw new Error("proxyEndpointId is required and cannot be empty.");
         }
@@ -79,6 +82,7 @@ export class LangflowChatClient {
         // Construct endpoints using proxyEndpointId
         this.chatEndpoint = `${this.baseApiUrl}${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}/${this.proxyEndpointId}`;
         this.historyEndpoint = `${this.baseApiUrl}${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}/${this.proxyEndpointId}/history`;
+        this.logger = logger || new Logger('info', 'LangflowChatClient');
     }
 
     private generateSessionId(): string {
@@ -110,7 +114,7 @@ export class LangflowChatClient {
                 } catch (e) {
                     // Ignore if response is not JSON
                 }
-                console.error("API Error:", response.status, errorData);
+                this.logger.error("API Error:", response.status, errorData);
                 return { 
                     error: errorData.error || `API request failed: ${response.statusText}`,
                     detail: errorData.detail,
@@ -122,7 +126,7 @@ export class LangflowChatClient {
             return responseData;
 
         } catch (error: any) {
-            console.error("Failed to send message or parse response:", error);
+            this.logger.error("Failed to send message or parse response:", error);
             return {
                 error: "Network error or invalid response from server.",
                 detail: error.message || 'Unknown fetch error',
@@ -165,7 +169,7 @@ export class LangflowChatClient {
                     errorData.detail = response.statusText;
                     errorData.sessionId = effectiveSessionId; 
                 }
-                console.error("API Stream Error:", response.status, errorData);
+                this.logger.error("API Stream Error:", response.status, errorData);
                 yield {
                     event: 'error',
                     data: { 
@@ -180,7 +184,7 @@ export class LangflowChatClient {
             }
 
             if (!response.body) {
-                console.error("Response body is null");
+                this.logger.error("Response body is null");
                 yield { 
                     event: 'error', 
                     data: { 
@@ -222,7 +226,7 @@ export class LangflowChatClient {
                             }
                             yield parsedEvent;
                         } catch (e: any) {
-                            console.error(`[Stream] Error parsing line:`, JSON.stringify(trimmedLine), e);
+                            this.logger.error(`[Stream] Error parsing line:`, JSON.stringify(trimmedLine), e);
                             yield { 
                                 event: 'error', 
                                 data: { 
@@ -259,7 +263,7 @@ export class LangflowChatClient {
                                 }
                                 yield parsedEvent;
                             } catch (e: any) {
-                                console.error(`[Stream] Error parsing final line segment:`, JSON.stringify(trimmedFinalLine), e);
+                                this.logger.error(`[Stream] Error parsing final line segment:`, JSON.stringify(trimmedFinalLine), e);
                                 yield { 
                                     event: 'error', 
                                     data: { 
@@ -285,7 +289,7 @@ export class LangflowChatClient {
                             }
                             yield parsedEvent;
                         } catch (e: any) {
-                             console.error(`[Stream] Error parsing remaining buffer:`, JSON.stringify(buffer.trim()), e);
+                             this.logger.error(`[Stream] Error parsing remaining buffer:`, JSON.stringify(buffer.trim()), e);
                              yield { 
                                 event: 'error', 
                                 data: { 
@@ -301,7 +305,7 @@ export class LangflowChatClient {
                 }
             }
         } catch (error: any) {
-            console.error("General stream error:", error);
+            this.logger.error("General stream error:", error);
             yield { 
                 event: 'error', 
                 data: { 
@@ -316,7 +320,7 @@ export class LangflowChatClient {
 
     async getMessageHistory(sessionId: string): Promise<ChatMessageData[] | null> {
         if (!sessionId) {
-            console.error("Session ID is required to fetch message history.");
+            this.logger.error("Session ID is required to fetch message history.");
             return null;
         }
 
@@ -332,7 +336,7 @@ export class LangflowChatClient {
             });
 
             if (!response.ok) {
-                console.error(`API request for history failed with status ${response.status}`);
+                this.logger.error(`API request for history failed with status ${response.status}`);
                 let errorDetail = `Status: ${response.status}`;
                 try {
                     const errorJson = await response.json();
@@ -340,12 +344,12 @@ export class LangflowChatClient {
                 } catch(e) { /* ignore */ }
                 // Optionally, rethrow or return a more specific error object
                 // For now, just logging and returning null as per original design
-                console.error(`Full error detail for history fetch: ${errorDetail}`);
+                this.logger.error(`Full error detail for history fetch: ${errorDetail}`);
                 return null;
             }
             return await response.json() as ChatMessageData[];
         } catch (error: any) {
-            console.error("Failed to fetch message history:", error);
+            this.logger.error("Failed to fetch message history:", error);
             return null;
         }
     }

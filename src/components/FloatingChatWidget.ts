@@ -1,5 +1,6 @@
 import { LangflowChatClient } from '../clients/LangflowChatClient';
 import { ChatWidget, ChatWidgetConfigOptions } from './ChatWidget';
+import { Logger } from './logger';
 
 export interface FloatingChatWidgetConfig {
     chatWidgetConfig?: ChatWidgetConfigOptions;
@@ -33,16 +34,19 @@ export class FloatingChatWidget {
     private enableStream: boolean;
     private initialSessionId?: string;
     private onSessionIdUpdateCallback?: (sessionId: string) => void; // Store callback
+    private logger: Logger; // Logger is always present
 
     constructor(
         chatClient: LangflowChatClient,
         enableStream: boolean = true,
-        options: FloatingChatWidgetConfig = {}
+        options: FloatingChatWidgetConfig = {},
+        logger?: Logger // Logger is optional, but always set
     ) {
         this.chatClient = chatClient;
         this.enableStream = enableStream;
         this.initialSessionId = options.initialSessionId;
         this.onSessionIdUpdateCallback = options.onSessionIdUpdate; // Store callback
+        this.logger = logger ? logger : new Logger('info', 'LangflowChatbot');
 
         this.config = {
             chatWidgetConfig: options.chatWidgetConfig || {},
@@ -95,12 +99,13 @@ export class FloatingChatWidget {
                     ...this.config.chatWidgetConfig,
                     widgetTitle: undefined
                 },
+                this.logger, // Logger is now required and comes before optional params
                 this.initialSessionId,
                 this.onSessionIdUpdateCallback // Pass callback to ChatWidget
             );
 
         } catch (error) {
-            console.error("FloatingChatWidget: Failed to instantiate ChatWidget.", error);
+            if (this.logger) this.logger.error("Failed to instantiate ChatWidget.", error);
             chatWidgetDiv.innerHTML = '<p class="chat-load-error">Error: Could not load chat.</p>';
         }
 

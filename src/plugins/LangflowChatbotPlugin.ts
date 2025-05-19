@@ -2,6 +2,7 @@
 import { LangflowChatClient } from '../clients/LangflowChatClient';
 import { PROXY_BASE_API_PATH, PROXY_CONFIG_ENDPOINT_PREFIX } from '../config/apiPaths';
 import { ChatWidget, FloatingChatWidget } from '../components';
+import { Logger, LogLevel } from '../components/logger';
 
 // Interface for the initial configuration passed to the plugin's init function
 export interface LangflowChatbotInitConfig {
@@ -21,6 +22,7 @@ export interface LangflowChatbotInitConfig {
   floatPosition?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
   // Callback for when the session ID is updated internally by the widget
   onSessionIdChanged?: (sessionId: string) => void; // Added this for plugin to widget communication
+  logLevel?: LogLevel; // Add logLevel option
 }
 
 // Interface for the full configuration after fetching from server (matches ChatbotProfile on server, minus flowId)
@@ -38,6 +40,7 @@ interface FullChatbotProfile extends Omit<LangflowChatbotInitConfig, 'proxyEndpo
   messageTemplate?: string;
   mainContainerTemplate?: string;
   inputAreaTemplate?: string;
+  logLevel?: LogLevel; // Add logLevel option
 }
 
 
@@ -48,9 +51,12 @@ export class LangflowChatbotInstance {
   private widgetInstance: any; // Placeholder for ChatWidget or FloatingChatWidget
   private isInitialized: boolean = false;
   private listeners: { [event: string]: Array<(data: any) => void> } = {}; // For emitting events like sessionChanged
+  private logger: Logger; // Use Logger type
 
   constructor(config: LangflowChatbotInitConfig) {
     this.initialConfig = { ...config };
+    // Initialize logger
+    this.logger = new Logger(config.logLevel || 'info', 'LangflowChatbot');
     // init is now async and called by the factory function
   }
 
@@ -69,7 +75,7 @@ export class LangflowChatbotInstance {
         try {
           handler(data);
         } catch (error) {
-          console.error(`LangflowChatbotPlugin: Error in event handler for '${event}':`, error);
+          this.logger.error(`Error in event handler for '${event}':`, error);
         }
       });
     }
@@ -81,14 +87,14 @@ export class LangflowChatbotInstance {
 
   async init(): Promise<void> {
     if (this.isInitialized) {
-      console.warn("LangflowChatbotInstance already initialized. Call destroy() first to re-initialize.");
+      this.logger.warn("LangflowChatbotInstance already initialized. Call destroy() first to re-initialize.");
       this.destroy(); // Clean up before re-initializing
     }
 
     try {
       // 1. Fetch server configuration
       const configUrl = `${PROXY_BASE_API_PATH}${PROXY_CONFIG_ENDPOINT_PREFIX}/${this.initialConfig.proxyEndpointId}`;
-      console.log(`LangflowChatbotPlugin: Fetching configuration from ${configUrl}`);
+      this.logger.info(`Fetching configuration from ${configUrl}`);
       const response = await fetch(configUrl);
 
       if (!response.ok) {
@@ -96,10 +102,10 @@ export class LangflowChatbotInstance {
         throw new Error(`Failed to fetch chatbot configuration for '${this.initialConfig.proxyEndpointId}'. Status: ${response.status}. Details: ${errorText}`);
       }
       this.serverProfile = await response.json() as FullChatbotProfile;
-      console.log("LangflowChatbotPlugin: Received server profile:", this.serverProfile);
+      this.logger.debug("Received server profile:", this.serverProfile);
 
       // 2. Create chat client
-      this.chatClient = new LangflowChatClient(this.initialConfig.proxyEndpointId);
+      this.chatClient = new LangflowChatClient(this.initialConfig.proxyEndpointId, undefined, this.logger);
       
       // 3. Prepare widget configuration
       const mergedConfig = {
@@ -151,7 +157,8 @@ export class LangflowChatbotInstance {
             position: mergedConfig.floatPosition,
             initialSessionId: this.initialConfig.sessionId,
             onSessionIdUpdate: onSessionIdUpdateCallback
-          }
+          },
+          this.logger || new Logger('info', 'LangflowChatbot')
         );
       } else { // Embedded widget
         if (!this.initialConfig.containerId) {
@@ -175,16 +182,17 @@ export class LangflowChatbotInstance {
             inputAreaTemplate: mergedConfig.inputAreaTemplate,
             widgetTitle: mergedConfig.widgetTitle,
           },
+          this.logger || new Logger('info', 'LangflowChatbot'),
           this.initialConfig.sessionId,
           onSessionIdUpdateCallback
         );
       }
       this.isInitialized = true;
-      console.log("LangflowChatbotPlugin: Instance initialized successfully.");
+      this.logger.info("Instance initialized successfully.");
 
     } catch (error) {
       this.isInitialized = false;
-      console.error("LangflowChatbotPlugin: Error during initialization:", error);
+      this.logger.error("Error during initialization:", error);
       if (this.initialConfig.containerId && !this.initialConfig.useFloating) {
         try {
           const container = document.getElementById(this.initialConfig.containerId);
@@ -210,7 +218,7 @@ export class LangflowChatbotInstance {
     }
     this.isInitialized = false;
     this.listeners = {}; // Clear listeners on destroy
-    console.log("LangflowChatbotPlugin: Instance destroyed.");
+    this.logger.info("Instance destroyed.");
   }
 }
 
