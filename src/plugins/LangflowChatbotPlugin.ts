@@ -1,6 +1,7 @@
 // LangflowChatbotPlugin.ts
 import { LangflowChatClient } from '../clients/LangflowChatClient';
 import { PROXY_BASE_API_PATH, PROXY_CONFIG_ENDPOINT_PREFIX } from '../config/apiPaths';
+import { ChatWidget, FloatingChatWidget } from '../components';
 
 // Interface for the initial configuration passed to the plugin's init function
 export interface LangflowChatbotInitConfig {
@@ -135,27 +136,23 @@ export class LangflowChatbotInstance {
           const chatContainer = document.getElementById(this.initialConfig.containerId);
           if (chatContainer) chatContainer.style.display = 'none';
         }
-        if ((window as any).LangflowChatbot && (window as any).LangflowChatbot.FloatingChatWidget) {
-          this.widgetInstance = new (window as any).LangflowChatbot.FloatingChatWidget(
-            this.chatClient,
-            effectiveEnableStream,
-            {
-              chatWidgetConfig: {
-                userSender: mergedConfig.userSender,
-                botSender: mergedConfig.botSender,
-                messageTemplate: mergedConfig.messageTemplate,
-                mainContainerTemplate: mergedConfig.mainContainerTemplate,
-                inputAreaTemplate: mergedConfig.inputAreaTemplate,
-                widgetTitle: mergedConfig.widgetTitle,
-              },
-              position: mergedConfig.floatPosition,
-              initialSessionId: this.initialConfig.sessionId,
-              onSessionIdUpdate: onSessionIdUpdateCallback
-            }
-          );
-        } else {
-          throw new Error('FloatingChatWidget component not found on window.LangflowChatbot.');
-        }
+        this.widgetInstance = new FloatingChatWidget(
+          this.chatClient,
+          effectiveEnableStream,
+          {
+            chatWidgetConfig: {
+              userSender: mergedConfig.userSender,
+              botSender: mergedConfig.botSender,
+              messageTemplate: mergedConfig.messageTemplate,
+              mainContainerTemplate: mergedConfig.mainContainerTemplate,
+              inputAreaTemplate: mergedConfig.inputAreaTemplate,
+              widgetTitle: mergedConfig.widgetTitle,
+            },
+            position: mergedConfig.floatPosition,
+            initialSessionId: this.initialConfig.sessionId,
+            onSessionIdUpdate: onSessionIdUpdateCallback
+          }
+        );
       } else { // Embedded widget
         if (!this.initialConfig.containerId) {
           throw new Error('containerId is required for embedded chat widget.');
@@ -166,26 +163,21 @@ export class LangflowChatbotInstance {
         }
         chatContainer.style.display = 'block';
         chatContainer.innerHTML = '';
-
-        if ((window as any).LangflowChatbot && (window as any).LangflowChatbot.ChatWidget) {
-          this.widgetInstance = new (window as any).LangflowChatbot.ChatWidget(
-            this.initialConfig.containerId,
-            this.chatClient,
-            effectiveEnableStream,
-            {
-              userSender: mergedConfig.userSender,
-              botSender: mergedConfig.botSender,
-              messageTemplate: mergedConfig.messageTemplate,
-              mainContainerTemplate: mergedConfig.mainContainerTemplate,
-              inputAreaTemplate: mergedConfig.inputAreaTemplate,
-              widgetTitle: mergedConfig.widgetTitle,
-            },
-            this.initialConfig.sessionId,
-            onSessionIdUpdateCallback
-          );
-        } else {
-          throw new Error('ChatWidget component not found on window.LangflowChatbot or container missing.');
-        }
+        this.widgetInstance = new ChatWidget(
+          this.initialConfig.containerId,
+          this.chatClient,
+          effectiveEnableStream,
+          {
+            userSender: mergedConfig.userSender,
+            botSender: mergedConfig.botSender,
+            messageTemplate: mergedConfig.messageTemplate,
+            mainContainerTemplate: mergedConfig.mainContainerTemplate,
+            inputAreaTemplate: mergedConfig.inputAreaTemplate,
+            widgetTitle: mergedConfig.widgetTitle,
+          },
+          this.initialConfig.sessionId,
+          onSessionIdUpdateCallback
+        );
       }
       this.isInitialized = true;
       console.log("LangflowChatbotPlugin: Instance initialized successfully.");

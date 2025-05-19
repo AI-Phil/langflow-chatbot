@@ -42,19 +42,6 @@ const server = http.createServer(async (req, res) => {
             res.setHeader('Content-Type', 'text/html');
             res.end(str);
         });
-    } else if (req.url === '/static/langflow-chatbot.js') {
-        const jsPath = path.join(__dirname, '..', '..', 'dist', 'langflow-chatbot.umd.js');
-        try {
-            const data = await readFileAsync(jsPath);
-            res.statusCode = 200;
-            res.setHeader('Content-Type', 'application/javascript');
-            res.end(data);
-        } catch (err) {
-            res.statusCode = 404;
-            res.setHeader('Content-Type', 'text/plain');
-            res.end('JavaScript bundle not found');
-            console.error(`Error reading ${jsPath}:`, err);
-        }
     } else if (req.url === '/static/LangflowChatbotPlugin.js') {
         const pluginPath = path.join(__dirname, '..', '..', 'dist', 'plugins', 'LangflowChatbotPlugin.js');
         try {
