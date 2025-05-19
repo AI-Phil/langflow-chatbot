@@ -440,13 +440,7 @@ export class ChatWidget {
                             }
                             break;
                         case 'add_message':
-                            const addMessageData = event.data as StreamEventDataMap['add_message'];
-                            // Handle additional messages if needed, perhaps system messages or mid-stream updates
-                            if (addMessageData && typeof addMessageData.message === 'string' && addMessageData.message.trim() !== '') {
-                                this.addMessageToDisplay(this.config.systemSender, addMessageData.message);
-                            } else {
-                                console.warn("ChatWidget: Received 'add_message' event with missing, undefined, or empty message content. Event data:", event.data);
-                            }
+                            console.log("ChatWidget: Received 'add_message' event. Data:", event.data);
                             break;
                         case 'end':
                             const endData = event.data as StreamEventDataMap['end'];
