@@ -7,23 +7,9 @@ chatbots:
     useFloating: false
     widgetTitle: "Memory Chatbot"
     botSender: "Chatbot"
-    messageTemplate: |              
-      <div class="{{messageClasses}} message-block">
-        <div class="sender-name-display">{{sender}}</div>
-        <div class="message-bubble">
-          <span class="message-text-content">{{message}}</span>
-        </div>
-      </div>
 
   - proxyEndpointId: "floating-memory" 
     flowId: "memory-chatbot" 
     useFloating: true
     widgetTitle: "Floating Memory Chatbot"
     botSender: "Chatbot"
-    messageTemplate: |              
-      <div class="{{messageClasses}} message-block">
-        <div class="sender-name-display">{{sender}}</div>
-        <div class="message-bubble">
-          <span class="message-text-content">{{message}}</span>
-        </div>
-      </div>

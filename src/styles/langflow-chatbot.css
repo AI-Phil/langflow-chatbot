@@ -83,6 +83,8 @@
     --langflow-chatbot-floating-panel-background: var(--langflow-chatbot-palette-background-widget);
     --langflow-chatbot-floating-panel-border-radius: 8px;
     --langflow-chatbot-floating-panel-shadow: 0 5px 15px var(--langflow-chatbot-palette-shadow-panel);
+
+    --langflow-chatbot-message-datetime-font-size: 0.8em;
 }
 
 /* --- Core Chat Widget Structure --- */
@@ -112,20 +114,6 @@
     flex-direction: column;
 }
 
-.user-message.message-block {
-    align-items: flex-end; /* Align user messages to the right */
-}
-
-.bot-message.message-block {
-    align-items: flex-start; /* Align bot messages to the left */
-}
-
-.sender-name-display {
-    font-size: 0.8em;
-    color: var(--langflow-chatbot-sender-name-text-color);
-    margin-bottom: 3px;
-}
-
 .message-bubble {
     padding: 10px 14px;
     border-radius: 18px; /* General bubble shape */
@@ -134,10 +122,31 @@
     line-height: 1.4;
 }
 
+.sender-name-display {
+    font-size: 0.8em;
+    color: var(--langflow-chatbot-sender-name-text-color);
+    margin-bottom: 3px;
+}
+
+.user-message.message-block {
+    align-items: flex-end; /* Align user messages to the right */
+}
+
 .user-message .message-bubble {
     background-color: var(--langflow-chatbot-user-message-background); /* Default user message color (can be themed) */
     color: var(--langflow-chatbot-user-message-text-color);
     border-bottom-right-radius: var(--langflow-chatbot-user-message-bubble-tail-border-radius); /* Slightly different rounding for "tail" effect */
+}
+
+.user-message .message-datetime {
+    text-align: right;
+    color: var(--langflow-chatbot-sender-name-text-color);
+    font-size: var(--langflow-chatbot-message-datetime-font-size);
+    margin-top: 2px;
+}
+
+.bot-message.message-block {
+    align-items: flex-start; /* Align bot messages to the left */
 }
 
 .bot-message .message-bubble {
@@ -145,6 +154,13 @@
     color: var(--langflow-chatbot-bot-message-text-color);
     border-bottom-left-radius: var(--langflow-chatbot-bot-message-bubble-tail-border-radius); /* Slightly different rounding for "tail" effect */
 }
+
+.bot-message .message-datetime {
+    text-align: left;
+    color: var(--langflow-chatbot-sender-name-text-color);
+    font-size: var(--langflow-chatbot-message-datetime-font-size);
+    margin-top: 2px;
+} 
 
 /* --- Thinking Indicator --- */
 .thinking-bubble {
@@ -354,4 +370,5 @@
         transform: scale(1.0);
         opacity: 1;
     }
-} 
+}
+

@@ -1,5 +1,6 @@
 import { LangflowChatClient, BotResponse, StreamEvent, TokenEventData, EndEventData, AddMessageEventData, StreamEventType, StreamEventDataMap, ChatMessageData } from '../clients/LangflowChatClient'; // Adjusted import path
 // import { PROXY_FLOWS_PATH } from '../config/apiPaths'; // No longer needed for flow resolution
+import { format as formatDate, formatDistanceToNow } from 'date-fns';
 
 export interface ChatWidgetConfigOptions {
     userSender?: string;
@@ -40,6 +41,30 @@ const DEFAULT_MESSAGE_TEMPLATE = `
     </div>
 `;
 
+export type DatetimeHandler = (datetime: string, format: string) => string;
+
+export const defaultDatetimeHandler: DatetimeHandler = (datetime, format) => {
+    try {
+        const dateObj = new Date(datetime);
+        if (format === 'relative') {
+            return formatDistanceToNow(dateObj, { addSuffix: true });
+        } else if (typeof format === 'string' && format.trim() !== '') {
+            return formatDate(dateObj, format);
+        } else {
+            return dateObj.toLocaleString();
+        }
+    } catch {
+        return datetime;
+    }
+};
+
+// Helper to normalize Langflow timestamps (e.g., '2025-05-19 13:33:46 UTC') to ISO format
+function normalizeLangflowTimestamp(ts?: string): string | undefined {
+    if (!ts) return undefined;
+    // Replace ' ' with 'T' (only the first occurrence), and ' UTC' with 'Z'
+    return ts.replace(' ', 'T').replace(' UTC', 'Z');
+}
+
 export class ChatWidget {
     private element: HTMLElement;
     private chatClient: LangflowChatClient;
@@ -55,6 +80,9 @@ export class ChatWidget {
     private sendButtonClickListener?: () => void;
     private chatInputKeyPressListener?: (event: KeyboardEvent) => void;
     private onSessionIdUpdateCallback?: (sessionId: string) => void; // Callback for session ID changes
+
+    // Add pluggable datetime handler
+    private datetimeHandler: DatetimeHandler = defaultDatetimeHandler;
 
     constructor(
         containerId: string, 
@@ -82,7 +110,7 @@ export class ChatWidget {
             botSender: configOptions.botSender || "Bot",
             errorSender: configOptions.errorSender || "Error",
             systemSender: configOptions.systemSender || "System",
-            mainContainerTemplate: configOptions.mainContainerTemplate || DEFAULT_MAIN_CONTAINER_TEMPLATE, // Reverted DEBUG
+            mainContainerTemplate: configOptions.mainContainerTemplate || DEFAULT_MAIN_CONTAINER_TEMPLATE,
             inputAreaTemplate: configOptions.inputAreaTemplate || DEFAULT_INPUT_AREA_TEMPLATE,
             messageTemplate: configOptions.messageTemplate || DEFAULT_MESSAGE_TEMPLATE,
             widgetTitle: configOptions.widgetTitle, // Assign directly, it can be undefined
@@ -250,7 +278,7 @@ export class ChatWidget {
         const useStream = this.enableStream;
         let sessionIdToSend: string | undefined = this.currentSessionId || undefined;
 
-        this.addMessageToDisplay(this.config.userSender, message);
+        this.addMessageToDisplay(this.config.userSender, message, false, new Date().toLocaleString());
         const currentMessage = message;
         chatInput.value = '';
 
@@ -262,7 +290,7 @@ export class ChatWidget {
         const thinkingBubbleHTML = '<div class="thinking-bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
 
         if (useStream) {
-            this.currentBotMessageElement = this.addMessageToDisplay(this.config.botSender, thinkingBubbleHTML, true);
+            this.currentBotMessageElement = this.addMessageToDisplay(this.config.botSender, thinkingBubbleHTML, true, new Date().toLocaleString());
             let accumulatedResponse = "";
 
             try {
@@ -318,7 +346,7 @@ export class ChatWidget {
                                 this.currentBotMessageElement.classList.remove('bot-message', 'thinking');
                                 this.currentBotMessageElement.classList.add('error-message');
                             } else if (!this.currentBotMessageElement) {
-                                this.addMessageToDisplay(this.config.errorSender, `Error: ${errorData.message}${errorData.detail ? " Details: " + JSON.stringify(errorData.detail) : ""}`);
+                                this.addMessageToDisplay(this.config.errorSender, `Error: ${errorData.message}${errorData.detail ? " Details: " + JSON.stringify(errorData.detail) : ""}`, false, new Date().toLocaleString());
                             }
                             break;
                         case 'add_message':
@@ -364,7 +392,7 @@ export class ChatWidget {
                     this.currentBotMessageElement.classList.remove('thinking');
                     this.currentBotMessageElement.classList.add('error-message');
                 } else {
-                    this.addMessageToDisplay(this.config.errorSender, `Stream processing error: ${error.message || 'Unknown error'}`);
+                    this.addMessageToDisplay(this.config.errorSender, `Stream processing error: ${error.message || 'Unknown error'}`, false, new Date().toLocaleString());
                 }
             } finally {
                  if (this.currentBotMessageElement && this.currentBotMessageElement.classList.contains('thinking')) {
@@ -378,7 +406,7 @@ export class ChatWidget {
                 }
             }
         } else {
-            const thinkingMsg = this.addMessageToDisplay(this.config.botSender, thinkingBubbleHTML, true);
+            const thinkingMsg = this.addMessageToDisplay(this.config.botSender, thinkingBubbleHTML, true, new Date().toLocaleString());
             try {
                 const botResponse: BotResponse = await this.chatClient.sendMessage(currentMessage, sessionIdToSend);
                 if(thinkingMsg) this.removeMessageElement(thinkingMsg);
@@ -387,16 +415,16 @@ export class ChatWidget {
                     this.updateCurrentSessionId(botResponse.sessionId);
                 }
                 if (botResponse.error) {
-                    this.addMessageToDisplay(this.config.errorSender, `${botResponse.error}${botResponse.detail ? ": " + botResponse.detail : ""}`);
+                    this.addMessageToDisplay(this.config.errorSender, `${botResponse.error}${botResponse.detail ? ": " + botResponse.detail : ""}`, false, new Date().toLocaleString());
                 } else if (botResponse.reply) {
-                    this.addMessageToDisplay(this.config.botSender, botResponse.reply);
+                    this.addMessageToDisplay(this.config.botSender, botResponse.reply, false, new Date().toLocaleString());
                 } else {
-                    this.addMessageToDisplay(this.config.botSender, "Sorry, I couldn't get a valid response.");
+                    this.addMessageToDisplay(this.config.botSender, "Sorry, I couldn't get a valid response.", false, new Date().toLocaleString());
                 }
             } catch (error: any) {
                 if(thinkingMsg) this.removeMessageElement(thinkingMsg);
                 console.error("Failed to send non-stream message via ChatClient:", error);
-                this.addMessageToDisplay(this.config.errorSender, `Communication error: ${error.message || 'Unknown error'}`);
+                this.addMessageToDisplay(this.config.errorSender, `Communication error: ${error.message || 'Unknown error'}`, false, new Date().toLocaleString());
             }
         }
 
@@ -418,7 +446,7 @@ export class ChatWidget {
         }
     }
 
-    private addMessageToDisplay(sender: string, message: string, isThinking: boolean = false): HTMLElement | null {
+    private addMessageToDisplay(sender: string, message: string, isThinking: boolean = false, datetime?: string): HTMLElement | null {
         const chatMessages = this.element.querySelector('.chat-messages');
         if (chatMessages) {
             let messageClasses = "message";
@@ -435,10 +463,18 @@ export class ChatWidget {
                 messageClasses += " thinking";
             }
 
+            let datetimeStr = datetime;
+            if (!datetimeStr) {
+                datetimeStr = new Date().toISOString();
+            }
+            const formatOption = (this.config as any).datetimeFormat || 'relative';
+            const formattedDatetime = this.datetimeHandler(datetimeStr, formatOption);
+
             let populatedTemplate = this.config.messageTemplate
                 .replace("{{messageClasses}}", messageClasses)
                 .replace("{{sender}}", sender)
-                .replace("{{message}}", message);
+                .replace("{{message}}", message)
+                .replace("{{datetime}}", formattedDatetime);
             
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = populatedTemplate.trim();
@@ -516,7 +552,13 @@ export class ChatWidget {
                         } else {
                             senderType = message.sender || this.config.systemSender; 
                         }
-                        this.addMessageToDisplay(senderType, message.text, false);
+                        const normalizedTimestamp = normalizeLangflowTimestamp(message.timestamp);
+                        this.addMessageToDisplay(
+                            senderType,
+                            message.text,
+                            false,
+                            normalizedTimestamp
+                        );
                     }
                 });
                 const chatMsgs = this.element.querySelector('.chat-messages');
@@ -536,7 +578,7 @@ export class ChatWidget {
             }
         } catch (error) {
             console.error("ChatWidget: Error loading message history:", error);
-            this.addMessageToDisplay(this.config.errorSender, "Could not load message history.");
+            this.addMessageToDisplay(this.config.errorSender, "Could not load message history.", false, new Date().toLocaleString());
         }
     }
 
@@ -572,6 +614,13 @@ export class ChatWidget {
         this.updateCurrentSessionId(null, false); // Clear session ID without notifying
         // Any other cleanup specific to ChatWidget
         console.log("ChatWidget: Instance destroyed.");
+    }
+
+    // Allow user to register a custom datetime handler
+    public registerDatetimeHandler(handler: DatetimeHandler) {
+        if (typeof handler === 'function') {
+            this.datetimeHandler = handler;
+        }
     }
 
 } 
