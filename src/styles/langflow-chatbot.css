@@ -316,20 +316,22 @@
     left: 20px;
 }
 
-/* Ensure ChatWidget instance inside the floating container behaves */
-.floating-chat-panel .chat-widget-inner-host .chat-widget {
-    height: 100%; /* Fill the allocated space within the floating container */
-    border-radius: 0; /* Remove inner radius as outer container handles it */
-    max-height: none; /* Override ChatWidget's own max-height if needed */
-} 
-
-/* Styles for the host of the inner ChatWidget instance */
+/* Specific styles for the ChatWidget when hosted inside the FloatingPanel */
 .floating-chat-panel .chat-widget-inner-host {
-    flex-grow: 1;         /* Make it take available space in the column */
-    overflow: hidden;     /* Important for child's scrolling */
-    display: flex;        /* To allow the inner .chat-widget to fill it */
-    flex-direction: column; /* To match the .chat-widget's own flex direction */
-    min-height: 0; /* Essential for flex children that need to scroll */
+    flex-grow: 1;
+    position: relative;
+    overflow: hidden; 
+    display: flex; 
+    flex-direction: column; 
+    min-height: 0; 
+    box-sizing: border-box;
+}
+
+.floating-chat-panel .chat-widget-inner-host .chat-widget {
+    height: 100%; 
+    max-height: none; 
+    box-sizing: border-box;
+    min-height: 0;
 }
 
 /* Styles for the error message if chat fails to load in floating panel */

@@ -4,8 +4,8 @@ import { ChatWidget, ChatWidgetConfigOptions } from './ChatWidget';
 export interface FloatingChatWidgetConfig {
     chatWidgetConfig?: ChatWidgetConfigOptions;
     position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
-    // widgetTitle?: string; // Removed, will come from chatWidgetConfig
-    // More config options for the floater itself can be added here
+    initialSessionId?: string;
+    onSessionIdUpdate?: (sessionId: string) => void; // Added for session ID update callback
 }
 
 // Speech bubble SVG icon
@@ -23,29 +23,30 @@ const MINUS_ICON = `
 
 
 export class FloatingChatWidget {
-    private config: Required<FloatingChatWidgetConfig>;
+    private config: Required<Omit<FloatingChatWidgetConfig, 'initialSessionId' | 'onSessionIdUpdate'>> & 
+                    { initialSessionId?: string; onSessionIdUpdate?: (sessionId: string) => void; };
     private floatingButton: HTMLElement | null = null;
     private chatContainer: HTMLElement | null = null;
     private chatWidgetInstance: ChatWidget | null = null;
     private isChatVisible: boolean = false;
     private chatClient: LangflowChatClient;
-    private inputFlowIdOrName: string;
     private enableStream: boolean;
+    private initialSessionId?: string;
+    private onSessionIdUpdateCallback?: (sessionId: string) => void; // Store callback
 
     constructor(
         chatClient: LangflowChatClient,
-        inputFlowIdOrName: string,
         enableStream: boolean = true,
         options: FloatingChatWidgetConfig = {}
     ) {
         this.chatClient = chatClient;
-        this.inputFlowIdOrName = inputFlowIdOrName;
         this.enableStream = enableStream;
+        this.initialSessionId = options.initialSessionId;
+        this.onSessionIdUpdateCallback = options.onSessionIdUpdate; // Store callback
 
         this.config = {
             chatWidgetConfig: options.chatWidgetConfig || {},
             position: options.position || 'bottom-right',
-            // widgetTitle: options.widgetTitle || "Chat with Assistant", // Removed
         };
 
         this._createElements();
@@ -53,80 +54,57 @@ export class FloatingChatWidget {
     }
 
     private _createElements(): void {
-        // Create floating button
         this.floatingButton = document.createElement('div');
         this.floatingButton.className = `floating-chat-button ${this.config.position}`;
         this.floatingButton.innerHTML = SPEECH_BUBBLE_ICON;
         document.body.appendChild(this.floatingButton);
 
-        // Create chat widget container
         this.chatContainer = document.createElement('div');
         this.chatContainer.className = `floating-chat-panel ${this.config.position}`;
         
-        // Create header
         const header = document.createElement('div');
         header.className = 'chat-widget-header';
         
         const titleSpan = document.createElement('span');
         titleSpan.className = 'chat-widget-title-text';
-        titleSpan.textContent = this.config.chatWidgetConfig?.widgetTitle || "Chat with Assistant"; // Get from chatWidgetConfig, provide default
+        titleSpan.textContent = this.config.chatWidgetConfig?.widgetTitle || "Chat with Assistant";
         
         const minimizeButton = document.createElement('button');
         minimizeButton.className = 'minimize-button';
-        minimizeButton.innerHTML = MINUS_ICON; // Placeholder, can be an SVG or better icon
-        minimizeButton.onclick = () => this.toggleChatVisibility(); // Minimize also toggles
+        minimizeButton.innerHTML = MINUS_ICON;
+        minimizeButton.onclick = () => this.toggleChatVisibility();
         
         header.appendChild(titleSpan);
         header.appendChild(minimizeButton);
         this.chatContainer.appendChild(header);
 
-        // Create a div where the actual ChatWidget will be rendered
         const chatWidgetDiv = document.createElement('div');
         const chatWidgetInnerId = `chat-widget-inner-container-${Date.now()}-${Math.random().toString(36).substring(2)}`;
         chatWidgetDiv.id = chatWidgetInnerId;
-        chatWidgetDiv.className = 'chat-widget-inner-host'; // Assign a class
-        // Set a specific height for the inner chat widget area
-        // This is crucial for the ChatWidget's internal scrolling to work correctly.
-        // e.g., 400px height for message area + input area
-        // chatWidgetDiv.style.height = 'calc(100% - 40px)'; // Assuming header is 40px - REMOVED
-        // chatWidgetDiv.style.display = 'flex'; // REMOVED
-        // chatWidgetDiv.style.flexDirection = 'column'; // REMOVED
-
+        chatWidgetDiv.className = 'chat-widget-inner-host';
 
         this.chatContainer.appendChild(chatWidgetDiv);
         document.body.appendChild(this.chatContainer);
 
-        // Instantiate ChatWidget inside the chatWidgetDiv
         try {
             this.chatWidgetInstance = new ChatWidget(
-                chatWidgetInnerId, // The ID of the div we just created
+                chatWidgetInnerId,
                 this.chatClient,
-                this.inputFlowIdOrName,
                 this.enableStream,
-                // Pass all chatWidgetConfig EXCEPT widgetTitle, as FloatingChatWidget handles its own title
-                { 
+                {
                     ...this.config.chatWidgetConfig,
-                    widgetTitle: undefined // Explicitly prevent inner widget from rendering a title
-                }
+                    widgetTitle: undefined
+                },
+                this.initialSessionId,
+                this.onSessionIdUpdateCallback // Pass callback to ChatWidget
             );
-             // Adjust ChatWidget's main element style if needed.
-            // The ChatWidget's main element is chatWidgetDiv.firstElementChild
-            // We want ChatWidget to fill the chatWidgetDiv.
-            const chatWidgetMainElement = document.getElementById(chatWidgetInnerId)?.querySelector('.chat-widget');
-            if (chatWidgetMainElement) {
-                 // (chatWidgetMainElement as HTMLElement).style.height = '100%';
-                 // (chatWidgetMainElement as HTMLElement).style.maxHeight = '100%';
-                 // The above might be handled by CSS: .chat-widget-container #chat-widget-inner-container .chat-widget
-            }
 
         } catch (error) {
             console.error("FloatingChatWidget: Failed to instantiate ChatWidget.", error);
-            // Optionally display an error message in the chatContainer
-            chatWidgetDiv.innerHTML = '<p class="chat-load-error">Error: Could not load chat.</p>'; // Use class for error message
+            chatWidgetDiv.innerHTML = '<p class="chat-load-error">Error: Could not load chat.</p>';
         }
 
-        // Explicitly set initial visibility state
-        if (this.isChatVisible) { // Should be false by default
+        if (this.isChatVisible) {
             if(this.chatContainer) this.chatContainer.style.display = 'flex';
             if(this.floatingButton) this.floatingButton.style.display = 'none';
         } else {
@@ -145,11 +123,11 @@ export class FloatingChatWidget {
         this.isChatVisible = !this.isChatVisible;
         if (this.chatContainer && this.floatingButton) {
             if (this.isChatVisible) {
-                this.chatContainer.style.display = 'flex'; // Use flex as it's a flex container
-                this.floatingButton.style.display = 'none'; // Hide button when chat is visible
+                this.chatContainer.style.display = 'flex';
+                this.floatingButton.style.display = 'none';
             } else {
                 this.chatContainer.style.display = 'none';
-                this.floatingButton.style.display = 'flex'; // Show button when chat is hidden
+                this.floatingButton.style.display = 'flex';
             }
         }
     }
@@ -167,6 +145,11 @@ export class FloatingChatWidget {
     }
 
     public destroy(): void {
+        if (this.chatWidgetInstance && typeof (this.chatWidgetInstance as any).destroy === 'function') {
+            (this.chatWidgetInstance as any).destroy();
+        }
+        this.chatWidgetInstance = null;
+
         if (this.floatingButton) {
             this.floatingButton.remove();
             this.floatingButton = null;
@@ -175,8 +158,5 @@ export class FloatingChatWidget {
             this.chatContainer.remove();
             this.chatContainer = null;
         }
-        // Potentially add a destroy method to ChatWidget and call it here
-        this.chatWidgetInstance = null; 
-        // Remove styles if no other instances are present (more complex, skip for now)
     }
 } 

@@ -11,23 +11,21 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 const hostname = '127.0.0.1';
 const port = 3001;
 
-// Configuration for Langflow Proxy Service
-const langflowEndpointUrl = process.env.LANGFLOW_ENDPOINT_URL || 'http://127.0.0.1:7860';
-const langflowApiKeyFromEnv = process.env.LANGFLOW_API_KEY; // Can be undefined
-
+// Configuration for Langflow Proxy Service now comes primarily from chatbot-config.yaml
 let langflowProxy: LangflowProxyService;
 
+// The proxyConfig now only needs the path to the YAML configuration file.
 const proxyConfig: LangflowProxyConfig = {
-    langflowEndpointUrl,
-    langflowApiKey: langflowApiKeyFromEnv
+    baseConfigPath: path.join(__dirname, '..', '..', 'chatbot-config.yaml'),
+    instanceConfigPath: path.join(__dirname, 'app-chatbots.yaml')
 };
 
 try {
     langflowProxy = new LangflowProxyService(proxyConfig);
-    console.log(`Basic Server: LangflowProxyService initialized and ready.`);
+    console.log(`Basic Server: LangflowProxyService initialized using base config: ${proxyConfig.baseConfigPath} and instance config: ${proxyConfig.instanceConfigPath}.`);
 } catch (error) {
     console.error("Basic Server: CRITICAL - Failed to initialize LangflowProxyService:", error);
-    process.exit(1);
+    process.exit(1); // Exit if proxy can't be set up
 }
 
 const server = http.createServer(async (req, res) => {
@@ -99,6 +97,23 @@ const server = http.createServer(async (req, res) => {
     }
 });
 
-server.listen(port, hostname, () => {
-    console.log(`Server running at http://${hostname}:${port}/`);
-}); 
+// Wrap server startup in an async function to allow awaiting proxy initialization
+async function startServer() {
+    if (!langflowProxy) {
+        console.error("Basic Server: LangflowProxyService was not initialized. Cannot start server.");
+        process.exit(1);
+    }
+    try {
+        await langflowProxy.initializeFlowMappings();
+        console.log("Basic Server: LangflowProxyService flow mappings initialized.");
+        
+        server.listen(port, hostname, () => {
+            console.log(`Server running at http://${hostname}:${port}/`);
+        });
+    } catch (error) {
+        console.error("Basic Server: CRITICAL - Failed to initialize flow mappings for LangflowProxyService:", error);
+        process.exit(1); // Exit if mappings can't be initialized
+    }
+}
+
+startServer(); 

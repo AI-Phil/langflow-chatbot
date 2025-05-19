@@ -1,0 +1,43 @@
+# This file defines server-side configurations for different chatbot instances.
+# The LangflowProxyService will load these at startup.
+# Clients can then request a specific configuration by its proxyEndpointId.
+
+langflow_connection:
+  endpoint_url: "http://localhost:7860" # Replace with your Langflow instance URL
+  api_key: ""                            # Optional: Replace with your Langflow API key if required
+
+chatbot_defaults: # Renamed from 'defaults'
+  enableStream: true
+  useFloating: false # Default to embedded, can be overridden by specific profiles
+  floatPosition: "bottom-right" # Default position if floating is enabled by a profile
+  widgetTitle: "Chat Assistant"   
+  userSender: "Me"                
+  botSender: "Assistant"          
+  errorSender: "Error"            
+  systemSender: "System"          
+  messageTemplate: |              
+    <div class="{{messageClasses}} message-block">
+      <!-- <div class="sender-name-display">{{sender}}</div> -->
+      <div class="message-bubble">
+        <span class="message-text-content">{{message}}</span>
+      </div>
+    </div>
+  mainContainerTemplate: |        
+    <div class="chat-widget" style="display: flex; flex-direction: column; height: 100%;">
+      <div class="chat-widget-header" style="display: none;">
+        <span class="chat-widget-title-text"></span>
+      </div>
+      <div class="chat-messages">
+        <!-- Messages will appear here -->
+      </div>
+      <div id="chat-input-area-container" style="flex-shrink: 0;"></div>
+    </div>
+  inputAreaTemplate: |          
+    <div class="chat-input-area">
+      <input type="text" class="chat-input" placeholder="Type your message..." />
+      <button class="send-button">Send</button>
+    </div>
+
+# Chatbot instances (the 'chatbots' array) are defined in application-specific 
+# configuration files (e.g., examples/basic/app-chatbots.yaml), which will 
+# inherit from the 'chatbot_defaults' specified above.
