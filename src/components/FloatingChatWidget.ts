@@ -8,104 +8,6 @@ export interface FloatingChatWidgetConfig {
     // More config options for the floater itself can be added here
 }
 
-const DEFAULT_FLOATING_STYLES = `
-.floating-chat-button {
-    position: fixed;
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    background-color: #007bff;
-    color: white;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    z-index: 9998; /* Below the chat window itself */
-    transition: transform 0.3s ease-in-out;
-}
-
-.floating-chat-button:hover {
-    transform: scale(1.1);
-}
-
-.floating-chat-button svg {
-    width: 32px;
-    height: 32px;
-    fill: white;
-}
-
-.chat-widget-container {
-    position: fixed;
-    width: 370px; /* Default width, can be made configurable */
-    height: auto; /* Adjusts to ChatWidget\'s content */
-    max-height: calc(100vh - 100px); /* Avoid taking full screen height */
-    background-color: #fff;
-    border-radius: 8px;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    display: none; /* Initially hidden */
-    flex-direction: column;
-    overflow: hidden; /* Ensures ChatWidget fits within rounded corners */
-    z-index: 9999;
-}
-
-/* Positioning classes */
-.floating-chat-button.bottom-right, .chat-widget-container.bottom-right {
-    bottom: 20px;
-    right: 20px;
-}
-.floating-chat-button.bottom-left, .chat-widget-container.bottom-left {
-    bottom: 20px;
-    left: 20px;
-}
-.floating-chat-button.top-right, .chat-widget-container.top-right {
-    top: 20px;
-    right: 20px;
-}
-.floating-chat-button.top-left, .chat-widget-container.top-left {
-    top: 20px;
-    left: 20px;
-}
-
-/* Header for the chat widget container */
-.floating-chat-header {
-    padding: 10px 15px;
-    background-color: #007bff;
-    color: white;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
-}
-
-.floating-chat-header .title {
-    font-weight: bold;
-}
-
-.floating-chat-header .minimize-button {
-    background: none;
-    border: none;
-    color: white;
-    font-size: 1.2em;
-    cursor: pointer;
-    padding: 5px;
-}
-
-.floating-chat-header .minimize-button svg {
-    stroke: white !important; /* Ensure SVG stroke is white */
-    width: 18px; /* Explicitly set size for the icon */
-    height: 18px; /* Explicitly set size for the icon */
-}
-
-/* Ensure ChatWidget\'s internal chat-widget div takes up space correctly */
-.chat-widget-container #chat-widget-inner-container .chat-widget {
-    height: 100%; /* Ensure it fills the allocated space if needed */
-    border-radius: 0; /* Remove border radius if it\'s inside our container */
-    max-height: none; /* Override ChatWidget\'s max-height if we control it here */
-}
-`;
-
 // Speech bubble SVG icon
 const SPEECH_BUBBLE_ICON = `
 <svg viewBox="0 0 24 24" fill="currentColor">
@@ -130,8 +32,6 @@ export class FloatingChatWidget {
     private inputFlowIdOrName: string;
     private enableStream: boolean;
 
-    private static stylesInjected: boolean = false;
-
     constructor(
         chatClient: LangflowChatClient,
         inputFlowIdOrName: string,
@@ -148,22 +48,8 @@ export class FloatingChatWidget {
             widgetTitle: options.widgetTitle || "Chat with Assistant",
         };
 
-        this._ensureStylesInjected();
         this._createElements();
         this._setupEventListeners();
-    }
-
-    private _ensureStylesInjected(): void {
-        if (!FloatingChatWidget.stylesInjected) {
-            try {
-                const styleElement = document.createElement('style');
-                styleElement.textContent = DEFAULT_FLOATING_STYLES;
-                document.head.appendChild(styleElement);
-                FloatingChatWidget.stylesInjected = true;
-            } catch (error) {
-                console.error("FloatingChatWidget: Failed to inject default styles.", error);
-            }
-        }
     }
 
     private _createElements(): void {

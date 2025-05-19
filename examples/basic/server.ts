@@ -57,6 +57,19 @@ const server = http.createServer(async (req, res) => {
             res.end('JavaScript bundle not found');
             console.error(`Error reading ${jsPath}:`, err);
         }
+    } else if (req.url === '/static/langflow-chatbot.css') {
+        const cssPath = path.join(__dirname, '..', '..', 'dist', 'styles', 'langflow-chatbot.css');
+        try {
+            const data = await readFileAsync(cssPath);
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'text/css');
+            res.end(data);
+        } catch (err) {
+            res.statusCode = 404;
+            res.setHeader('Content-Type', 'text/plain');
+            res.end('CSS file not found');
+            console.error(`Error reading ${cssPath}:`, err);
+        }
     } else if (req.url?.startsWith(PROXY_BASE_API_PATH)) {
         if (!langflowProxy) {
             res.statusCode = 503; // Service Unavailable
