@@ -11,7 +11,7 @@
     "build:example-ui-logic": "esbuild examples/basic/static/example-app-logic.ts --bundle --outfile=examples/basic/static/example-app-logic.js --format=iife --platform=browser",
     "build:copy-assets": "mkdir -p dist/styles && cp src/styles/langflow-chatbot.css dist/styles/langflow-chatbot.css",
     "build": "npm run clean && npm run build:tsc && npm run build:plugin && npm run build:example-ui-logic && npm run build:copy-assets",
-    "test": "echo \"No tests specified\" && exit 0",
+    "test": "jest --coverage",
     "examples:basic": "ts-node examples/basic/server.ts"
   },
   "repository": {
@@ -34,10 +34,14 @@
   "devDependencies": {
     "@types/dotenv": "^8.2.0",
     "@types/ejs": "^3.1.5",
+    "@types/jest": "^29.5.14",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.15.18",
     "dotenv": "^16.4.5",
     "esbuild": "^0.25.4",
+    "jest": "^29.7.0",
+    "jest-util": "^29.7.0",
+    "ts-jest": "^29.3.4",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   }
