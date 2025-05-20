@@ -1,129 +1,234 @@
 import { LangflowChatClient } from '../clients/LangflowChatClient';
 import { ChatWidget, ChatWidgetConfigOptions } from './ChatWidget';
-import { Logger } from './logger';
+import { Logger, LogLevel } from './logger';
 
+/**
+ * Configuration options for the FloatingChatWidget.
+ */
 export interface FloatingChatWidgetConfig {
-    chatWidgetConfig?: ChatWidgetConfigOptions;
+    /** Configuration options to pass down to the underlying ChatWidget instance. */
+    chatWidgetConfig?: Partial<ChatWidgetConfigOptions>;
+    /** Position of the floating widget on the screen. */
     position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+    /** Optional initial session ID to pass to the ChatWidget. */
     initialSessionId?: string;
-    onSessionIdUpdate?: (sessionId: string) => void; // Added for session ID update callback
+    /** Optional callback for when the session ID is updated by the ChatWidget. */
+    onSessionIdUpdate?: (sessionId: string) => void;
+    /** Optional datetime format string to pass to the ChatWidget. */
+    datetimeFormat?: string;
+    /** Whether the chat panel should be open 부담initialization. */
+    isOpen?: boolean;
+    /** Whether to show the close/minimize button on the chat panel header. */
+    showCloseButton?: boolean;
+    /** Whether to show the floating toggle button. */
+    showToggleButton?: boolean;
+    /** Text content for the floating toggle button (if shown). */
+    toggleButtonText?: string; // This was not used for the icon button, but could be for a text button
+    /** Title displayed in the header of the chat panel. */
+    widgetTitle?: string;
+    /** Desired log level for the widget's logger. */
+    logLevel?: LogLevel;
 }
 
-// Speech bubble SVG icon
+/** Helper interface defining the structure for default floating widget-specific config values. */
+interface DefaultFloatingConfigValues {
+    isOpen: boolean;
+    position: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+    showCloseButton: boolean;
+    showToggleButton: boolean;
+    toggleButtonText: string;
+    widgetTitle: string;
+}
+
+/** Default configuration values for the FloatingChatWidget's appearance and behavior. */
+const DEFAULT_FLOATING_CONFIG: DefaultFloatingConfigValues = {
+    isOpen: false,
+    position: 'bottom-right',
+    showCloseButton: true,
+    showToggleButton: true,
+    toggleButtonText: 'Chat', // Default text, though current implementation uses an icon
+    widgetTitle: 'Chatbot',
+};
+
+/** SVG string for the speech bubble icon used on the floating toggle button. */
 const SPEECH_BUBBLE_ICON = `
 <svg viewBox="0 0 24 24" fill="currentColor">
   <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
 </svg>
 `;
 
+/** SVG string for the minus icon used on the minimize button in the chat panel header. */
 const MINUS_ICON = `
 <svg viewBox="0 0 24 24" stroke="white" stroke-width="2">
   <line x1="5" y1="12" x2="19" y2="12" />
 </svg>
 `;
 
+/** 
+ * Internal configuration structure for FloatingChatWidget after merging user-provided 
+ * config with defaults. Ensures all necessary fields for the floating behavior are present.
+ */
+interface FloatingWidgetInternalConfig extends Required<Omit<FloatingChatWidgetConfig, 'chatWidgetConfig' | 'initialSessionId' | 'onSessionIdUpdate' | 'logLevel' | 'datetimeFormat' >> {
+    /** Configuration to be passed to the internal ChatWidget instance. Templates here are optional. */
+    chatWidgetConfig: Partial<ChatWidgetConfigOptions>; 
+    initialSessionId?: string;
+    onSessionIdUpdate?: (sessionId: string) => void;
+    logLevel?: LogLevel;
+    datetimeFormat?: string;
+}
 
+/**
+ * Provides a floating, toggleable chat interface that wraps the main ChatWidget.
+ * Manages the visibility and placement of the chat panel and the toggle button.
+ */
 export class FloatingChatWidget {
-    private config: Required<Omit<FloatingChatWidgetConfig, 'initialSessionId' | 'onSessionIdUpdate'>> & 
-                    { initialSessionId?: string; onSessionIdUpdate?: (sessionId: string) => void; };
+    private config: FloatingWidgetInternalConfig;
     private floatingButton: HTMLElement | null = null;
     private chatContainer: HTMLElement | null = null;
     private chatWidgetInstance: ChatWidget | null = null;
     private isChatVisible: boolean = false;
     private chatClient: LangflowChatClient;
     private enableStream: boolean;
-    private initialSessionId?: string;
-    private onSessionIdUpdateCallback?: (sessionId: string) => void; // Store callback
-    private logger: Logger; // Logger is always present
+    private logger: Logger;
 
+    /**
+     * Constructs a FloatingChatWidget instance.
+     * @param {LangflowChatClient} chatClient - The client for API interactions.
+     * @param {boolean} [enableStream=true] - Whether to enable streaming for bot responses (passed to ChatWidget).
+     * @param {FloatingChatWidgetConfig} [userConfig={}] - User-provided configuration options.
+     * @param {Logger} [logger] - Optional logger instance. If not provided, a new one is created.
+     */
     constructor(
         chatClient: LangflowChatClient,
         enableStream: boolean = true,
-        options: FloatingChatWidgetConfig = {},
-        logger?: Logger // Logger is optional, but always set
+        userConfig: FloatingChatWidgetConfig = {},
+        logger?: Logger
     ) {
         this.chatClient = chatClient;
         this.enableStream = enableStream;
-        this.initialSessionId = options.initialSessionId;
-        this.onSessionIdUpdateCallback = options.onSessionIdUpdate; // Store callback
-        this.logger = logger ? logger : new Logger('info', 'LangflowChatbot');
+        // Initialize logger: use provided one or create a new one with log level from userConfig or default to 'info'.
+        this.logger = logger || new Logger(userConfig.logLevel || 'info', 'FloatingChatWidget');
 
-        this.config = {
-            chatWidgetConfig: options.chatWidgetConfig || {},
-            position: options.position || 'bottom-right',
+        // Merge user-provided configuration with defaults.
+        const mergedFloatingConfig: FloatingWidgetInternalConfig = {
+            isOpen: userConfig.isOpen ?? DEFAULT_FLOATING_CONFIG.isOpen,
+            position: userConfig.position ?? DEFAULT_FLOATING_CONFIG.position,
+            showCloseButton: userConfig.showCloseButton ?? DEFAULT_FLOATING_CONFIG.showCloseButton,
+            showToggleButton: userConfig.showToggleButton ?? DEFAULT_FLOATING_CONFIG.showToggleButton,
+            toggleButtonText: userConfig.toggleButtonText ?? DEFAULT_FLOATING_CONFIG.toggleButtonText,
+            widgetTitle: userConfig.widgetTitle ?? DEFAULT_FLOATING_CONFIG.widgetTitle,
+            // These properties are passed through or handled by the logger directly.
+            logLevel: userConfig.logLevel,
+            initialSessionId: userConfig.initialSessionId,
+            onSessionIdUpdate: userConfig.onSessionIdUpdate,
+            datetimeFormat: userConfig.datetimeFormat,
+            
+            // Prepare chatWidgetConfig to be passed to the inner ChatWidget.
+            // If specific templates (mainContainerTemplate, inputAreaTemplate, messageTemplate)
+            // are not provided in userConfig.chatWidgetConfig, they will be undefined.
+            // ChatWidget, via ChatTemplateManager, will then use its own defaults for those templates.
+            chatWidgetConfig: {
+                ...(userConfig.chatWidgetConfig || {}), // Spread any existing user chat config
+                // Explicitly pass template options; they will be undefined if not set by the user, allowing ChatTemplateManager to apply defaults.
+                mainContainerTemplate: userConfig.chatWidgetConfig?.mainContainerTemplate,
+                inputAreaTemplate: userConfig.chatWidgetConfig?.inputAreaTemplate,
+                messageTemplate: userConfig.chatWidgetConfig?.messageTemplate,
+                // Ensure floating widget's own title doesn't unintentionally override ChatWidget's internal title field if it were used.
+                widgetTitle: undefined, 
+                // Pass datetimeFormat to ChatWidgetConfig, preferring the floating widget's direct config if available, then ChatWidget's config.
+                datetimeFormat: userConfig.datetimeFormat || userConfig.chatWidgetConfig?.datetimeFormat,
+            }
         };
+        this.config = mergedFloatingConfig;
 
         this._createElements();
         this._setupEventListeners();
+
+        this.isChatVisible = this.config.isOpen;
+        if (this.config.isOpen) {
+            this.showChat(true); // Show initially if configured
+        } else {
+            this.hideChat(true); // Hide initially if configured
+        }
+        // Append the created elements to the document body.
+        document.body.appendChild(this.floatingButton!);
+        document.body.appendChild(this.chatContainer!);
     }
 
+    /**
+     * Creates the necessary DOM elements for the floating widget:
+     * - The floating toggle button.
+     * - The chat panel container, including its header (title, minimize button).
+     * - The host div for the inner ChatWidget instance.
+     * It then instantiates the inner ChatWidget within the host div.
+     */
     private _createElements(): void {
+        // Create floating toggle button
         this.floatingButton = document.createElement('div');
         this.floatingButton.className = `floating-chat-button ${this.config.position}`;
-        this.floatingButton.innerHTML = SPEECH_BUBBLE_ICON;
-        document.body.appendChild(this.floatingButton);
+        this.floatingButton.innerHTML = SPEECH_BUBBLE_ICON; // Uses SVG icon
 
+        // Create chat panel container
         this.chatContainer = document.createElement('div');
         this.chatContainer.className = `floating-chat-panel ${this.config.position}`;
         
+        // Create chat panel header
         const header = document.createElement('div');
         header.className = 'chat-widget-header';
         
         const titleSpan = document.createElement('span');
         titleSpan.className = 'chat-widget-title-text';
-        titleSpan.textContent = this.config.chatWidgetConfig?.widgetTitle || "Chat with Assistant";
+        titleSpan.textContent = this.config.widgetTitle;
         
         const minimizeButton = document.createElement('button');
         minimizeButton.className = 'minimize-button';
-        minimizeButton.innerHTML = MINUS_ICON;
+        minimizeButton.innerHTML = MINUS_ICON; // Uses SVG icon
         minimizeButton.onclick = () => this.toggleChatVisibility();
         
+        if (this.config.showCloseButton) {
+            header.appendChild(minimizeButton);
+        }
         header.appendChild(titleSpan);
-        header.appendChild(minimizeButton);
         this.chatContainer.appendChild(header);
 
+        // Create host div for the inner ChatWidget
         const chatWidgetDiv = document.createElement('div');
+        // Generate a unique ID for the inner ChatWidget container, though ChatWidget now accepts HTMLElement directly.
         const chatWidgetInnerId = `chat-widget-inner-container-${Date.now()}-${Math.random().toString(36).substring(2)}`;
         chatWidgetDiv.id = chatWidgetInnerId;
         chatWidgetDiv.className = 'chat-widget-inner-host';
-
         this.chatContainer.appendChild(chatWidgetDiv);
-        document.body.appendChild(this.chatContainer);
 
+        // Instantiate the inner ChatWidget
         try {
             this.chatWidgetInstance = new ChatWidget(
-                chatWidgetInnerId,
+                chatWidgetDiv, // Pass the created div element directly
                 this.chatClient,
                 this.enableStream,
-                {
-                    ...this.config.chatWidgetConfig,
-                    widgetTitle: undefined
-                },
-                this.logger, // Logger is now required and comes before optional params
-                this.initialSessionId,
-                this.onSessionIdUpdateCallback // Pass callback to ChatWidget
+                this.config.chatWidgetConfig, // Pass the prepared config for ChatWidget
+                this.logger, 
+                this.config.initialSessionId,
+                this.config.onSessionIdUpdate
             );
-
         } catch (error) {
-            if (this.logger) this.logger.error("Failed to instantiate ChatWidget.", error);
+            this.logger.error("Failed to instantiate ChatWidget.", error);
+            // Display an error message within the chat widget area if instantiation fails.
             chatWidgetDiv.innerHTML = '<p class="chat-load-error">Error: Could not load chat.</p>';
-        }
-
-        if (this.isChatVisible) {
-            if(this.chatContainer) this.chatContainer.style.display = 'flex';
-            if(this.floatingButton) this.floatingButton.style.display = 'none';
-        } else {
-            if(this.chatContainer) this.chatContainer.style.display = 'none';
-            if(this.floatingButton) this.floatingButton.style.display = 'flex';
         }
     }
 
+    /**
+     * Sets up event listeners for the floating widget, primarily for the toggle button.
+     */
     private _setupEventListeners(): void {
         if (this.floatingButton) {
             this.floatingButton.addEventListener('click', () => this.toggleChatVisibility());
         }
     }
 
+    /**
+     * Toggles the visibility of the chat panel and the floating button.
+     */
     public toggleChatVisibility(): void {
         this.isChatVisible = !this.isChatVisible;
         if (this.chatContainer && this.floatingButton) {
@@ -137,24 +242,48 @@ export class FloatingChatWidget {
         }
     }
 
-    public showChat(): void {
-        if (!this.isChatVisible) {
-            this.toggleChatVisibility();
+    /**
+     * Shows the chat panel.
+     * @param {boolean} [initial=false] - If true, sets display style directly without toggling, for initial setup.
+     */
+    public showChat(initial: boolean = false): void {
+        if (!this.isChatVisible || initial) {
+            if (!initial) this.toggleChatVisibility(); // Toggle only if not initial setup and currently hidden
+            else { // For initial setup, just set styles if meant to be open
+                if (this.chatContainer) this.chatContainer.style.display = 'flex';
+                if (this.floatingButton) this.floatingButton.style.display = 'none';
+                this.isChatVisible = true; // Ensure state is correct for initial direct show
+            }
         }
     }
 
-    public hideChat(): void {
-        if (this.isChatVisible) {
-            this.toggleChatVisibility();
+    /**
+     * Hides the chat panel.
+     * @param {boolean} [initial=false] - If true, sets display style directly without toggling, for initial setup.
+     */
+    public hideChat(initial: boolean = false): void {
+        if (this.isChatVisible || initial) {
+            if (!initial) this.toggleChatVisibility(); // Toggle only if not initial setup and currently visible
+            else { // For initial setup, just set styles if meant to be closed
+                if (this.chatContainer) this.chatContainer.style.display = 'none';
+                if (this.floatingButton) this.floatingButton.style.display = 'flex';
+                this.isChatVisible = false; // Ensure state is correct for initial direct hide
+            }
         }
     }
 
+    /**
+     * Destroys the FloatingChatWidget instance.
+     * This includes destroying the inner ChatWidget instance and removing the floating widget's DOM elements.
+     */
     public destroy(): void {
+        // Destroy the inner ChatWidget instance if it exists
         if (this.chatWidgetInstance && typeof (this.chatWidgetInstance as any).destroy === 'function') {
             (this.chatWidgetInstance as any).destroy();
         }
         this.chatWidgetInstance = null;
 
+        // Remove DOM elements from the document body
         if (this.floatingButton) {
             this.floatingButton.remove();
             this.floatingButton = null;
@@ -163,5 +292,6 @@ export class FloatingChatWidget {
             this.chatContainer.remove();
             this.chatContainer = null;
         }
+        this.logger.info("FloatingChatWidget instance destroyed.");
     }
 } 

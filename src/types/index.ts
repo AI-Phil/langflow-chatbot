@@ -14,6 +14,13 @@ export interface ChatbotProfile {
     inputAreaTemplate?: string;
 }
 
+export interface SenderConfig {
+    userSender: string;
+    botSender: string;
+    errorSender: string;
+    systemSender: string;
+}
+
 export interface LangflowProxyConfig {
     baseConfigPath: string;
     instanceConfigPath: string;

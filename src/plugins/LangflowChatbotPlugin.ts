@@ -23,6 +23,7 @@ export interface LangflowChatbotInitConfig {
   // Callback for when the session ID is updated internally by the widget
   onSessionIdChanged?: (sessionId: string) => void; // Added this for plugin to widget communication
   logLevel?: LogLevel; // Add logLevel option
+  datetimeFormat?: string; // Added datetimeFormat
 }
 
 // Interface for the full configuration after fetching from server (matches ChatbotProfile on server, minus flowId)
@@ -41,8 +42,13 @@ interface FullChatbotProfile extends Omit<LangflowChatbotInitConfig, 'proxyEndpo
   mainContainerTemplate?: string;
   inputAreaTemplate?: string;
   logLevel?: LogLevel; // Add logLevel option
+  datetimeFormat?: string; // Added datetimeFormat
 }
 
+// Default templates are now managed by ChatTemplateManager and ChatWidget
+// const DEFAULT_PLUGIN_MAIN_CONTAINER_TEMPLATE = `...`; // REMOVED
+// const DEFAULT_PLUGIN_INPUT_AREA_TEMPLATE = `...`; // REMOVED
+// const DEFAULT_PLUGIN_MESSAGE_TEMPLATE = `...`; // REMOVED
 
 export class LangflowChatbotInstance {
   private initialConfig: LangflowChatbotInitConfig;
@@ -113,24 +119,17 @@ export class LangflowChatbotInstance {
         userSender: this.serverProfile.userSender || this.initialConfig.userSender || 'Me',
         botSender: this.serverProfile.botSender || this.initialConfig.botSender || 'Assistant',
         widgetTitle: this.serverProfile.widgetTitle || this.initialConfig.widgetTitle || 'Chat Assistant',
+        // Templates: Prioritize server, then initial config. If neither, pass undefined.
+        // ChatTemplateManager will apply defaults within ChatWidget.
         messageTemplate: this.serverProfile.messageTemplate || this.initialConfig.messageTemplate,
-        mainContainerTemplate: this.serverProfile.mainContainerTemplate,
-        inputAreaTemplate: this.serverProfile.inputAreaTemplate,
+        mainContainerTemplate: this.serverProfile.mainContainerTemplate || this.initialConfig.mainContainerTemplate,
+        inputAreaTemplate: this.serverProfile.inputAreaTemplate || this.initialConfig.inputAreaTemplate,
         enableStream: this.serverProfile.enableStream !== undefined ? this.serverProfile.enableStream : this.initialConfig.enableStream,
         useFloating: this.serverProfile.useFloating !== undefined ? this.serverProfile.useFloating : this.initialConfig.useFloating,
         floatPosition: this.serverProfile.floatPosition || this.initialConfig.floatPosition || 'bottom-right',
+        datetimeFormat: this.serverProfile.datetimeFormat || this.initialConfig.datetimeFormat // Added datetimeFormat
       };
       
-      if (!mergedConfig.messageTemplate) {
-        mergedConfig.messageTemplate = `
-<div class="{{messageClasses}} message-block">
-  <div class="sender-name-display">{{sender}}</div>
-  <div class="message-bubble">
-    <span class="message-text-content">{{message}}</span>
-  </div>
-</div>`;
-      }
-
       // 4. Instantiate the appropriate widget
       const clientWantsFloating = mergedConfig.useFloating;
       const effectiveEnableStream = !!mergedConfig.enableStream;
@@ -153,6 +152,7 @@ export class LangflowChatbotInstance {
               mainContainerTemplate: mergedConfig.mainContainerTemplate,
               inputAreaTemplate: mergedConfig.inputAreaTemplate,
               widgetTitle: mergedConfig.widgetTitle,
+              datetimeFormat: mergedConfig.datetimeFormat // Pass to FloatingChatWidget's config
             },
             position: mergedConfig.floatPosition,
             initialSessionId: this.initialConfig.sessionId,
@@ -164,14 +164,14 @@ export class LangflowChatbotInstance {
         if (!this.initialConfig.containerId) {
           throw new Error('containerId is required for embedded chat widget.');
         }
-        const chatContainer = document.getElementById(this.initialConfig.containerId);
-        if (!chatContainer) {
+        const chatContainerElement = document.getElementById(this.initialConfig.containerId);
+        if (!chatContainerElement) {
           throw new Error(`Chat container with id '${this.initialConfig.containerId}' not found.`);
         }
-        chatContainer.style.display = 'block';
-        chatContainer.innerHTML = '';
+        chatContainerElement.style.display = 'block';
+        chatContainerElement.innerHTML = ''; // Clear it before use
         this.widgetInstance = new ChatWidget(
-          this.initialConfig.containerId,
+          chatContainerElement, // Pass the HTMLElement directly
           this.chatClient,
           effectiveEnableStream,
           {
@@ -181,6 +181,7 @@ export class LangflowChatbotInstance {
             mainContainerTemplate: mergedConfig.mainContainerTemplate,
             inputAreaTemplate: mergedConfig.inputAreaTemplate,
             widgetTitle: mergedConfig.widgetTitle,
+            datetimeFormat: mergedConfig.datetimeFormat // Pass to ChatWidget config
           },
           this.logger || new Logger('info', 'LangflowChatbot'),
           this.initialConfig.sessionId,
