@@ -1,4 +1,4 @@
-import { loadBaseConfig, loadInstanceConfig } from '../src/lib/config-loader';
+import { loadBaseConfig, loadInstanceConfig } from '../src/lib/startup/config-loader';
 import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';

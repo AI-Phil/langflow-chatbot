@@ -7,7 +7,7 @@ export async function handleGetChatbotConfigRequest(proxyEndpointId: string, res
     const fullProfile = chatbotConfigurations.get(proxyEndpointId);
 
     if (fullProfile) {
-        const { flowId, ...clientSafeProfile } = fullProfile;
+        const { flowId, ...clientSafeProfile } = fullProfile; // remove the Langflow flowId from the response
         res.statusCode = 200;
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify(clientSafeProfile));

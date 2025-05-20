@@ -1,7 +1,15 @@
+/**
+ * @file config-loader.ts
+ * @description This file is responsible for loading base and instance-specific configurations
+ * from YAML files during the application startup. It parses these files to provide
+ * essential parameters like Langflow connection details and chatbot profiles.
+ * This module is intended to be used early in the application lifecycle, and the
+ * configurations it loads are generally static thereafter.
+ */
 import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
-import { ChatbotProfile } from '../types';
+import { ChatbotProfile } from '../../types'; // Updated import path
 
 interface BaseConfigFile {
     langflow_connection: {

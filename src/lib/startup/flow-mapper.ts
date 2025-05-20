@@ -1,5 +1,14 @@
-import { ChatbotProfile } from '../types';
-import { LANGFLOW_API_BASE_PATH_V1 } from '../config/apiPaths';
+/**
+ * @file flow-mapper.ts
+ * @description This module handles the initialization of flow mappings during application startup.
+ * It fetches all available flows from the configured Langflow instance and resolves
+ * human-readable flow names (or other identifiers used in chatbot profiles) to their
+ * corresponding Langflow UUIDs. This is crucial for ensuring that chatbot profiles
+ * correctly point to the intended Langflow flows. This process typically runs once
+ * at startup to prepare the configurations for runtime use.
+ */
+import { ChatbotProfile } from '../../types'; // Updated import path
+import { LANGFLOW_API_BASE_PATH_V1 } from '../../config/apiPaths'; // Updated import path
 
 export async function initializeFlowMappings(
     langflowEndpointUrl: string,

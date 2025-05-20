@@ -1,7 +1,7 @@
 import http from 'http';
 import { LangflowClient } from '@datastax/langflow-client';
-import { loadBaseConfig, loadInstanceConfig } from './lib/config-loader';
-import { initializeFlowMappings } from './lib/flow-mapper';
+import { loadBaseConfig, loadInstanceConfig } from './lib/startup/config-loader';
+import { initializeFlowMappings } from './lib/startup/flow-mapper';
 import { handleRequest as handleRequestFromModule } from './lib/request-handler';
 import { ChatbotProfile, LangflowProxyConfig } from './types';
 
