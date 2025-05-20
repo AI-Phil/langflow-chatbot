@@ -21,3 +21,6 @@ export const PROXY_FLOWS_PATH = PROXY_BASE_API_PATH + PROXY_FLOWS_CONFIG_ENDPOIN
 // New constant for listing available chatbot profiles
 export const PROXY_PROFILES_LIST_SUFFIX = '/profiles'; // e.g., /api/langflow/profiles
 export const PROXY_PROFILES_PATH = PROXY_BASE_API_PATH + PROXY_PROFILES_LIST_SUFFIX;
+
+// Langflow specific API base path
+export const LANGFLOW_API_BASE_PATH_V1 = '/api/v1';

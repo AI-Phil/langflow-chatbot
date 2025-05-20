@@ -3,7 +3,8 @@ import path from 'path';
 import { readFile as readFileAsync } from 'fs/promises';
 import ejs from 'ejs';
 import dotenv from 'dotenv';
-import { LangflowProxyService, LangflowProxyConfig } from '../../src/langflow-proxy';
+import { LangflowProxyService } from '../../src/langflow-proxy';
+import { LangflowProxyConfig } from '../../src/types';
 import { PROXY_BASE_API_PATH } from '../../src/config/apiPaths';
 
 dotenv.config({ path: path.join(__dirname, '.env') });
@@ -104,7 +105,7 @@ async function startServer() {
         process.exit(1);
     }
     try {
-        await langflowProxy.initializeFlowMappings();
+        await langflowProxy.initializeFlows();
         console.log("Basic Server: LangflowProxyService flow mappings initialized.");
         
         server.listen(port, hostname, () => {
