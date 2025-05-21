@@ -1,10 +1,10 @@
 // LangflowChatbotPlugin.ts
 import { LangflowChatClient } from '../clients/LangflowChatClient';
-import { PROXY_BASE_API_PATH, PROXY_CONFIG_ENDPOINT_PREFIX } from '../config/apiPaths';
+import { PROXY_BASE_API_PATH, PROFILE_CONFIG_ENDPOINT_PREFIX } from '../config/apiPaths';
 import { ChatWidget, FloatingChatWidget } from '../components';
 import { Logger, LogLevel } from '../utils/logger';
 import { ERROR_MESSAGE_TEMPLATE } from '../config/uiConstants';
-import { ChatbotProfile as ServerChatbotProfileData } from '../types'; // Corrected import path
+import { ChatbotProfile as ServerChatbotUIData, ServerProfile as ServerBehaviorData } from '../types';
 
 // Interface for the initial configuration passed to the plugin's init function
 export interface LangflowChatbotInitConfig {
@@ -31,11 +31,14 @@ export interface LangflowChatbotInitConfig {
 // No, FullChatbotProfile is the type of this.serverProfile which is the result of the fetch
 // which is defined in configHandlers.ts to be ChatbotProfile from '../types' (which is src/types/index.ts)
 // So FullChatbotProfile should be ServerChatbotProfileData which refers to the ChatbotProfile in src/types/index.ts
-interface FullChatbotProfile extends ServerChatbotProfileData {}
+// interface FullChatbotProfile extends ServerChatbotProfileData {}
+
+// Represents the full data structure fetched from the server's config endpoint.
+interface FullServerProfile extends ServerChatbotUIData, ServerBehaviorData {}
 
 export class LangflowChatbotInstance {
   private initialConfig: LangflowChatbotInitConfig;
-  private serverProfile!: FullChatbotProfile; // This is of type ServerChatbotProfileData (UI settings from server)
+  private serverProfile!: FullServerProfile; // Corrected type
   private chatClient: LangflowChatClient | null = null;
   private widgetInstance: any; // Placeholder for ChatWidget or FloatingChatWidget
   private isInitialized: boolean = false;
@@ -79,14 +82,14 @@ export class LangflowChatbotInstance {
     }
 
     try {
-      const configUrl = `${PROXY_BASE_API_PATH}${PROXY_CONFIG_ENDPOINT_PREFIX}/${this.initialConfig.profileId}`;
+      const configUrl = `${PROXY_BASE_API_PATH}${PROFILE_CONFIG_ENDPOINT_PREFIX}/${this.initialConfig.profileId}`;
       this.logger.info(`Fetching chatbot UI configuration from: ${configUrl}`);
       const response = await fetch(configUrl);
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Failed to fetch chatbot configuration for '${this.initialConfig.profileId}'. Status: ${response.status}. Details: ${errorText}`);
       }
-      this.serverProfile = await response.json() as ServerChatbotProfileData;
+      this.serverProfile = await response.json() as FullServerProfile; // Corrected type assertion
       this.logger.debug("Received server profile:", this.serverProfile);
 
       this.chatClient = new LangflowChatClient(this.initialConfig.profileId, undefined, this.logger);
@@ -103,9 +106,9 @@ export class LangflowChatbotInstance {
           widgetTitle: safeServerLabels.widgetTitle || this.initialConfig.widgetTitle || 'Chat Assistant',
           userSender: safeServerLabels.userSender || this.initialConfig.userSender || 'Me',
           botSender: safeServerLabels.botSender || this.initialConfig.botSender || 'Assistant',
-          errorSender: safeServerLabels.errorSender, // Taken from server if available
-          systemSender: safeServerLabels.systemSender, // Taken from server if available
-          welcomeMessage: safeServerLabels.welcomeMessage, // Taken from server if available
+          errorSender: safeServerLabels.errorSender, 
+          systemSender: safeServerLabels.systemSender, 
+          welcomeMessage: safeServerLabels.welcomeMessage, 
         },
         template: {
           messageTemplate: safeServerTemplate.messageTemplate || this.initialConfig.messageTemplate,
@@ -113,18 +116,28 @@ export class LangflowChatbotInstance {
           inputAreaTemplate: safeServerTemplate.inputAreaTemplate || this.initialConfig.inputAreaTemplate,
         },
         floatingWidget: {
-          useFloating: safeServerFloatingWidget.useFloating !== undefined 
-              ? safeServerFloatingWidget.useFloating 
-              : this.initialConfig.useFloating, // User init config takes precedence for useFloating after server
+          // If initialConfig.useFloating is explicitly set, it takes precedence.
+          // Otherwise, use serverProfile setting. If neither, default to false (embedded).
+          useFloating: typeof this.initialConfig.useFloating === 'boolean' 
+              ? this.initialConfig.useFloating 
+              : (safeServerFloatingWidget.useFloating !== undefined 
+                  ? safeServerFloatingWidget.useFloating 
+                  : false),
           floatPosition: safeServerFloatingWidget.floatPosition || this.initialConfig.floatPosition || 'bottom-right',
         },
       };
 
       // Separate handling for non-UI, client-specific settings from initialConfig
       const clientWantsFloating = mergedUiConfig.floatingWidget.useFloating;
-      // enableStream and datetimeFormat are now primarily from initialConfig or defaults
-      const effectiveEnableStream = this.initialConfig.enableStream !== undefined ? this.initialConfig.enableStream : true; // Default to true
-      const effectiveDatetimeFormat = this.initialConfig.datetimeFormat; // Can be undefined, components should handle
+      const effectiveEnableStream = this.initialConfig.enableStream !== undefined 
+          ? this.initialConfig.enableStream 
+          : (this.serverProfile.enableStream !== undefined 
+              ? this.serverProfile.enableStream 
+              : true); // Default to true
+      // Prioritize initialConfig for datetimeFormat, then server, then undefined
+      const effectiveDatetimeFormat = this.initialConfig.datetimeFormat !== undefined 
+          ? this.initialConfig.datetimeFormat 
+          : this.serverProfile.datetimeFormat;
 
       const onSessionIdUpdateCallback = this.initialConfig.onSessionIdChanged || this._handleInternalSessionIdUpdate;
 

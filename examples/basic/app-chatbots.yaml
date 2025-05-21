@@ -2,7 +2,7 @@ langflow_connection:
   endpoint_url: "http://localhost:7860"
   # api_key: ""
 
-chatbots:
+profiles:
   - profileId: "memory"
     server:
       flowId: "memory-chatbot"

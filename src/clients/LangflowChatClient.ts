@@ -62,7 +62,7 @@ export interface ChatMessageData {
 
 import { 
     PROXY_BASE_API_PATH,
-    PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX // Updated import
+    PROFILE_CHAT_ENDPOINT_PREFIX // Updated import
 } from '../config/apiPaths'; 
 
 export class LangflowChatClient {
@@ -86,8 +86,8 @@ export class LangflowChatClient {
         this.baseApiUrl = baseApiUrl.endsWith('/') ? baseApiUrl.slice(0, -1) : baseApiUrl;
         this.logger = logger || new Logger('info', 'LangflowChatClient');
         // Construct endpoints using profileId
-        this.chatEndpoint = `${this.baseApiUrl}${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}/${this.profileId}`;
-        this.historyEndpoint = `${this.baseApiUrl}${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}/${this.profileId}/history`;
+        this.chatEndpoint = `${this.baseApiUrl}${PROFILE_CHAT_ENDPOINT_PREFIX}/${this.profileId}`;
+        this.historyEndpoint = `${this.baseApiUrl}${PROFILE_CHAT_ENDPOINT_PREFIX}/${this.profileId}/history`;
     }
 
     private generateSessionId(): string {

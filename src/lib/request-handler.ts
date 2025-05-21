@@ -4,8 +4,8 @@ import { LangflowClient } from '@datastax/langflow-client';
 import { Profile } from '../types';
 import {
     PROXY_BASE_API_PATH,
-    PROXY_CONFIG_ENDPOINT_PREFIX,
-    PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX,
+    PROFILE_CONFIG_ENDPOINT_PREFIX,
+    PROFILE_CHAT_ENDPOINT_PREFIX,
     PROXY_FLOWS_PATH,
     PROXY_PROFILES_PATH,
     LANGFLOW_API_BASE_PATH_V1
@@ -43,8 +43,8 @@ export async function handleRequest(
     const parsedUrl = new URL(rawUrl, base);
     const pathname = parsedUrl.pathname;
 
-    const configRequestPathPrefix = PROXY_BASE_API_PATH + PROXY_CONFIG_ENDPOINT_PREFIX + '/';
-    const chatRequestPathPrefix = PROXY_BASE_API_PATH + PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX + '/';
+    const configRequestPathPrefix = PROXY_BASE_API_PATH + PROFILE_CONFIG_ENDPOINT_PREFIX + '/';
+    const chatRequestPathPrefix = PROXY_BASE_API_PATH + PROFILE_CHAT_ENDPOINT_PREFIX + '/';
 
     if (method === 'GET' && pathname.startsWith(configRequestPathPrefix)) {
         const profileId = pathname.substring(configRequestPathPrefix.length);

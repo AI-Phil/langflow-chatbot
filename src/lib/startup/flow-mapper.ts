@@ -11,8 +11,6 @@ import { Profile } from '../../types'; // Updated import path
 import {
     LANGFLOW_API_BASE_PATH_V1,
     PROXY_BASE_API_PATH,
-    PROXY_FLOWS_CONFIG_ENDPOINT_SUFFIX,
-    PROXY_PROFILES_LIST_SUFFIX,
     LANGFLOW_FLOWS_ENDPOINT_SUFFIX
 } from '../../config/apiPaths';
 

@@ -5,8 +5,8 @@ import { Profile } from '../../src/types';
 import { handleRequest } from '../../src/lib/request-handler';
 import {
     PROXY_BASE_API_PATH,
-    PROXY_CONFIG_ENDPOINT_PREFIX,
-    PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX,
+    PROFILE_CONFIG_ENDPOINT_PREFIX,
+    PROFILE_CHAT_ENDPOINT_PREFIX,
     PROXY_FLOWS_PATH,
     PROXY_PROFILES_PATH
 } from '../../src/config/apiPaths';
@@ -141,7 +141,7 @@ describe('handleRequest', () => {
     // Tests for /api/v1/chatbot-config/{profileId}
     describe('Chatbot Config Endpoint', () => {
         const profileId = 'test-profile';
-        const configPath = `${PROXY_BASE_API_PATH}${PROXY_CONFIG_ENDPOINT_PREFIX}/${profileId}`;
+        const configPath = `${PROXY_BASE_API_PATH}${PROFILE_CONFIG_ENDPOINT_PREFIX}/${profileId}`;
 
         test('GET should call handleGetChatbotConfigRequest for valid path', async () => {
             mockReq = createMockReq('GET', configPath);
@@ -203,7 +203,7 @@ describe('handleRequest', () => {
                 labels: { widgetTitle: 'Chat Now' },
             }
         };
-        const chatBasePath = `${PROXY_BASE_API_PATH}${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}`;
+        const chatBasePath = `${PROXY_BASE_API_PATH}${PROFILE_CHAT_ENDPOINT_PREFIX}`;
         const messagesPath = `${chatBasePath}/${profileId}`;
         const historyPath = `${messagesPath}/history`;
 
