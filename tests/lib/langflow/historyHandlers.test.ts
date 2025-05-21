@@ -1,11 +1,11 @@
 import http from 'http';
 import { URLSearchParams } from 'url';
-import { LANGFLOW_API_BASE_PATH_V1 } from '../src/config/apiPaths';
-import { handleGetChatHistoryRequest } from '../src/lib/langflow/historyHandlers';
-import * as requestUtils from '../src/lib/request-utils';
+import { LANGFLOW_API_BASE_PATH_V1 } from '@src/config/apiPaths';
+import { handleGetChatHistoryRequest } from '@src/lib/langflow/historyHandlers';
+import * as requestUtils from '@src/lib/request-utils';
 
 // Mock the request-utils module
-jest.mock('../src/lib/request-utils', () => ({
+jest.mock('@src/lib/request-utils', () => ({
     proxyLangflowApiRequest: jest.fn(),
     sendJsonError: jest.fn(),
 }));

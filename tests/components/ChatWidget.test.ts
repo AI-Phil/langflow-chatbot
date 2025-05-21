@@ -1,20 +1,20 @@
 /** @jest-environment jsdom */
 
-import { ChatWidget, ChatWidgetConfigOptions } from '../src/components/ChatWidget';
-import { LangflowChatClient } from '../src/clients/LangflowChatClient';
-import { Logger } from '../src/utils/logger';
-import { ChatMessageProcessor, MessageProcessorUICallbacks } from '../src/components/ChatMessageProcessor';
-import { ChatDisplayManager, ChatDisplayManagerConfig } from '../src/components/ChatDisplayManager';
-import { ChatTemplateManager, TemplateManagerConfig } from '../src/components/ChatTemplateManager';
-import { ChatSessionManager } from '../src/components/ChatSessionManager';
-import { DatetimeHandler } from '../src/utils/datetimeUtils';
+import { ChatWidget, ChatWidgetConfigOptions } from '../../src/components/ChatWidget';
+import { LangflowChatClient } from '../../src/clients/LangflowChatClient';
+import { Logger } from '../../src/utils/logger';
+import { ChatMessageProcessor, MessageProcessorUICallbacks } from '../../src/components/ChatMessageProcessor';
+import { ChatDisplayManager, ChatDisplayManagerConfig } from '../../src/components/ChatDisplayManager';
+import { ChatTemplateManager, TemplateManagerConfig } from '../../src/components/ChatTemplateManager';
+import { ChatSessionManager } from '../../src/components/ChatSessionManager';
+import { DatetimeHandler } from '../../src/utils/datetimeUtils';
 
 // Mock child components/managers AND LangflowChatClient
-jest.mock('../src/clients/LangflowChatClient');
-jest.mock('../src/components/ChatTemplateManager');
-jest.mock('../src/components/ChatDisplayManager');
-jest.mock('../src/components/ChatSessionManager');
-jest.mock('../src/components/ChatMessageProcessor');
+jest.mock('../../src/clients/LangflowChatClient');
+jest.mock('../../src/components/ChatTemplateManager');
+jest.mock('../../src/components/ChatDisplayManager');
+jest.mock('../../src/components/ChatSessionManager');
+jest.mock('../../src/components/ChatMessageProcessor');
 
 // Mock Logger
 const mockLogger: jest.Mocked<Logger> = {

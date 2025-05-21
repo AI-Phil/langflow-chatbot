@@ -1,9 +1,9 @@
 /** @jest-environment jsdom */
 
 import { TextDecoder, TextEncoder } from 'util';
-import { LangflowChatClient, BotResponse, StreamEvent, ChatMessageData } from '../src/clients/LangflowChatClient';
-import { Logger } from '../src/utils/logger';
-import { PROXY_BASE_API_PATH, PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX } from '../src/config/apiPaths';
+import { LangflowChatClient, BotResponse, StreamEvent, ChatMessageData } from '../../src/clients/LangflowChatClient';
+import { Logger } from '../../src/utils/logger';
+import { PROXY_BASE_API_PATH, PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX } from '../../src/config/apiPaths';
 
 // Polyfill TextDecoder/TextEncoder if not present in JSDOM
 if (typeof global.TextDecoder === 'undefined') {
@@ -33,7 +33,7 @@ const mockLoggerInstance = {
     setLogLevel: jest.fn(),
     getLogLevel: jest.fn(() => 'info'),
 };
-jest.mock('../src/utils/logger', () => {
+jest.mock('../../src/utils/logger', () => {
     return {
         Logger: jest.fn().mockImplementation(() => mockLoggerInstance)
     };

@@ -1,12 +1,12 @@
 /** @jest-environment jsdom */
 
 import { TextDecoder, TextEncoder } from 'util';
-import { LangflowChatbotInstance, init as initPlugin, LangflowChatbotInitConfig } from '../src/plugins/LangflowChatbotPlugin';
-import { LangflowChatClient } from '../src/clients/LangflowChatClient';
-import { ChatWidget } from '../src/components/ChatWidget';
-import { FloatingChatWidget } from '../src/components/FloatingChatWidget';
-import { Logger, LogLevel } from '../src/utils/logger';
-import { PROXY_BASE_API_PATH, PROXY_CONFIG_ENDPOINT_PREFIX } from '../src/config/apiPaths';
+import { LangflowChatbotInstance, init as initPlugin, LangflowChatbotInitConfig } from '../../src/plugins/LangflowChatbotPlugin';
+import { LangflowChatClient } from '../../src/clients/LangflowChatClient';
+import { ChatWidget } from '../../src/components/ChatWidget';
+import { FloatingChatWidget } from '../../src/components/FloatingChatWidget';
+import { Logger, LogLevel } from '../../src/utils/logger';
+import { PROXY_BASE_API_PATH, PROXY_CONFIG_ENDPOINT_PREFIX } from '../../src/config/apiPaths';
 
 // Polyfill TextDecoder/TextEncoder if not present in JSDOM
 if (typeof global.TextDecoder === 'undefined') {
@@ -17,9 +17,9 @@ if (typeof global.TextEncoder === 'undefined') {
 }
 
 // Mock dependencies
-jest.mock('../src/clients/LangflowChatClient');
-jest.mock('../src/components/ChatWidget');
-jest.mock('../src/components/FloatingChatWidget');
+jest.mock('../../src/clients/LangflowChatClient');
+jest.mock('../../src/components/ChatWidget');
+jest.mock('../../src/components/FloatingChatWidget');
 
 // Mock Logger
 const mockLoggerInstance = {
@@ -30,11 +30,11 @@ const mockLoggerInstance = {
     setLogLevel: jest.fn(),
     getLogLevel: jest.fn(() => 'info'),
 };
-jest.mock('../src/utils/logger', () => {
+jest.mock('../../src/utils/logger', () => {
     return {
         Logger: jest.fn().mockImplementation(() => mockLoggerInstance),
         // Allow LogLevel to be accessed directly if needed by the SUT for type checking, etc.
-        LogLevel: jest.requireActual('../src/utils/logger').LogLevel 
+        LogLevel: jest.requireActual('../../src/utils/logger').LogLevel 
     };
 });
 

@@ -1,10 +1,10 @@
 import http from 'http';
-import { LANGFLOW_API_BASE_PATH_V1 } from '../src/config/apiPaths';
-import { handleGetFlowsRequest } from '../src/lib/langflow/flowsHandlers';
-import * as requestUtils from '../src/lib/request-utils';
+import { LANGFLOW_API_BASE_PATH_V1 } from '@src/config/apiPaths';
+import { handleGetFlowsRequest } from '@src/lib/langflow/flowsHandlers';
+import * as requestUtils from '@src/lib/request-utils';
 
 // Mock the request-utils module
-jest.mock('../src/lib/request-utils', () => ({
+jest.mock('@src/lib/request-utils', () => ({
     proxyLangflowApiRequest: jest.fn(),
 }));
 

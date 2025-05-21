@@ -1,10 +1,10 @@
 /** @jest-environment jsdom */
 
-import { ChatSessionManager, SessionManagerDisplayCallbacks } from '../src/components/ChatSessionManager';
-import { LangflowChatClient, ChatMessageData } from '../src/clients/LangflowChatClient';
-import { Logger } from '../src/utils/logger';
-import { SenderConfig } from '../src/types';
-import * as datetimeUtils from '../src/utils/datetimeUtils';
+import { ChatSessionManager, SessionManagerDisplayCallbacks } from '../../src/components/ChatSessionManager';
+import { LangflowChatClient, ChatMessageData } from '../../src/clients/LangflowChatClient';
+import { Logger } from '../../src/utils/logger';
+import { SenderConfig } from '../../src/types';
+import * as datetimeUtils from '../../src/utils/datetimeUtils';
 
 // Mock LangflowChatClient
 const mockChatClient: jest.Mocked<Pick<LangflowChatClient, 'getMessageHistory'>> = {
@@ -38,8 +38,8 @@ const mockDisplayCallbacks: jest.Mocked<SessionManagerDisplayCallbacks> = {
 };
 
 // Mock datetimeUtils
-jest.mock('../src/utils/datetimeUtils', () => ({
-    ...jest.requireActual('../src/utils/datetimeUtils'), // Import and retain default behavior
+jest.mock('../../src/utils/datetimeUtils', () => ({
+    ...jest.requireActual('../../src/utils/datetimeUtils'), // Import and retain default behavior
     normalizeLangflowTimestamp: jest.fn((timestamp?: string | number | Date) => {
         if (!timestamp) return new Date().toISOString();
         return new Date(timestamp).toISOString(); // Simplified mock implementation

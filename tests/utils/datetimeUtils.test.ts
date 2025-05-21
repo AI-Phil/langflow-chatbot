@@ -3,7 +3,7 @@ import {
     isValidDatetimeHandler,
     normalizeLangflowTimestamp,
     DatetimeHandler
-} from '../src/utils/datetimeUtils';
+} from '../../src/utils/datetimeUtils';
 
 // Mock date-fns to control its behavior and outputs for testing
 jest.mock('date-fns', () => ({

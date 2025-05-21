@@ -1,6 +1,6 @@
 import http from 'http';
 import { Readable } from 'stream'; // For mocking IncomingMessage
-import { parseJsonBody, sendJsonError, proxyLangflowApiRequest } from '../src/lib/request-utils';
+import { parseJsonBody, sendJsonError, proxyLangflowApiRequest } from '../../src/lib/request-utils';
 
 // Mock console methods as they are used in proxyLangflowApiRequest
 const mockConsoleLog = jest.fn();

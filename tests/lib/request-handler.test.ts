@@ -1,44 +1,44 @@
 import http from 'http';
 import { URL } from 'url';
 import { LangflowClient } from '@datastax/langflow-client';
-import { ChatbotProfile } from '../src/types';
-import { handleRequest } from '../src/lib/request-handler';
+import { ChatbotProfile } from '../../src/types';
+import { handleRequest } from '../../src/lib/request-handler';
 import {
     PROXY_BASE_API_PATH,
     PROXY_CONFIG_ENDPOINT_PREFIX,
     PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX,
     PROXY_FLOWS_PATH,
     PROXY_PROFILES_PATH
-} from '../src/config/apiPaths';
+} from '../../src/config/apiPaths';
 
 // Mock imported utility functions
-jest.mock('../src/lib/request-utils', () => ({
+jest.mock('../../src/lib/request-utils', () => ({
     sendJsonError: jest.fn(),
     proxyLangflowApiRequest: jest.fn(), // Though not directly used by handleRequest, good practice if utils change
     parseJsonBody: jest.fn(),
 }));
 
 // Mock imported handler functions
-jest.mock('../src/lib/configHandlers', () => ({
+jest.mock('../../src/lib/configHandlers', () => ({
     handleGetChatbotConfigRequest: jest.fn(),
     handleListChatbotProfilesRequest: jest.fn(),
 }));
-jest.mock('../src/lib/langflow/flowsHandlers', () => ({
+jest.mock('../../src/lib/langflow/flowsHandlers', () => ({
     handleGetFlowsRequest: jest.fn(),
 }));
-jest.mock('../src/lib/langflow/historyHandlers', () => ({
+jest.mock('../../src/lib/langflow/historyHandlers', () => ({
     handleGetChatHistoryRequest: jest.fn(),
 }));
-jest.mock('../src/lib/langflow/chatHandlers', () => ({
+jest.mock('../../src/lib/langflow/chatHandlers', () => ({
     handleChatMessageRequest: jest.fn(),
 }));
 
 // Import the mocked functions for use in tests
-import { sendJsonError } from '../src/lib/request-utils';
-import { handleGetChatbotConfigRequest, handleListChatbotProfilesRequest } from '../src/lib/configHandlers';
-import { handleGetFlowsRequest } from '../src/lib/langflow/flowsHandlers';
-import { handleGetChatHistoryRequest } from '../src/lib/langflow/historyHandlers';
-import { handleChatMessageRequest } from '../src/lib/langflow/chatHandlers';
+import { sendJsonError } from '../../src/lib/request-utils';
+import { handleGetChatbotConfigRequest, handleListChatbotProfilesRequest } from '../../src/lib/configHandlers';
+import { handleGetFlowsRequest } from '../../src/lib/langflow/flowsHandlers';
+import { handleGetChatHistoryRequest } from '../../src/lib/langflow/historyHandlers';
+import { handleChatMessageRequest } from '../../src/lib/langflow/chatHandlers';
 
 
 // Helper to create a mock IncomingMessage

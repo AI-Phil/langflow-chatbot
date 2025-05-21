@@ -1,18 +1,18 @@
 /** @jest-environment jsdom */
 
-import { FloatingChatWidget, FloatingChatWidgetConfig } from '../src/components/FloatingChatWidget';
-import { ChatWidget, ChatWidgetConfigOptions } from '../src/components/ChatWidget';
-import { LangflowChatClient } from '../src/clients/LangflowChatClient';
-import { Logger, LogLevel } from '../src/utils/logger';
+import { FloatingChatWidget, FloatingChatWidgetConfig } from '../../src/components/FloatingChatWidget';
+import { ChatWidget, ChatWidgetConfigOptions } from '../../src/components/ChatWidget';
+import { LangflowChatClient } from '../../src/clients/LangflowChatClient';
+import { Logger, LogLevel } from '../../src/utils/logger';
 
 // Mock LangflowChatClient
-jest.mock('../src/clients/LangflowChatClient');
+jest.mock('../../src/clients/LangflowChatClient');
 
 // Mock ChatWidget (the main dependency being wrapped)
-jest.mock('../src/components/ChatWidget');
+jest.mock('../../src/components/ChatWidget');
 
 // Mock Logger (though FloatingChatWidget can create its own if none is provided)
-jest.mock('../src/utils/logger');
+jest.mock('../../src/utils/logger');
 
 const MockLangflowChatClient = LangflowChatClient as jest.MockedClass<typeof LangflowChatClient>;
 const MockChatWidget = ChatWidget as jest.MockedClass<typeof ChatWidget>;

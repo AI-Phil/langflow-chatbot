@@ -1,6 +1,6 @@
-import { initializeFlowMappings } from '../src/lib/startup/flow-mapper';
-import { ChatbotProfile } from '../src/types';
-import { LANGFLOW_API_BASE_PATH_V1 } from '../src/config/apiPaths';
+import { initializeFlowMappings } from '@src/lib/startup/flow-mapper';
+import { ChatbotProfile } from '@src/types';
+import { LANGFLOW_API_BASE_PATH_V1 } from '@src/config/apiPaths';
 
 // Mock global.fetch
 global.fetch = jest.fn();

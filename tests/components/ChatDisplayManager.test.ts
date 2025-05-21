@@ -1,9 +1,9 @@
 /** @jest-environment jsdom */
 
-import { ChatDisplayManager, ChatDisplayManagerConfig } from '../src/components/ChatDisplayManager';
-import { Logger } from '../src/utils/logger';
-import { DatetimeHandler } from '../src/utils/datetimeUtils';
-import * as datetimeUtils from '../src/utils/datetimeUtils'; // Import for mocking
+import { ChatDisplayManager, ChatDisplayManagerConfig } from '../../src/components/ChatDisplayManager';
+import { Logger } from '../../src/utils/logger';
+import { DatetimeHandler } from '../../src/utils/datetimeUtils';
+import * as datetimeUtils from '../../src/utils/datetimeUtils'; // Import for mocking
 
 // Mock Logger
 const mockLogger: jest.Mocked<Logger> = {

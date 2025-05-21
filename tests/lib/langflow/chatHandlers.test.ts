@@ -1,11 +1,11 @@
 import http from 'http';
 import { LangflowClient } from '@datastax/langflow-client';
-import { handleChatMessageRequest } from '../src/lib/langflow/chatHandlers';
-import * as requestUtils from '../src/lib/request-utils';
+import { handleChatMessageRequest } from '@src/lib/langflow/chatHandlers';
+import * as requestUtils from '@src/lib/request-utils';
 
 // Mocks
 jest.mock('@datastax/langflow-client');
-jest.mock('../src/lib/request-utils', () => ({
+jest.mock('@src/lib/request-utils', () => ({
     parseJsonBody: jest.fn(),
     sendJsonError: jest.fn(),
 }));

@@ -1,11 +1,11 @@
 import http from 'http';
-import { handleGetChatbotConfigRequest, handleListChatbotProfilesRequest } from '../src/lib/configHandlers';
-import { ChatbotProfile } from '../src/types';
-import { sendJsonError } from '../src/lib/request-utils';
+import { handleGetChatbotConfigRequest, handleListChatbotProfilesRequest } from '../../src/lib/configHandlers';
+import { ChatbotProfile } from '../../src/types';
+import { sendJsonError } from '../../src/lib/request-utils';
 
 // Mock the request-utils module, specifically sendJsonError
-jest.mock('../src/lib/request-utils', () => ({
-    ...jest.requireActual('../src/lib/request-utils'), // Import and retain other exports
+jest.mock('../../src/lib/request-utils', () => ({
+    ...jest.requireActual('../../src/lib/request-utils'), // Import and retain other exports
     sendJsonError: jest.fn(), // Mock sendJsonError
 }));
 
