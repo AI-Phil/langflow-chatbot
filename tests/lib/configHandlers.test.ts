@@ -48,13 +48,14 @@ describe('configHandlers', () => {
             ['profile1', {
                 proxyEndpointId: 'profile1',
                 flowId: 'uuid-flow-one',
-                widgetTitle: 'Chatbot One',
+                labels: { widgetTitle: 'Chatbot One' },
                 enableStream: true,
             }],
             ['profile2', {
                 proxyEndpointId: 'profile2',
                 flowId: 'uuid-flow-two',
-                // widgetTitle is optional
+                labels: {},
+                // widgetTitle is optional, so labels.widgetTitle will be undefined
             }],
         ]);
     });
@@ -67,10 +68,13 @@ describe('configHandlers', () => {
             expect(mockRes.statusCode).toBe(200);
             expect(mockRes.setHeader).toHaveBeenCalledWith('Content-Type', 'application/json');
             
-            const expectedProfile = { ...mockConfigurations.get(targetProfileId)! };
-            delete (expectedProfile as any).flowId; // flowId should be removed
+            const expectedProfile = { ...mockConfigurations.get(targetProfileId)! }; // Get a copy
+            // flowId should be removed, and other potentially sensitive server-side fields if any.
+            // The current implementation of handleGetChatbotConfigRequest only removes flowId.
+            // We ensure the structure matches what the client expects based on ChatbotProfile (minus flowId)
+            const { flowId, ...clientSafeProfile } = expectedProfile;
 
-            expect(mockRes.end).toHaveBeenCalledWith(JSON.stringify(expectedProfile));
+            expect(mockRes.end).toHaveBeenCalledWith(JSON.stringify(clientSafeProfile));
             expect(sendJsonError).not.toHaveBeenCalled();
             expect(mockConsoleLog).toHaveBeenCalledWith(`RequestHandler: Received GET request for chatbot configuration: '${targetProfileId}'`);
         });
@@ -97,11 +101,11 @@ describe('configHandlers', () => {
             const expectedProfilesList = [
                 {
                     proxyEndpointId: 'profile1',
-                    widgetTitle: mockConfigurations.get('profile1')?.widgetTitle, // 'Chatbot One'
+                    widgetTitle: mockConfigurations.get('profile1')?.labels?.widgetTitle, // 'Chatbot One'
                 },
                 {
                     proxyEndpointId: 'profile2',
-                    widgetTitle: 'profile2', // Defaults to proxyEndpointId as widgetTitle is undefined
+                    widgetTitle: 'profile2', // Defaults to proxyEndpointId as labels.widgetTitle is undefined
                 },
             ];
 

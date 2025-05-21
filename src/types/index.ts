@@ -2,16 +2,28 @@ export interface ChatbotProfile {
     proxyEndpointId: string; 
     flowId: string;
     enableStream?: boolean;
-    useFloating?: boolean;
-    floatPosition?: "bottom-right" | "bottom-left" | "top-right" | "top-left";
+    labels?: Labels;
+    template?: Template;
+    floatingWidget?: FloatingWidget;
+}
+
+export interface Labels {
     widgetTitle?: string;
     userSender?: string;
     botSender?: string;
-    errorSender?: string; 
+    errorSender?: string;
     systemSender?: string;
+}
+
+export interface Template {
     messageTemplate?: string;
     mainContainerTemplate?: string;
     inputAreaTemplate?: string;
+}
+
+export interface FloatingWidget {
+    useFloating?: boolean;
+    floatPosition?: "bottom-right" | "bottom-left" | "top-right" | "top-left";
 }
 
 export interface SenderConfig {

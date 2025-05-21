@@ -47,15 +47,27 @@ export class LangflowProxyService {
         for (const partialProfile of profiles) {
             if (partialProfile.proxyEndpointId && partialProfile.flowId) {
                 const completeProfile: ChatbotProfile = {
-                    ...defaults,
-                    ...partialProfile,
                     proxyEndpointId: partialProfile.proxyEndpointId,
-                    flowId: partialProfile.flowId // This might be a name or UUID initially
+                    flowId: partialProfile.flowId,
+                    enableStream: partialProfile.enableStream ?? defaults.enableStream,
+                    labels: {
+                        ...(defaults.labels || {}),
+                        ...(partialProfile.labels || {}),
+                    },
+                    template: {
+                        ...(defaults.template || {}),
+                        ...(partialProfile.template || {}),
+                    },
+                    floatingWidget: {
+                        ...(defaults.floatingWidget || {}),
+                        ...(partialProfile.floatingWidget || {}),
+                    },
                 };
+
                 this.chatbotConfigurations.set(completeProfile.proxyEndpointId, completeProfile);
                 loadedCount++;
                 // Initial log will show the configured ID (name or UUID)
-                console.log(`LangflowProxyService: Loaded chatbot profile: '${completeProfile.proxyEndpointId}' configured with flow identifier \'${completeProfile.flowId}\'.`);
+                console.log(`LangflowProxyService: Loaded chatbot profile: '${completeProfile.proxyEndpointId}' configured with flow identifier '${completeProfile.flowId}'.`);
             } else {
                 console.warn(`LangflowProxyService: Skipping chatbot profile due to missing 'proxyEndpointId' or 'flowId' in instance config. Profile: ${JSON.stringify(partialProfile)}`);
             }

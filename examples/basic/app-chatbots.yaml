@@ -4,12 +4,16 @@
 chatbots:
   - proxyEndpointId: "memory" 
     flowId: "memory-chatbot" 
-    useFloating: false
-    widgetTitle: "Memory Chatbot"
-    botSender: "Chatbot"
+    floatingWidget:
+      useFloating: false
+    labels:
+      widgetTitle: "Memory Chatbot"
+      botSender: "Chatbot"
 
   - proxyEndpointId: "floating-memory" 
     flowId: "memory-chatbot" 
-    useFloating: true
-    widgetTitle: "Floating Memory Chatbot"
-    botSender: "Chatbot"
+    floatingWidget:
+      useFloating: true
+    labels:
+      widgetTitle: "Floating Memory Chatbot"
+      botSender: "Chatbot"

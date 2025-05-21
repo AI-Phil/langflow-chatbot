@@ -8,13 +8,15 @@ langflow_connection:
 
 chatbot_defaults: # Renamed from 'defaults'
   enableStream: true
-  useFloating: false # Default to embedded, can be overridden by specific profiles
-  floatPosition: "bottom-right" # Default position if floating is enabled by a profile
-  widgetTitle: "Chat Assistant"   
-  userSender: "Me"                
-  botSender: "Assistant"          
-  errorSender: "Error"            
-  systemSender: "System"          
+  floatingWidget:
+    useFloating: false # Default to embedded, can be overridden by specific profiles
+    floatPosition: "bottom-right" # Default position if floating is enabled by a profile
+  labels:
+    widgetTitle: "Chat Assistant"   
+    userSender: "Me"                
+    botSender: "Assistant"          
+    errorSender: "Error"            
+    systemSender: "System"          
   # datetimeFormat controls how {{datetime}} is rendered in messageTemplate.
   #   - 'relative' (default): shows relative time (e.g., '2 minutes ago')
   #   - any date-fns format string (e.g., 'HH:mm', 'yyyy-MM-dd HH:mm')
@@ -24,44 +26,45 @@ chatbot_defaults: # Renamed from 'defaults'
   #   ChatWidget.registerDatetimeHandler((datetime, format) => { ... })
   # This allows for custom logic, localization, or even async formatting if needed.
   datetimeFormat: relative
-  # messageTemplate defines the HTML structure for each chat message. You can use:
-  #   {{messageClasses}} - dynamic CSS classes for message type (user, bot, error, system)
-  #   {{sender}}         - sender's display name
-  #   {{message}}        - message text/content
-  #   {{datetime}}       - message timestamp, formatted per datetimeFormat (above)
-  # For correct styling, include both {{messageClasses}} and a child with class "message-text-content".
-  messageTemplate: |              
-    <div class="{{messageClasses}} message-block">
-      <div class="sender-name-display">{{sender}}</div>
-      <div class="message-bubble">
-        <span class="message-text-content">{{message}}</span>
+  template:
+    # messageTemplate defines the HTML structure for each chat message. You can use:
+    #   {{messageClasses}} - dynamic CSS classes for message type (user, bot, error, system)
+    #   {{sender}}         - sender's display name
+    #   {{message}}        - message text/content
+    #   {{datetime}}       - message timestamp, formatted per datetimeFormat (above)
+    # For correct styling, include both {{messageClasses}} and a child with class "message-text-content".
+    messageTemplate: |              
+      <div class="{{messageClasses}} message-block">
+        <div class="sender-name-display">{{sender}}</div>
+        <div class="message-bubble">
+          <span class="message-text-content">{{message}}</span>
+        </div>
+        <div class="message-datetime">{{datetime}}</div>
       </div>
-      <div class="message-datetime">{{datetime}}</div>
-    </div>
-  # mainContainerTemplate defines the overall chat widget container. It must include:
-  #   - a div with class "chat-widget"
-  #   - a child with class "chat-messages" (where messages appear)
-  #   - an element with id "chat-input-area-container" (where the input area is inserted)
-  # You can customize layout and styling, but these elements are required for correct operation.
-  mainContainerTemplate: |        
-    <div class="chat-widget" style="display: flex; flex-direction: column; height: 100%;">
-      <div class="chat-widget-header" style="display: none;">
-        <span class="chat-widget-title-text"></span>
+    # mainContainerTemplate defines the overall chat widget container. It must include:
+    #   - a div with class "chat-widget"
+    #   - a child with class "chat-messages" (where messages appear)
+    #   - an element with id "chat-input-area-container" (where the input area is inserted)
+    # You can customize layout and styling, but these elements are required for correct operation.
+    mainContainerTemplate: |        
+      <div class="chat-widget" style="display: flex; flex-direction: column; height: 100%;">
+        <div class="chat-widget-header" style="display: none;">
+          <span class="chat-widget-title-text"></span>
+        </div>
+        <div class="chat-messages">
+          <!-- Messages will appear here -->
+        </div>
+        <div id="chat-input-area-container" style="flex-shrink: 0;"></div>
       </div>
-      <div class="chat-messages">
-        <!-- Messages will appear here -->
+    # inputAreaTemplate defines the chat input area. It must include:
+    #   - an input with class "chat-input"
+    #   - a button with class "send-button"
+    # You can customize the structure and styling, but these elements are required for correct operation.
+    inputAreaTemplate: |          
+      <div class="chat-input-area">
+        <input type="text" class="chat-input" placeholder="Type your message..." />
+        <button class="send-button">Send</button>
       </div>
-      <div id="chat-input-area-container" style="flex-shrink: 0;"></div>
-    </div>
-  # inputAreaTemplate defines the chat input area. It must include:
-  #   - an input with class "chat-input"
-  #   - a button with class "send-button"
-  # You can customize the structure and styling, but these elements are required for correct operation.
-  inputAreaTemplate: |          
-    <div class="chat-input-area">
-      <input type="text" class="chat-input" placeholder="Type your message..." />
-      <button class="send-button">Send</button>
-    </div>
 
 # Chatbot instances (the 'chatbots' array) are defined in application-specific 
 # configuration files (e.g., examples/basic/app-chatbots.yaml), which will 

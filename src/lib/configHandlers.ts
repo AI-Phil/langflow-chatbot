@@ -17,15 +17,23 @@ export async function handleGetChatbotConfigRequest(proxyEndpointId: string, res
 }
 
 export async function handleListChatbotProfilesRequest(req: http.IncomingMessage, res: http.ServerResponse, chatbotConfigurations: Map<string, ChatbotProfile>): Promise<void> {
-    console.log(`RequestHandler: Received GET request to list chatbot profiles.`);
-    const profilesList: Array<{ proxyEndpointId: string; widgetTitle?: string }> = [];
-    for (const [proxyId, profile] of chatbotConfigurations.entries()) {
-        profilesList.push({
-            proxyEndpointId: proxyId,
-            widgetTitle: profile.widgetTitle || proxyId
+    console.log('RequestHandler: Received GET request to list chatbot profiles.');
+    try {
+        const profilesList = Array.from(chatbotConfigurations.values()).map(profile => {
+            // Extract only proxyEndpointId and widgetTitle for the list response
+            // Default widgetTitle to proxyEndpointId if not present in profile.labels
+            const proxyId = profile.proxyEndpointId;
+            const widgetTitle = (profile.labels && profile.labels.widgetTitle) ? profile.labels.widgetTitle : proxyId;
+            return {
+                proxyEndpointId: proxyId,
+                widgetTitle: widgetTitle,
+            };
         });
+
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify(profilesList));
+    } catch (error) {
+        sendJsonError(res, 500, `Error listing chatbot profiles: ${(error as Error).message}`);
     }
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify(profilesList));
 } 

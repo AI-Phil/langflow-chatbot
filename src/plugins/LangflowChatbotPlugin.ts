@@ -29,21 +29,25 @@ export interface LangflowChatbotInitConfig {
 
 // Interface for the full configuration after fetching from server (matches ChatbotProfile on server, minus flowId)
 interface FullChatbotProfile extends Omit<LangflowChatbotInitConfig, 'proxyEndpointId' | 'containerId' | 'sessionId' | 'onSessionIdChanged'> {
-  // All fields from ChatbotProfile on server side (excluding flowId)
-  // Example fields (ensure these match what your server provides):
   enableStream?: boolean;
-  useFloating?: boolean;
-  floatPosition?: "bottom-right" | "bottom-left" | "top-right" | "top-left";
-  widgetTitle?: string;
-  userSender?: string;
-  botSender?: string;
-  errorSender?: string; 
-  systemSender?: string;
-  messageTemplate?: string;
-  mainContainerTemplate?: string;
-  inputAreaTemplate?: string;
-  logLevel?: LogLevel; // Add logLevel option
-  datetimeFormat?: string; // Added datetimeFormat
+  labels?: {
+    widgetTitle?: string;
+    userSender?: string;
+    botSender?: string;
+    errorSender?: string; 
+    systemSender?: string;
+  };
+  template?: {
+    messageTemplate?: string;
+    mainContainerTemplate?: string;
+    inputAreaTemplate?: string;
+  };
+  floatingWidget?: {
+    useFloating?: boolean;
+    floatPosition?: "bottom-right" | "bottom-left" | "top-right" | "top-left";
+  };
+  logLevel?: LogLevel;
+  datetimeFormat?: string;
 }
 
 export class LangflowChatbotInstance {
@@ -57,9 +61,7 @@ export class LangflowChatbotInstance {
 
   constructor(config: LangflowChatbotInitConfig) {
     this.initialConfig = { ...config };
-    // Initialize logger
     this.logger = new Logger(config.logLevel || 'info', 'LangflowChatbot');
-    // init is now async and called by the factory function
   }
 
   // Method for clients to subscribe to events
@@ -90,11 +92,10 @@ export class LangflowChatbotInstance {
   async init(): Promise<void> {
     if (this.isInitialized) {
       this.logger.warn("LangflowChatbotInstance already initialized. Call destroy() first to re-initialize.");
-      this.destroy(); // Clean up before re-initializing
+      this.destroy();
     }
 
     try {
-      // 1. Fetch server configuration
       const configUrl = `${PROXY_BASE_API_PATH}${PROXY_CONFIG_ENDPOINT_PREFIX}/${this.initialConfig.proxyEndpointId}`;
       this.logger.info(`Fetching configuration from ${configUrl}`);
       const response = await fetch(configUrl);
@@ -106,28 +107,39 @@ export class LangflowChatbotInstance {
       this.serverProfile = await response.json() as FullChatbotProfile;
       this.logger.debug("Received server profile:", this.serverProfile);
 
-      // 2. Create chat client
       this.chatClient = new LangflowChatClient(this.initialConfig.proxyEndpointId, undefined, this.logger);
       
-      // 3. Prepare widget configuration
+      // Ensure serverProfile parts are at least empty objects before merging
+      const safeServerLabels = this.serverProfile.labels || {};
+      const safeServerTemplate = this.serverProfile.template || {};
+      const safeServerFloatingWidget = this.serverProfile.floatingWidget || {};
+
       const mergedConfig = {
-        ...this.serverProfile,
-        userSender: this.serverProfile.userSender || this.initialConfig.userSender || 'Me',
-        botSender: this.serverProfile.botSender || this.initialConfig.botSender || 'Assistant',
-        widgetTitle: this.serverProfile.widgetTitle || this.initialConfig.widgetTitle || 'Chat Assistant',
-        // Templates: Prioritize server, then initial config. If neither, pass undefined.
-        // ChatTemplateManager will apply defaults within ChatWidget.
-        messageTemplate: this.serverProfile.messageTemplate || this.initialConfig.messageTemplate,
-        mainContainerTemplate: this.serverProfile.mainContainerTemplate || this.initialConfig.mainContainerTemplate,
-        inputAreaTemplate: this.serverProfile.inputAreaTemplate || this.initialConfig.inputAreaTemplate,
-        enableStream: this.serverProfile.enableStream !== undefined ? this.serverProfile.enableStream : this.initialConfig.enableStream,
-        useFloating: this.serverProfile.useFloating !== undefined ? this.serverProfile.useFloating : this.initialConfig.useFloating,
-        floatPosition: this.serverProfile.floatPosition || this.initialConfig.floatPosition || 'bottom-right',
-        datetimeFormat: this.serverProfile.datetimeFormat || this.initialConfig.datetimeFormat // Added datetimeFormat
+        enableStream: this.serverProfile.enableStream !== undefined 
+            ? this.serverProfile.enableStream 
+            : this.initialConfig.enableStream,
+        labels: {
+          widgetTitle: safeServerLabels.widgetTitle || this.initialConfig.widgetTitle || 'Chat Assistant',
+          userSender: safeServerLabels.userSender || this.initialConfig.userSender || 'Me',
+          botSender: safeServerLabels.botSender || this.initialConfig.botSender || 'Assistant',
+          errorSender: safeServerLabels.errorSender, // These might be undefined, which is fine
+          systemSender: safeServerLabels.systemSender,
+        },
+        template: {
+          messageTemplate: safeServerTemplate.messageTemplate || this.initialConfig.messageTemplate,
+          mainContainerTemplate: safeServerTemplate.mainContainerTemplate || this.initialConfig.mainContainerTemplate,
+          inputAreaTemplate: safeServerTemplate.inputAreaTemplate || this.initialConfig.inputAreaTemplate,
+        },
+        floatingWidget: {
+          useFloating: safeServerFloatingWidget.useFloating !== undefined 
+              ? safeServerFloatingWidget.useFloating 
+              : this.initialConfig.useFloating,
+          floatPosition: safeServerFloatingWidget.floatPosition || this.initialConfig.floatPosition || 'bottom-right',
+        },
+        datetimeFormat: this.serverProfile.datetimeFormat || this.initialConfig.datetimeFormat,
       };
       
-      // 4. Instantiate the appropriate widget
-      const clientWantsFloating = mergedConfig.useFloating;
+      const clientWantsFloating = mergedConfig.floatingWidget.useFloating;
       const effectiveEnableStream = !!mergedConfig.enableStream;
 
       const onSessionIdUpdateCallback = this.initialConfig.onSessionIdChanged || this._handleInternalSessionIdUpdate;
@@ -141,16 +153,16 @@ export class LangflowChatbotInstance {
           this.chatClient,
           effectiveEnableStream,
           {
-            widgetTitle: mergedConfig.widgetTitle,
+            widgetTitle: mergedConfig.labels.widgetTitle,
             chatWidgetConfig: {
-              userSender: mergedConfig.userSender,
-              botSender: mergedConfig.botSender,
-              messageTemplate: mergedConfig.messageTemplate,
-              mainContainerTemplate: mergedConfig.mainContainerTemplate,
-              inputAreaTemplate: mergedConfig.inputAreaTemplate,
+              userSender: mergedConfig.labels.userSender,
+              botSender: mergedConfig.labels.botSender,
+              messageTemplate: mergedConfig.template.messageTemplate,
+              mainContainerTemplate: mergedConfig.template.mainContainerTemplate,
+              inputAreaTemplate: mergedConfig.template.inputAreaTemplate,
               datetimeFormat: mergedConfig.datetimeFormat
             },
-            position: mergedConfig.floatPosition,
+            position: mergedConfig.floatingWidget.floatPosition,
             initialSessionId: this.initialConfig.sessionId,
             onSessionIdUpdate: onSessionIdUpdateCallback
           },
@@ -165,19 +177,19 @@ export class LangflowChatbotInstance {
           throw new Error(`Chat container with id '${this.initialConfig.containerId}' not found.`);
         }
         chatContainerElement.style.display = 'block';
-        chatContainerElement.innerHTML = ''; // Clear it before use
+        chatContainerElement.innerHTML = '';
         this.widgetInstance = new ChatWidget(
-          chatContainerElement, // Pass the HTMLElement directly
+          chatContainerElement,
           this.chatClient,
           effectiveEnableStream,
           {
-            userSender: mergedConfig.userSender,
-            botSender: mergedConfig.botSender,
-            messageTemplate: mergedConfig.messageTemplate,
-            mainContainerTemplate: mergedConfig.mainContainerTemplate,
-            inputAreaTemplate: mergedConfig.inputAreaTemplate,
-            widgetTitle: mergedConfig.widgetTitle,
-            datetimeFormat: mergedConfig.datetimeFormat // Pass to ChatWidget config
+            userSender: mergedConfig.labels.userSender,
+            botSender: mergedConfig.labels.botSender,
+            messageTemplate: mergedConfig.template.messageTemplate,
+            mainContainerTemplate: mergedConfig.template.mainContainerTemplate,
+            inputAreaTemplate: mergedConfig.template.inputAreaTemplate,
+            widgetTitle: mergedConfig.labels.widgetTitle,
+            datetimeFormat: mergedConfig.datetimeFormat
           },
           this.logger || new Logger('info', 'LangflowChatbot'),
           this.initialConfig.sessionId,

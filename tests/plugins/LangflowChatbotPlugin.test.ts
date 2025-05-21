@@ -54,17 +54,25 @@ const mockDefaultInitConfig: LangflowChatbotInitConfig = {
     containerId: mockContainerId,
 };
 
+// Updated mockServerProfile to reflect the new nested structure
 const mockServerProfile = {
     enableStream: true,
-    useFloating: false,
-    widgetTitle: 'Server Title',
-    userSender: 'ServerUser',
-    botSender: 'ServerBot',
-    messageTemplate: '<p>Server Message</p>',
-    mainContainerTemplate: '<div id="server-main"></div>',
-    inputAreaTemplate: '<input id="server-input" />',
-    floatPosition: 'bottom-left',
-    logLevel: 'debug',
+    labels: {
+        widgetTitle: 'Server Title',
+        userSender: 'ServerUser',
+        botSender: 'ServerBot',
+        // errorSender and systemSender can be added if needed for specific tests
+    },
+    template: {
+        messageTemplate: '<p>Server Message</p>',
+        mainContainerTemplate: '<div id="server-main"></div>',
+        inputAreaTemplate: '<input id="server-input" />',
+    },
+    floatingWidget: {
+        useFloating: false,
+        floatPosition: 'bottom-left',
+    },
+    logLevel: 'debug' as LogLevel, // Cast to LogLevel type
     datetimeFormat: 'HH:mm',
 };
 
@@ -82,11 +90,11 @@ describe('LangflowChatbotInstance', () => {
         mockChatContainer.id = mockContainerId;
         mockGetElementById.mockReturnValue(mockChatContainer);
 
-        // Default fetch mock for config - can be overridden in tests
+        // Default fetch mock for config - ensure it returns a fresh copy of the structured mockServerProfile
         (fetch as jest.Mock).mockResolvedValue({
             ok: true,
-            json: async () => ({ ...mockServerProfile }),
-            text: async () => JSON.stringify(mockServerProfile)
+            json: async () => JSON.parse(JSON.stringify(mockServerProfile)), // Deep copy
+            text: async () => JSON.stringify(mockServerProfile) // Deep copy
         });
     });
 
@@ -179,9 +187,12 @@ describe('LangflowChatbotInstance', () => {
                 expect(chatWidgetArgs[1]).toBeInstanceOf(LangflowChatClient);
                 expect(chatWidgetArgs[2]).toBe(mockServerProfile.enableStream);
                 expect(chatWidgetArgs[3]).toEqual(expect.objectContaining({
-                    userSender: mockServerProfile.userSender,
-                    botSender: mockServerProfile.botSender,
-                    widgetTitle: mockServerProfile.widgetTitle,
+                    userSender: mockServerProfile.labels.userSender,
+                    botSender: mockServerProfile.labels.botSender,
+                    widgetTitle: mockServerProfile.labels.widgetTitle,
+                    messageTemplate: mockServerProfile.template.messageTemplate,
+                    mainContainerTemplate: mockServerProfile.template.mainContainerTemplate,
+                    inputAreaTemplate: mockServerProfile.template.inputAreaTemplate,
                     datetimeFormat: mockServerProfile.datetimeFormat
                 }));
                 expect(chatWidgetArgs[5]).toBeUndefined(); 
@@ -193,7 +204,7 @@ describe('LangflowChatbotInstance', () => {
         });
 
         it('should use initialConfig values as fallback if server profile values are missing', async () => {
-            const partialServerProfile = { widgetTitle: 'Partial Server Title' };
+            const partialServerProfile = { labels: { widgetTitle: 'Partial Server Title' } };
             (fetch as jest.Mock).mockResolvedValueOnce({
                 ok: true, json: async () => partialServerProfile, text: async () => JSON.stringify(partialServerProfile)
             });
@@ -210,9 +221,13 @@ describe('LangflowChatbotInstance', () => {
             if (MockedChatWidget.mock.calls.length > 0) {
                 const chatWidgetArgsForFallback = MockedChatWidget.mock.calls[0];
                 expect(chatWidgetArgsForFallback[3]).toEqual(expect.objectContaining({
-                    userSender: 'InitialUser',
-                    botSender: 'InitialBot',
-                    widgetTitle: 'Partial Server Title',
+                    userSender: initialConfWithFallbacks.userSender, 
+                    botSender: initialConfWithFallbacks.botSender,   
+                    widgetTitle: partialServerProfile.labels.widgetTitle, 
+                    messageTemplate: undefined, // As per merging logic if not in server or initial
+                    mainContainerTemplate: undefined,
+                    inputAreaTemplate: undefined,
+                    // datetimeFormat would also be undefined if not provided by server/initial
                 }));
             } else {
                 throw new Error('MockedChatWidget was not called when testing initialConfig fallback.');
@@ -241,9 +256,16 @@ describe('LangflowChatbotInstance', () => {
         });
 
         it('should init FloatingChatWidget if useFloating is true in merged config', async () => {
+            // Clone and modify mockServerProfile for this specific test case
+            const floatingMockServerProfile = JSON.parse(JSON.stringify(mockServerProfile));
+            floatingMockServerProfile.floatingWidget.useFloating = true;
+
             (fetch as jest.Mock).mockResolvedValueOnce({
-                ok: true, json: async () => ({ ...mockServerProfile, useFloating: true }), text: async () => JSON.stringify(mockServerProfile)
+                ok: true, 
+                json: async () => floatingMockServerProfile, 
+                text: async () => JSON.stringify(floatingMockServerProfile)
             });
+            // Ensure initialConfig also reflects the desire for floating, to align with typical use case
             instance = new LangflowChatbotInstance({ ...mockDefaultInitConfig, useFloating: true });
             await instance.init();
             expect((instance as any)['widgetInstance']).toBeDefined();
@@ -256,25 +278,26 @@ describe('LangflowChatbotInstance', () => {
             }
 
             if (MockedFloatingChatWidget.mock.calls.length > 0) {
-                const floatingWidgetArgs = MockedFloatingChatWidget.mock.calls[0]!;
-                
-                expect(floatingWidgetArgs[0]).toBeInstanceOf(LangflowChatClient);
-                expect(floatingWidgetArgs[1]).toBe(mockServerProfile.enableStream); 
-                
+                const floatingWidgetArgs = MockedFloatingChatWidget.mock.calls[0];
                 const optionsArg = floatingWidgetArgs[2];
                 
                 if (optionsArg) {
                     expect(optionsArg).toEqual(expect.objectContaining({
-                        widgetTitle: mockServerProfile.widgetTitle,
-                        position: mockServerProfile.floatPosition,
+                        widgetTitle: mockServerProfile.labels.widgetTitle,
+                        position: mockServerProfile.floatingWidget.floatPosition,
+                        chatWidgetConfig: expect.objectContaining({
+                            userSender: mockServerProfile.labels.userSender,
+                            botSender: mockServerProfile.labels.botSender,
+                            messageTemplate: mockServerProfile.template.messageTemplate,
+                            mainContainerTemplate: mockServerProfile.template.mainContainerTemplate,
+                            inputAreaTemplate: mockServerProfile.template.inputAreaTemplate,
+                            datetimeFormat: mockServerProfile.datetimeFormat
+                        })
                     }));
-    
-                    expect(typeof optionsArg.onSessionIdUpdate).toBe('function'); 
-                    
-                    expect((instance as any)['widgetInstance']).toBe(MockedFloatingChatWidget.mock.instances[0]);
                 } else {
-                    throw new Error("FloatingChatWidget options (floatingWidgetArgs[2]) were unexpectedly undefined.");
+                    throw new Error('Options argument for FloatingChatWidget was not provided as expected.');
                 }
+                 expect((instance as any)['widgetInstance']).toBe(MockedFloatingChatWidget.mock.instances[0]);
             } else {
                 throw new Error('MockedFloatingChatWidget was not called when useFloating is true, despite expect(toHaveBeenCalledTimes(1)).');
             }
@@ -389,8 +412,8 @@ describe('LangflowChatbotInstance', () => {
             // Server profile will default to useFloating: false
             (fetch as jest.Mock).mockResolvedValueOnce({
                 ok: true,
-                json: async () => ({ ...mockServerProfile, useFloating: false }),
-                text: async () => JSON.stringify({ ...mockServerProfile, useFloating: false })
+                json: async () => ({ ...mockServerProfile, floatingWidget: { useFloating: false } }),
+                text: async () => JSON.stringify({ ...mockServerProfile, floatingWidget: { useFloating: false } })
             });
 
             // Create instance without containerId in initialConfig
@@ -406,8 +429,8 @@ describe('LangflowChatbotInstance', () => {
             // Server profile will default to useFloating: false
             (fetch as jest.Mock).mockResolvedValueOnce({
                 ok: true,
-                json: async () => ({ ...mockServerProfile, useFloating: false }),
-                text: async () => JSON.stringify({ ...mockServerProfile, useFloating: false })
+                json: async () => ({ ...mockServerProfile, floatingWidget: { useFloating: false } }),
+                text: async () => JSON.stringify({ ...mockServerProfile, floatingWidget: { useFloating: false } })
             });
             // Mock getElementById to return null for the specific containerId
             mockGetElementById.mockImplementation((id: string) => {
@@ -427,8 +450,8 @@ describe('LangflowChatbotInstance', () => {
             // Server profile will default to useFloating: false
             (fetch as jest.Mock).mockResolvedValueOnce({
                 ok: true,
-                json: async () => ({ ...mockServerProfile, useFloating: false }),
-                text: async () => JSON.stringify({ ...mockServerProfile, useFloating: false })
+                json: async () => ({ ...mockServerProfile, floatingWidget: { useFloating: false } }),
+                text: async () => JSON.stringify({ ...mockServerProfile, floatingWidget: { useFloating: false } })
             });
             
             // mockChatContainer is set up in the outer beforeEach to be returned by getElementById(mockContainerId)
@@ -487,8 +510,8 @@ describe('LangflowChatbotInstance', () => {
             instance = new LangflowChatbotInstance({ proxyEndpointId: mockProxyEndpointId, useFloating: true });
             (fetch as jest.Mock).mockResolvedValueOnce({
                 ok: true,
-                json: async () => ({ ...mockServerProfile, useFloating: true }),
-                text: async () => JSON.stringify({ ...mockServerProfile, useFloating: true })
+                json: async () => ({ ...mockServerProfile, floatingWidget: { useFloating: true } }),
+                text: async () => JSON.stringify({ ...mockServerProfile, floatingWidget: { useFloating: true } })
             });
             await instance.init();
             

@@ -193,7 +193,12 @@ describe('handleRequest', () => {
     // Tests for /api/v1/chat/{proxyEndpointId}/messages and /history
     describe('Chat Messages Endpoint', () => {
         const profileId = 'chat-profile';
-        const validProfile: ChatbotProfile = { proxyEndpointId: profileId, flowId: 'flow-uuid-123', widgetTitle: 'Chat Now' };
+        const validProfile: ChatbotProfile = { 
+            proxyEndpointId: profileId, 
+            flowId: 'flow-uuid-123', 
+            labels: { widgetTitle: 'Chat Now' },
+            // other fields can be undefined or have default values if not specified
+        };
         const chatBasePath = `${PROXY_BASE_API_PATH}${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}`;
         const messagesPath = `${chatBasePath}/${profileId}`;
         const historyPath = `${messagesPath}/history`;
@@ -228,7 +233,14 @@ describe('handleRequest', () => {
             });
 
             test('POST to messagesPath should respect enableStream=false in profile', async () => {
-                const noStreamProfile = { ...validProfile, enableStream: false };
+                const noStreamProfile: ChatbotProfile = { 
+                    ...validProfile, 
+                    enableStream: false,
+                    // Ensure all required fields from ChatbotProfile are present, even if nested
+                    labels: { ...validProfile.labels }, 
+                    template: { ...validProfile.template }, 
+                    floatingWidget: { ...validProfile.floatingWidget } 
+                };
                 mockChatbotConfigurations.set(profileId, noStreamProfile);
                 mockReq = createMockReq('POST', messagesPath, { message: 'Hello' });
                 await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest);
@@ -236,7 +248,14 @@ describe('handleRequest', () => {
             });
 
             test('POST to messagesPath should respect enableStream=true in profile', async () => {
-                const streamProfile = { ...validProfile, enableStream: true }; // Explicitly true
+                const streamProfile: ChatbotProfile = { 
+                    ...validProfile, 
+                    enableStream: true, 
+                    // Ensure all required fields from ChatbotProfile are present, even if nested
+                    labels: { ...validProfile.labels }, 
+                    template: { ...validProfile.template }, 
+                    floatingWidget: { ...validProfile.floatingWidget } 
+                }; // Explicitly true
                 mockChatbotConfigurations.set(profileId, streamProfile);
                 mockReq = createMockReq('POST', messagesPath, { message: 'Hello' });
                 await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest);

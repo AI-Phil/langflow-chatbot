@@ -67,9 +67,9 @@ describe('initializeFlowMappings', () => {
         });
 
         const chatbotConfigurations = new Map<string, ChatbotProfile>([
-            ['profile1', { proxyEndpointId: 'profile1', flowId: 'flow-one-endpoint' }],
-            ['profile2', { proxyEndpointId: 'profile2', flowId: 'kinetic-constructs-hybrid-search' }],
-            ['profile3', { proxyEndpointId: 'profile3', flowId: '00000000-0000-0000-0000-000000000000' }]
+            ['profile1', { proxyEndpointId: 'profile1', flowId: 'flow-one-endpoint', labels: { widgetTitle: 'Profile 1'} }],
+            ['profile2', { proxyEndpointId: 'profile2', flowId: 'kinetic-constructs-hybrid-search', template: { messageTemplate: '<p></p>'} }],
+            ['profile3', { proxyEndpointId: 'profile3', flowId: '00000000-0000-0000-0000-000000000000', floatingWidget: { useFloating: true } }]
         ]);
 
         await initializeFlowMappings(mockLangflowEndpoint, 'test-api-key', chatbotConfigurations);
@@ -108,7 +108,7 @@ describe('initializeFlowMappings', () => {
         });
 
         const chatbotConfigurations = new Map<string, ChatbotProfile>([
-            ['profileA', { proxyEndpointId: 'profileA', flowId: 'flow-a-endpoint' }]
+            ['profileA', { proxyEndpointId: 'profileA', flowId: 'flow-a-endpoint', labels: { userSender: 'User A'} }]
         ]);
 
         await initializeFlowMappings(mockLangflowEndpoint, undefined, chatbotConfigurations);
@@ -129,7 +129,7 @@ describe('initializeFlowMappings', () => {
         });
 
         const chatbotConfigurations = new Map<string, ChatbotProfile>([
-            ['profileB', { proxyEndpointId: 'profileB', flowId: 'flow-b-endpoint' }]
+            ['profileB', { proxyEndpointId: 'profileB', flowId: 'flow-b-endpoint', template: { mainContainerTemplate: '<div></div>'} }]
         ]);
 
         await initializeFlowMappings(mockLangflowEndpoint, 'another-key', chatbotConfigurations);
@@ -194,8 +194,8 @@ describe('initializeFlowMappings', () => {
         });
 
         const chatbotConfigurations = new Map<string, ChatbotProfile>([
-            ['profileUnresolved', { proxyEndpointId: 'profileUnresolved', flowId: 'non-existent-flow-name' }],
-            ['profileResolved', { proxyEndpointId: 'profileResolved', flowId: 'existing-flow' }]
+            ['profileUnresolved', { proxyEndpointId: 'profileUnresolved', flowId: 'non-existent-flow-name', labels: { botSender: 'Bot Unresolved'} }],
+            ['profileResolved', { proxyEndpointId: 'profileResolved', flowId: 'existing-flow', floatingWidget: { floatPosition: 'top-left'} }]
         ]);
 
         await initializeFlowMappings(mockLangflowEndpoint, 'some-key', chatbotConfigurations);
@@ -213,7 +213,7 @@ describe('initializeFlowMappings', () => {
         });
 
         const chatbotConfigurations = new Map<string, ChatbotProfile>([
-            ['profileWithFlowName', { proxyEndpointId: 'profileWithFlowName', flowId: 'some-flow-name' }]
+            ['profileWithFlowName', { proxyEndpointId: 'profileWithFlowName', flowId: 'some-flow-name', labels: { widgetTitle: 'Test'} }]
         ]);
         const originalFlowId = chatbotConfigurations.get('profileWithFlowName')?.flowId;
 
@@ -239,7 +239,7 @@ describe('initializeFlowMappings', () => {
         });
 
         const chatbotConfigurations = new Map<string, ChatbotProfile>([
-            ['profileValid', { proxyEndpointId: 'profileValid', flowId: 'valid-flow' }]
+            ['profileValid', { proxyEndpointId: 'profileValid', flowId: 'valid-flow', labels: { errorSender: 'System Error'} }]
         ]);
 
         await initializeFlowMappings(mockLangflowEndpoint, 'key', chatbotConfigurations);
