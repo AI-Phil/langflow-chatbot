@@ -1,4 +1,9 @@
 import { Logger } from '../utils/logger';
+import {
+    DEFAULT_MAIN_CONTAINER_TEMPLATE,
+    DEFAULT_INPUT_AREA_TEMPLATE,
+    DEFAULT_MESSAGE_TEMPLATE
+} from '../config/uiConstants';
 
 export interface TemplateManagerConfig {
     mainContainerTemplate?: string;
@@ -12,30 +17,6 @@ export interface TemplateManagerConfig {
  * It also validates the templates to ensure they contain essential elements for the widget to function correctly.
  */
 export class ChatTemplateManager {
-    private static readonly DEFAULT_MAIN_CONTAINER_TEMPLATE = `
-    <div class="chat-widget" style="display: flex; flex-direction: column; height: 100%;">
-        <div class="chat-messages" style="flex-grow: 1; overflow-y: auto;">
-            <!-- Messages will appear here -->
-        </div>
-        <div id="chat-input-area-container" style="flex-shrink: 0;"></div>
-    </div>
-    `;
-
-    private static readonly DEFAULT_INPUT_AREA_TEMPLATE = `
-    <div class="chat-input-area">
-        <input type="text" class="chat-input" placeholder="Type your message..." />
-        <button class="send-button">Send</button>
-    </div>
-    `;
-
-    private static readonly DEFAULT_MESSAGE_TEMPLATE = `
-    <div class="{{messageClasses}} message-block">
-      <div class="sender-name-display" style="font-size: 0.8em; color: #888; margin-bottom: 2px;">{{sender}}</div>
-      <div class="message-bubble">
-        <span class="message-text-content" style="white-space: pre-wrap;">{{message}}</span>
-      </div>
-    </div>`;
-
     private _mainContainerTemplate: string;
     private _inputAreaTemplate: string;
     private _messageTemplate: string;
@@ -49,9 +30,9 @@ export class ChatTemplateManager {
         private config: TemplateManagerConfig,
         private logger: Logger
     ) {
-        this._mainContainerTemplate = config.mainContainerTemplate || ChatTemplateManager.DEFAULT_MAIN_CONTAINER_TEMPLATE;
-        this._inputAreaTemplate = config.inputAreaTemplate || ChatTemplateManager.DEFAULT_INPUT_AREA_TEMPLATE;
-        this._messageTemplate = config.messageTemplate || ChatTemplateManager.DEFAULT_MESSAGE_TEMPLATE;
+        this._mainContainerTemplate = config.mainContainerTemplate || DEFAULT_MAIN_CONTAINER_TEMPLATE;
+        this._inputAreaTemplate = config.inputAreaTemplate || DEFAULT_INPUT_AREA_TEMPLATE;
+        this._messageTemplate = config.messageTemplate || DEFAULT_MESSAGE_TEMPLATE;
 
         this.validateTemplates();
     }

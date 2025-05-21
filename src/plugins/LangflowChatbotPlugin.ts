@@ -3,6 +3,7 @@ import { LangflowChatClient } from '../clients/LangflowChatClient';
 import { PROXY_BASE_API_PATH, PROXY_CONFIG_ENDPOINT_PREFIX } from '../config/apiPaths';
 import { ChatWidget, FloatingChatWidget } from '../components';
 import { Logger, LogLevel } from '../utils/logger';
+import { ERROR_MESSAGE_TEMPLATE } from '../config/uiConstants';
 
 // Interface for the initial configuration passed to the plugin's init function
 export interface LangflowChatbotInitConfig {
@@ -193,7 +194,7 @@ export class LangflowChatbotInstance {
         try {
           const container = document.getElementById(this.initialConfig.containerId);
           if (container) {
-            container.innerHTML = `<div style="color: red; padding: 10px;">Error initializing chatbot: ${(error as Error).message}</div>`;
+            container.innerHTML = ERROR_MESSAGE_TEMPLATE((error as Error).message);
           }
         } catch (displayError) {
           // silent

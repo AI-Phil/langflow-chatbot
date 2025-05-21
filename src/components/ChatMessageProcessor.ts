@@ -17,6 +17,7 @@
 import { LangflowChatClient, BotResponse, StreamEvent, StreamEventType, StreamEventDataMap } from '../clients/LangflowChatClient';
 import { Logger } from '../utils/logger';
 import { SenderConfig } from '../types';
+import { THINKING_BUBBLE_HTML } from '../config/uiConstants';
 
 export interface MessageProcessorUICallbacks {
     addMessage: (sender: string, message: string, isThinking?: boolean, datetime?: string) => HTMLElement | null;
@@ -30,8 +31,6 @@ export interface MessageProcessorUICallbacks {
 }
 
 export class ChatMessageProcessor {
-    private readonly thinkingBubbleHTML = '<div class="thinking-bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
-
     /**
      * Constructs a ChatMessageProcessor.
      * @param chatClient The client for interacting with the Langflow API.
@@ -54,7 +53,7 @@ export class ChatMessageProcessor {
      * Displays the initial "thinking" indicator in the UI.
      */
     private displayInitialThinkingIndicator(): void {
-        const thinkingMsgElement = this.ui.addMessage(this.config.botSender, this.thinkingBubbleHTML, true, new Date().toISOString());
+        const thinkingMsgElement = this.ui.addMessage(this.config.botSender, THINKING_BUBBLE_HTML, true, new Date().toISOString());
         this.ui.setBotMessageElement(thinkingMsgElement);
     }
 

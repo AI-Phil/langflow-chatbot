@@ -1,6 +1,7 @@
 import { LangflowChatClient } from '../clients/LangflowChatClient';
 import { ChatWidget, ChatWidgetConfigOptions } from './ChatWidget';
 import { Logger, LogLevel } from '../utils/logger';
+import { SVG_CHAT_ICON, SVG_MINIMIZE_ICON } from '../config/uiConstants';
 
 /**
  * Configuration options for the FloatingChatWidget.
@@ -49,20 +50,6 @@ const DEFAULT_FLOATING_CONFIG: DefaultFloatingConfigValues = {
     toggleButtonText: 'Chat', // Default text, though current implementation uses an icon
     widgetTitle: 'Chatbot',
 };
-
-/** SVG string for the speech bubble icon used on the floating toggle button. */
-const SPEECH_BUBBLE_ICON = `
-<svg viewBox="0 0 24 24" fill="currentColor">
-  <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
-</svg>
-`;
-
-/** SVG string for the minus icon used on the minimize button in the chat panel header. */
-const MINUS_ICON = `
-<svg viewBox="0 0 24 24" stroke-width="2">
-  <line x1="5" y1="12" x2="19" y2="12" />
-</svg>
-`;
 
 /** 
  * Internal configuration structure for FloatingChatWidget after merging user-provided 
@@ -203,7 +190,7 @@ export class FloatingChatWidget {
         // Create floating toggle button
         this.floatingButton = document.createElement('div');
         this.floatingButton.className = `floating-chat-button ${this.config.position}`;
-        this.floatingButton.innerHTML = SPEECH_BUBBLE_ICON; // Uses SVG icon
+        this.floatingButton.innerHTML = SVG_CHAT_ICON; // Use imported constant
         // Respect showToggleButton: if false, always hide
         if (!this.config.showToggleButton) {
             this.floatingButton.style.display = 'none';
@@ -223,7 +210,7 @@ export class FloatingChatWidget {
         
         const minimizeButton = document.createElement('button');
         minimizeButton.className = 'minimize-button';
-        minimizeButton.innerHTML = MINUS_ICON; // Uses SVG icon
+        minimizeButton.innerHTML = SVG_MINIMIZE_ICON; // Use imported constant
         minimizeButton.onclick = () => this.toggleChatVisibility();
         
         // Append title first, then minimize button (button right)

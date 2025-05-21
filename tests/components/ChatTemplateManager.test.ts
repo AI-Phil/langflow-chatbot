@@ -2,6 +2,11 @@
 
 import { ChatTemplateManager, TemplateManagerConfig } from '../../src/components/ChatTemplateManager';
 import { Logger } from '../../src/utils/logger';
+import {
+    DEFAULT_MAIN_CONTAINER_TEMPLATE,
+    DEFAULT_INPUT_AREA_TEMPLATE,
+    DEFAULT_MESSAGE_TEMPLATE
+} from '../../src/config/uiConstants'; // Import constants
 
 // Mock Logger
 const mockLogger: jest.Mocked<Logger> = {
@@ -37,13 +42,9 @@ describe('ChatTemplateManager', () => {
     describe('constructor and default templates', () => {
         it('should use default templates when no custom templates are provided', () => {
             const manager = new ChatTemplateManager({}, mockLogger);
-            // Access private static defaults for comparison - a bit of a hack for testing, but necessary here
-            // @ts-ignore
-            expect(manager.getMainContainerTemplate()).toBe((ChatTemplateManager as any).DEFAULT_MAIN_CONTAINER_TEMPLATE);
-            // @ts-ignore
-            expect(manager.getInputAreaTemplate()).toBe((ChatTemplateManager as any).DEFAULT_INPUT_AREA_TEMPLATE);
-            // @ts-ignore
-            expect(manager.getMessageTemplate()).toBe((ChatTemplateManager as any).DEFAULT_MESSAGE_TEMPLATE);
+            expect(manager.getMainContainerTemplate()).toBe(DEFAULT_MAIN_CONTAINER_TEMPLATE);
+            expect(manager.getInputAreaTemplate()).toBe(DEFAULT_INPUT_AREA_TEMPLATE);
+            expect(manager.getMessageTemplate()).toBe(DEFAULT_MESSAGE_TEMPLATE);
             expect(mockLogger.error).not.toHaveBeenCalled(); // No errors should be logged for defaults
         });
 
@@ -163,20 +164,17 @@ describe('ChatTemplateManager', () => {
     describe('getter methods', () => {
         it('getMainContainerTemplate should return the main container template', () => {
             const manager = new ChatTemplateManager({}, mockLogger);
-            // @ts-ignore
-            expect(manager.getMainContainerTemplate()).toBe((ChatTemplateManager as any).DEFAULT_MAIN_CONTAINER_TEMPLATE);
+            expect(manager.getMainContainerTemplate()).toBe(DEFAULT_MAIN_CONTAINER_TEMPLATE);
         });
 
         it('getInputAreaTemplate should return the input area template', () => {
             const manager = new ChatTemplateManager({}, mockLogger);
-            // @ts-ignore
-            expect(manager.getInputAreaTemplate()).toBe((ChatTemplateManager as any).DEFAULT_INPUT_AREA_TEMPLATE);
+            expect(manager.getInputAreaTemplate()).toBe(DEFAULT_INPUT_AREA_TEMPLATE);
         });
 
         it('getMessageTemplate should return the message template', () => {
             const manager = new ChatTemplateManager({}, mockLogger);
-            // @ts-ignore
-            expect(manager.getMessageTemplate()).toBe((ChatTemplateManager as any).DEFAULT_MESSAGE_TEMPLATE);
+            expect(manager.getMessageTemplate()).toBe(DEFAULT_MESSAGE_TEMPLATE);
         });
     });
 }); 

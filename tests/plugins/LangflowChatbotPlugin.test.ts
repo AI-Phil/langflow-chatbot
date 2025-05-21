@@ -7,6 +7,7 @@ import { ChatWidget } from '../../src/components/ChatWidget';
 import { FloatingChatWidget } from '../../src/components/FloatingChatWidget';
 import { Logger, LogLevel } from '../../src/utils/logger';
 import { PROXY_BASE_API_PATH, PROXY_CONFIG_ENDPOINT_PREFIX } from '../../src/config/apiPaths';
+import { ERROR_MESSAGE_TEMPLATE } from '../../src/config/uiConstants';
 
 // Polyfill TextDecoder/TextEncoder if not present in JSDOM
 if (typeof global.TextDecoder === 'undefined') {
@@ -451,7 +452,7 @@ describe('LangflowChatbotInstance', () => {
             
             // Check if the error message was rendered in the container
             // mockChatContainer is the element that getElementById(mockContainerId) returns in the test setup
-            expect(mockChatContainer.innerHTML).toBe(`<div style="color: red; padding: 10px;">Error initializing chatbot: Simulated client creation error</div>`);
+            expect(mockChatContainer.innerHTML).toBe(ERROR_MESSAGE_TEMPLATE('Simulated client creation error'));
 
             // Restore LangflowChatClient if it's a constructor we spied on or replaced
             // jest.mock already handles this for top-level mocks, but if we re-assigned:
