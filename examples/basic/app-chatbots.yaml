@@ -3,29 +3,35 @@ langflow_connection:
   # api_key: ""
 
 chatbots:
-  - proxyEndpointId: "memory" 
-    flowId: "memory-chatbot" 
-    floatingWidget:
-      useFloating: false
-    labels:
-      widgetTitle: "Memory Chatbot"
-      botSender: "Chatbot"
-      welcomeMessage: "Welcome to the Memory Chatbot!"
+  - profileId: "memory"
+    server:
+      flowId: "memory-chatbot"
+    chatbot:
+      floatingWidget:
+        useFloating: false
+      labels:
+        widgetTitle: "Memory Chatbot"
+        botSender: "Chatbot"
+        welcomeMessage: "Welcome to the Memory Chatbot!"
 
-  - proxyEndpointId: "floating-memory" 
-    flowId: "memory-chatbot" 
-    floatingWidget:
-      useFloating: true
-    labels:
-      widgetTitle: "Floating Memory Chatbot"
-      botSender: "Chatbot"
-      welcomeMessage: "Welcome to the Floating Memory Chatbot!"
+  - profileId: "floating-memory"
+    server:
+      flowId: "memory-chatbot"
+    chatbot:
+      floatingWidget:
+        useFloating: true
+      labels:
+        widgetTitle: "Floating Memory Chatbot"
+        botSender: "Chatbot"
+        welcomeMessage: "Welcome to the Floating Memory Chatbot!"
 
-  - proxyEndpointId: "product-recommender" 
-    flowId: "bce8ac44-7542-4027-a969-43281e1f66d9" 
-    floatingWidget:
-      useFloating: false
-    labels:
-      widgetTitle: "Product Recommender"
-      botSender: "Assistant"
-      welcomeMessage: "How can I help you find the perfect product?"
+  - profileId: "product-recommender"
+    server:
+      flowId: "bce8ac44-7542-4027-a969-43281e1f66d9"
+    chatbot:
+      floatingWidget:
+        useFloating: false
+      labels:
+        widgetTitle: "Product Recommender"
+        botSender: "Assistant"
+        welcomeMessage: "How can I help you find the perfect product?"

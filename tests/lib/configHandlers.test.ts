@@ -1,6 +1,6 @@
 import http from 'http';
 import { handleGetChatbotConfigRequest, handleListChatbotProfilesRequest } from '../../src/lib/configHandlers';
-import { ChatbotProfile } from '../../src/types';
+import { Profile, ChatbotProfile } from '../../src/types';
 import { sendJsonError } from '../../src/lib/request-utils';
 
 // Mock the request-utils module, specifically sendJsonError
@@ -31,7 +31,7 @@ const createMockResponse = () => {
 
 
 describe('configHandlers', () => {
-    let mockConfigurations: Map<string, ChatbotProfile>;
+    let mockConfigurations: Map<string, Profile>;
     let mockRes: http.ServerResponse;
 
     beforeEach(() => {
@@ -43,55 +43,59 @@ describe('configHandlers', () => {
 
         mockRes = createMockResponse();
 
-        // Setup mock configurations
-        mockConfigurations = new Map<string, ChatbotProfile>([
+        // Setup mock configurations with the new Profile structure
+        mockConfigurations = new Map<string, Profile>([
             ['profile1', {
-                proxyEndpointId: 'profile1',
-                flowId: 'uuid-flow-one',
-                labels: { widgetTitle: 'Chatbot One' },
-                enableStream: true,
+                profileId: 'profile1',
+                server: { 
+                    flowId: 'uuid-flow-one', 
+                    enableStream: true 
+                },
+                chatbot: { 
+                    labels: { widgetTitle: 'Chatbot One' },
+                }
             }],
             ['profile2', {
-                proxyEndpointId: 'profile2',
-                flowId: 'uuid-flow-two',
-                labels: {},
-                // widgetTitle is optional, so labels.widgetTitle will be undefined
+                profileId: 'profile2',
+                server: { 
+                    flowId: 'uuid-flow-two', 
+                    // enableStream can be omitted, defaults will apply
+                },
+                chatbot: { 
+                    labels: {}, // widgetTitle is optional, so labels.widgetTitle will be undefined
+                }
             }],
         ]);
     });
 
     describe('handleGetChatbotConfigRequest', () => {
-        test('should return 200 and the client-safe profile if proxyEndpointId exists', async () => {
+        test('should return 200 and the client-safe profile (chatbot section) if profileId exists', async () => {
             const targetProfileId = 'profile1';
             await handleGetChatbotConfigRequest(targetProfileId, mockRes, mockConfigurations);
 
             expect(mockRes.statusCode).toBe(200);
             expect(mockRes.setHeader).toHaveBeenCalledWith('Content-Type', 'application/json');
             
-            const expectedProfile = { ...mockConfigurations.get(targetProfileId)! }; // Get a copy
-            // flowId should be removed, and other potentially sensitive server-side fields if any.
-            // The current implementation of handleGetChatbotConfigRequest only removes flowId.
-            // We ensure the structure matches what the client expects based on ChatbotProfile (minus flowId)
-            const { flowId, ...clientSafeProfile } = expectedProfile;
+            // The handler should return the chatbot part of the profile
+            const expectedChatbotProfile = mockConfigurations.get(targetProfileId)!.chatbot;
 
-            expect(mockRes.end).toHaveBeenCalledWith(JSON.stringify(clientSafeProfile));
+            expect(mockRes.end).toHaveBeenCalledWith(JSON.stringify(expectedChatbotProfile));
             expect(sendJsonError).not.toHaveBeenCalled();
             expect(mockConsoleLog).toHaveBeenCalledWith(`RequestHandler: Received GET request for chatbot configuration: '${targetProfileId}'`);
         });
 
-        test('should call sendJsonError with 404 if proxyEndpointId does not exist', async () => {
+        test('should call sendJsonError with 404 if profileId does not exist', async () => {
             const targetProfileId = 'non-existent-profile';
             await handleGetChatbotConfigRequest(targetProfileId, mockRes, mockConfigurations);
 
-            expect(sendJsonError).toHaveBeenCalledWith(mockRes, 404, `Chatbot configuration with proxyEndpointId '${targetProfileId}' not found.`);
+            expect(sendJsonError).toHaveBeenCalledWith(mockRes, 404, `Chatbot configuration with profileId '${targetProfileId}' not found.`);
             expect(mockRes.end).not.toHaveBeenCalled(); // sendJsonError should handle sending the response
             expect(mockConsoleLog).toHaveBeenCalledWith(`RequestHandler: Received GET request for chatbot configuration: '${targetProfileId}'`);
         });
     });
 
     describe('handleListChatbotProfilesRequest', () => {
-        test('should return 200 and a list of profiles with widgetTitle (defaulting to proxyEndpointId if missing)', async () => {
-            // req object is not used by the current implementation of handleListChatbotProfilesRequest, so a simple {} is fine.
+        test('should return 200 and a list of profiles with widgetTitle (defaulting to profileId if missing)', async () => {
             const mockReq = {} as http.IncomingMessage;
             await handleListChatbotProfilesRequest(mockReq, mockRes, mockConfigurations);
 
@@ -100,12 +104,12 @@ describe('configHandlers', () => {
 
             const expectedProfilesList = [
                 {
-                    proxyEndpointId: 'profile1',
-                    widgetTitle: mockConfigurations.get('profile1')?.labels?.widgetTitle, // 'Chatbot One'
+                    profileId: 'profile1',
+                    widgetTitle: mockConfigurations.get('profile1')?.chatbot?.labels?.widgetTitle, // 'Chatbot One'
                 },
                 {
-                    proxyEndpointId: 'profile2',
-                    widgetTitle: 'profile2', // Defaults to proxyEndpointId as labels.widgetTitle is undefined
+                    profileId: 'profile2',
+                    widgetTitle: 'profile2', // Defaults to profileId as chatbot.labels.widgetTitle is undefined
                 },
             ];
 
@@ -116,7 +120,7 @@ describe('configHandlers', () => {
 
         test('should return 200 and an empty list if no configurations exist', async () => {
             const mockReq = {} as http.IncomingMessage;
-            const emptyConfigurations = new Map<string, ChatbotProfile>();
+            const emptyConfigurations = new Map<string, Profile>();
             await handleListChatbotProfilesRequest(mockReq, mockRes, emptyConfigurations);
 
             expect(mockRes.statusCode).toBe(200);

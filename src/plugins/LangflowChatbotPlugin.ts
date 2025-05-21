@@ -4,56 +4,38 @@ import { PROXY_BASE_API_PATH, PROXY_CONFIG_ENDPOINT_PREFIX } from '../config/api
 import { ChatWidget, FloatingChatWidget } from '../components';
 import { Logger, LogLevel } from '../utils/logger';
 import { ERROR_MESSAGE_TEMPLATE } from '../config/uiConstants';
+import { ChatbotProfile as ServerChatbotProfileData } from '../types'; // Corrected import path
 
 // Interface for the initial configuration passed to the plugin's init function
 export interface LangflowChatbotInitConfig {
-  proxyEndpointId: string;
-  containerId?: string; // Required for embedded mode
-  sessionId?: string;
-  // These are now primarily driven by server config, but can be specified as initial overrides if needed,
-  // or simply to define the type structure for the merged config.
+  containerId?: string; // Required if useFloating is false or undefined
+  profileId: string; // The ID of the chatbot profile to load
+  sessionId?: string; // Optional: Resume a specific session
   useFloating?: boolean;
-  enableStream?: boolean;
+  enableStream?: boolean; // User can still suggest this for the client
   widgetTitle?: string;
   userSender?: string;
   botSender?: string;
   messageTemplate?: string;
-  mainContainerTemplate?: string; // from server
-  inputAreaTemplate?: string;   // from server
+  mainContainerTemplate?: string;
+  inputAreaTemplate?: string;
   floatPosition?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
-  // Callback for when the session ID is updated internally by the widget
-  onSessionIdChanged?: (sessionId: string) => void; // Added this for plugin to widget communication
-  logLevel?: LogLevel; // Add logLevel option
-  datetimeFormat?: string; // Added datetimeFormat
+  onSessionIdChanged?: (sessionId: string) => void;
+  logLevel?: LogLevel;
+  datetimeFormat?: string; // User can still suggest this for the client
 }
 
-// Interface for the full configuration after fetching from server (matches ChatbotProfile on server, minus flowId)
-interface FullChatbotProfile extends Omit<LangflowChatbotInitConfig, 'proxyEndpointId' | 'containerId' | 'sessionId' | 'onSessionIdChanged'> {
-  enableStream?: boolean;
-  labels?: {
-    widgetTitle?: string;
-    userSender?: string;
-    botSender?: string;
-    errorSender?: string; 
-    systemSender?: string;
-    welcomeMessage?: string;
-  };
-  template?: {
-    messageTemplate?: string;
-    mainContainerTemplate?: string;
-    inputAreaTemplate?: string;
-  };
-  floatingWidget?: {
-    useFloating?: boolean;
-    floatPosition?: "bottom-right" | "bottom-left" | "top-right" | "top-left";
-  };
-  logLevel?: LogLevel;
-  datetimeFormat?: string;
-}
+// This now directly uses the imported ChatbotProfile type from server/types
+// It represents the data structure fetched from the server's config endpoint.
+// type FullChatbotProfile = ServerChatbotProfileData;
+// No, FullChatbotProfile is the type of this.serverProfile which is the result of the fetch
+// which is defined in configHandlers.ts to be ChatbotProfile from '../types' (which is src/types/index.ts)
+// So FullChatbotProfile should be ServerChatbotProfileData which refers to the ChatbotProfile in src/types/index.ts
+interface FullChatbotProfile extends ServerChatbotProfileData {}
 
 export class LangflowChatbotInstance {
   private initialConfig: LangflowChatbotInitConfig;
-  private serverProfile!: FullChatbotProfile; // Will be fetched
+  private serverProfile!: FullChatbotProfile; // This is of type ServerChatbotProfileData (UI settings from server)
   private chatClient: LangflowChatClient | null = null;
   private widgetInstance: any; // Placeholder for ChatWidget or FloatingChatWidget
   private isInitialized: boolean = false;
@@ -97,35 +79,33 @@ export class LangflowChatbotInstance {
     }
 
     try {
-      const configUrl = `${PROXY_BASE_API_PATH}${PROXY_CONFIG_ENDPOINT_PREFIX}/${this.initialConfig.proxyEndpointId}`;
-      this.logger.info(`Fetching configuration from ${configUrl}`);
+      const configUrl = `${PROXY_BASE_API_PATH}${PROXY_CONFIG_ENDPOINT_PREFIX}/${this.initialConfig.profileId}`;
+      this.logger.info(`Fetching chatbot UI configuration from: ${configUrl}`);
       const response = await fetch(configUrl);
-
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Failed to fetch chatbot configuration for '${this.initialConfig.proxyEndpointId}'. Status: ${response.status}. Details: ${errorText}`);
+        throw new Error(`Failed to fetch chatbot configuration for '${this.initialConfig.profileId}'. Status: ${response.status}. Details: ${errorText}`);
       }
-      this.serverProfile = await response.json() as FullChatbotProfile;
+      this.serverProfile = await response.json() as ServerChatbotProfileData;
       this.logger.debug("Received server profile:", this.serverProfile);
 
-      this.chatClient = new LangflowChatClient(this.initialConfig.proxyEndpointId, undefined, this.logger);
+      this.chatClient = new LangflowChatClient(this.initialConfig.profileId, undefined, this.logger);
       
       // Ensure serverProfile parts are at least empty objects before merging
+      // serverProfile is ChatbotProfile, so it directly has labels, template, floatingWidget
       const safeServerLabels = this.serverProfile.labels || {};
       const safeServerTemplate = this.serverProfile.template || {};
       const safeServerFloatingWidget = this.serverProfile.floatingWidget || {};
 
-      const mergedConfig = {
-        enableStream: this.serverProfile.enableStream !== undefined 
-            ? this.serverProfile.enableStream 
-            : this.initialConfig.enableStream,
+      // Merged config for UI components
+      const mergedUiConfig = {
         labels: {
           widgetTitle: safeServerLabels.widgetTitle || this.initialConfig.widgetTitle || 'Chat Assistant',
           userSender: safeServerLabels.userSender || this.initialConfig.userSender || 'Me',
           botSender: safeServerLabels.botSender || this.initialConfig.botSender || 'Assistant',
-          errorSender: safeServerLabels.errorSender,
-          systemSender: safeServerLabels.systemSender,
-          welcomeMessage: safeServerLabels.welcomeMessage,
+          errorSender: safeServerLabels.errorSender, // Taken from server if available
+          systemSender: safeServerLabels.systemSender, // Taken from server if available
+          welcomeMessage: safeServerLabels.welcomeMessage, // Taken from server if available
         },
         template: {
           messageTemplate: safeServerTemplate.messageTemplate || this.initialConfig.messageTemplate,
@@ -135,14 +115,16 @@ export class LangflowChatbotInstance {
         floatingWidget: {
           useFloating: safeServerFloatingWidget.useFloating !== undefined 
               ? safeServerFloatingWidget.useFloating 
-              : this.initialConfig.useFloating,
+              : this.initialConfig.useFloating, // User init config takes precedence for useFloating after server
           floatPosition: safeServerFloatingWidget.floatPosition || this.initialConfig.floatPosition || 'bottom-right',
         },
-        datetimeFormat: this.serverProfile.datetimeFormat || this.initialConfig.datetimeFormat,
       };
-      
-      const clientWantsFloating = mergedConfig.floatingWidget.useFloating;
-      const effectiveEnableStream = !!mergedConfig.enableStream;
+
+      // Separate handling for non-UI, client-specific settings from initialConfig
+      const clientWantsFloating = mergedUiConfig.floatingWidget.useFloating;
+      // enableStream and datetimeFormat are now primarily from initialConfig or defaults
+      const effectiveEnableStream = this.initialConfig.enableStream !== undefined ? this.initialConfig.enableStream : true; // Default to true
+      const effectiveDatetimeFormat = this.initialConfig.datetimeFormat; // Can be undefined, components should handle
 
       const onSessionIdUpdateCallback = this.initialConfig.onSessionIdChanged || this._handleInternalSessionIdUpdate;
 
@@ -155,16 +137,16 @@ export class LangflowChatbotInstance {
           this.chatClient,
           effectiveEnableStream,
           {
-            widgetTitle: mergedConfig.labels.widgetTitle,
+            widgetTitle: mergedUiConfig.labels.widgetTitle,
             chatWidgetConfig: {
               labels: {
-                ...mergedConfig.labels,
-                widgetTitle: undefined,
+                ...mergedUiConfig.labels,
+                widgetTitle: undefined, // widgetTitle is part of FloatingChatWidgetConfig now
               },
-              template: mergedConfig.template,
-              datetimeFormat: mergedConfig.datetimeFormat,
+              template: mergedUiConfig.template,
+              datetimeFormat: effectiveDatetimeFormat, // Pass effective datetimeFormat
             },
-            position: mergedConfig.floatingWidget.floatPosition,
+            position: mergedUiConfig.floatingWidget.floatPosition,
             initialSessionId: this.initialConfig.sessionId,
             onSessionIdUpdate: onSessionIdUpdateCallback
           },
@@ -185,9 +167,9 @@ export class LangflowChatbotInstance {
           this.chatClient,
           effectiveEnableStream,
           {
-            labels: mergedConfig.labels,
-            template: mergedConfig.template,
-            datetimeFormat: mergedConfig.datetimeFormat,
+            labels: mergedUiConfig.labels,
+            template: mergedUiConfig.template,
+            datetimeFormat: effectiveDatetimeFormat, // Pass effective datetimeFormat
           },
           this.logger || new Logger('info', 'LangflowChatbot'),
           this.initialConfig.sessionId,

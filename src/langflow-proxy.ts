@@ -3,16 +3,16 @@ import { LangflowClient } from '@datastax/langflow-client';
 import { loadBaseConfig, loadInstanceConfig } from './lib/startup/config-loader';
 import { initializeFlowMappings } from './lib/startup/flow-mapper';
 import { handleRequest as handleRequestFromModule } from './lib/request-handler';
-import { ChatbotProfile, LangflowProxyConfig } from './types';
+import { Profile, ServerProfile, ChatbotProfile, LangflowProxyConfig } from './types';
 
 export class LangflowProxyService {
     private langflowClient!: LangflowClient;
-    private flowConfigs: Map<string, ChatbotProfile> = new Map();
+    private flowConfigs: Map<string, Profile> = new Map();
     private langflowConnectionDetails: { endpoint_url: string; api_key?: string };
 
     constructor(config: LangflowProxyConfig) {
         try {
-            const { langflowConnection, chatbotDefaults } = loadBaseConfig();
+            const { langflowConnection, serverDefaults, chatbotDefaults } = loadBaseConfig();
             
             this.langflowConnectionDetails = langflowConnection;
 
@@ -27,53 +27,33 @@ export class LangflowProxyService {
             console.log(`LangflowProxyService: LangflowClient initialized. Configured Endpoint: ${langflowConnection.endpoint_url}`);
 
             const instanceProfiles = loadInstanceConfig(config.instanceConfigPath);
+            instanceProfiles.forEach(profile => {
+                // Merge with defaults
+                const completeProfile: Profile = {
+                    profileId: profile.profileId, // Already validated by loadInstanceConfig
+                    server: {
+                        flowId: profile.server.flowId, // Already validated
+                        enableStream: profile.server.enableStream ?? serverDefaults.enableStream,
+                        datetimeFormat: profile.server.datetimeFormat ?? serverDefaults.datetimeFormat,
+                    },
+                    chatbot: {
+                        labels: { ...chatbotDefaults.labels, ...profile.chatbot?.labels }, 
+                        template: { ...chatbotDefaults.template, ...profile.chatbot?.template },
+                        floatingWidget: { ...chatbotDefaults.floatingWidget, ...profile.chatbot?.floatingWidget }
+                    }
+                };
+                this.flowConfigs.set(completeProfile.profileId, completeProfile);
 
-            this._processChatbotProfiles(chatbotDefaults, instanceProfiles);
+                console.log(`LangflowProxyService: Loaded profile: '${completeProfile.profileId}' configured with flow identifier '${completeProfile.server.flowId}'.`);
+            });
+
+            if (this.flowConfigs.size === 0) {
+                console.warn("LangflowProxyService: No chatbot profiles were loaded. The service may not function as expected.");
+            }
 
         } catch (error: any) {
             console.error(`LangflowProxyService: CRITICAL - Failed to initialize due to configuration error: ${error.message}`);
             throw error; 
-        }
-    }
-
-    private _processChatbotProfiles(
-        defaults: Partial<Omit<ChatbotProfile, 'proxyEndpointId' | 'flowId'>>,
-        profiles: Array<Partial<ChatbotProfile> & { proxyEndpointId: string; flowId: string }>
-    ): void {
-        console.log(`LangflowProxyService: Using chatbot default configurations: ${Object.keys(defaults).join(', ') || 'none'}`);
-        let loadedCount = 0;
-        for (const partialProfile of profiles) {
-            if (partialProfile.proxyEndpointId && partialProfile.flowId) {
-                const completeProfile: ChatbotProfile = {
-                    proxyEndpointId: partialProfile.proxyEndpointId,
-                    flowId: partialProfile.flowId,
-                    enableStream: partialProfile.enableStream ?? defaults.enableStream,
-                    labels: {
-                        ...(defaults.labels || {}),
-                        ...(partialProfile.labels || {}),
-                    },
-                    template: {
-                        ...(defaults.template || {}),
-                        ...(partialProfile.template || {}),
-                    },
-                    floatingWidget: {
-                        ...(defaults.floatingWidget || {}),
-                        ...(partialProfile.floatingWidget || {}),
-                    },
-                };
-
-                this.flowConfigs.set(completeProfile.proxyEndpointId, completeProfile);
-                loadedCount++;
-                // Initial log will show the configured ID (name or UUID)
-                console.log(`LangflowProxyService: Loaded chatbot profile: '${completeProfile.proxyEndpointId}' configured with flow identifier '${completeProfile.flowId}'.`);
-            } else {
-                console.warn(`LangflowProxyService: Skipping chatbot profile due to missing 'proxyEndpointId' or 'flowId' in instance config. Profile: ${JSON.stringify(partialProfile)}`);
-            }
-        }
-        console.log(`LangflowProxyService: Successfully processed ${loadedCount} chatbot profile(s) from instance configuration.`);
-
-        if (this.flowConfigs.size === 0) {
-            console.warn("LangflowProxyService: No chatbot profiles were loaded. The service may not function as expected.");
         }
     }
 
@@ -132,15 +112,19 @@ export class LangflowProxyService {
         );
     }
 
-    public getChatbotProfile(proxyEndpointId: string): ChatbotProfile | undefined {
-        return this.flowConfigs.get(proxyEndpointId);
+    public getChatbotProfile(profileId: string): Profile | undefined {
+        return this.flowConfigs.get(profileId);
     }
 
     public getLangflowConnectionDetails(): { endpoint_url: string; api_key?: string } {
         return this.langflowConnectionDetails;
     }
 
-    public getAllFlowConfigs(): Map<string, ChatbotProfile> {
+    public getAllFlowConfigs(): Map<string, Profile> {
+        return this.flowConfigs;
+    }
+
+    public getAllChatbotProfiles(): Map<string, Profile> {
         return this.flowConfigs;
     }
 } 

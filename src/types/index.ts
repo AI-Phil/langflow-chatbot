@@ -1,11 +1,19 @@
-export interface ChatbotProfile {
-    proxyEndpointId: string; 
+export interface Profile {
+    profileId: string;
+    server: ServerProfile;
+    chatbot: ChatbotProfile;
+}
+
+export interface ServerProfile {
     flowId: string;
     enableStream?: boolean;
+    datetimeFormat?: string;
+}
+
+export interface ChatbotProfile {
     labels?: Labels;
     template?: Template;
     floatingWidget?: FloatingWidget;
-    datetimeFormat?: string;
 }
 
 export interface Labels {

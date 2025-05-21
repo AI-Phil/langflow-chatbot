@@ -1,33 +1,35 @@
 // examples/basic/static/example-app-logic.ts
 
 interface Profile {
-  proxyEndpointId: string;
+  profileId: string;
   widgetTitle?: string;
   // Add other profile properties if they exist and are used in the UI
+}
+
+interface ChatbotProfileOption {
+    widgetTitle?: string;
+    profileId: string;
+}
+
+interface ExampleAppUI {
+    profileSelect: HTMLSelectElement | null;
+    sessionIdInput: HTMLInputElement | null;
+    launchButton: HTMLButtonElement | null;
+    errorDisplay: HTMLElement | null;
 }
 
 // Define the LangflowChatbotPlugin and its instance type if available globally
 // This is for TypeScript to understand the shape of the plugin
 declare global {
   interface Window {
-    LangflowChatbotPlugin?: {
-      init: (config: any) => Promise<any>; // Replace 'any' with actual config/instance types
-      // Add other plugin methods/properties if needed
-    };
-    ChatbotExampleApp: {
-      ui: {
-        initializeUI: (launchCallback: () => Promise<void>) => Promise<void>;
-        getUserProvidedConfig: () => { proxyEndpointId: string | undefined; sessionId: string | undefined };
-        updateSessionIdField: (newId: string) => void;
-      };
-      // Add other ChatbotExampleApp methods if they need to be globally accessible
-    };
+    LangflowChatbotPlugin?: any;
+    ChatbotExampleApp?: any;
   }
 }
 
 const ChatbotAppUIManager = {
   fetchAndPopulateProfiles: async (): Promise<string | null> => {
-    const profileSelect = document.getElementById('proxy-endpoint-id-select') as HTMLSelectElement | null;
+    const profileSelect = document.getElementById('profile-id-select') as HTMLSelectElement | null;
     const launchButton = document.getElementById('launch-chatbot-button') as HTMLButtonElement | null;
 
     if (launchButton) launchButton.disabled = true;
@@ -40,13 +42,13 @@ const ChatbotAppUIManager = {
       if (profileSelect && profiles && profiles.length > 0) {
         profiles.forEach(profile => {
           const option = document.createElement('option');
-          option.value = profile.proxyEndpointId;
-          option.textContent = profile.widgetTitle || profile.proxyEndpointId;
+          option.value = profile.profileId;
+          option.textContent = profile.widgetTitle || profile.profileId;
           profileSelect.appendChild(option);
         });
-        profileSelect.value = profiles[0].proxyEndpointId;
+        profileSelect.value = profiles[0].profileId;
         if (launchButton) launchButton.disabled = false;
-        return profiles[0].proxyEndpointId;
+        return profiles[0].profileId;
       } else {
         console.warn("No chatbot profiles or profile select element not found.");
         if (profileSelect) {
@@ -70,11 +72,11 @@ const ChatbotAppUIManager = {
     }
   },
 
-  getUserProvidedConfig: (): { proxyEndpointId: string | undefined; sessionId: string | undefined } => {
-    const profileSelect = document.getElementById('proxy-endpoint-id-select') as HTMLSelectElement | null;
+  getUserProvidedConfig: (): { profileId: string | undefined; sessionId: string | undefined } => {
+    const profileSelect = document.getElementById('profile-id-select') as HTMLSelectElement | null;
     const sessionIdInput = document.getElementById('session-id-input') as HTMLInputElement | null;
     return {
-      proxyEndpointId: profileSelect ? profileSelect.value : undefined,
+      profileId: profileSelect ? profileSelect.value : undefined,
       sessionId: sessionIdInput ? sessionIdInput.value.trim() || undefined : undefined,
     };
   },
@@ -92,7 +94,7 @@ const ChatbotAppUIManager = {
   setupLaunchTriggers: (launchCallback: () => Promise<void>): void => {
     const launchButton = document.getElementById('launch-chatbot-button') as HTMLButtonElement | null;
     const sessionIdInput = document.getElementById('session-id-input') as HTMLInputElement | null;
-    const profileSelectElement = document.getElementById('proxy-endpoint-id-select') as HTMLSelectElement | null;
+    const profileSelectElement = document.getElementById('profile-id-select') as HTMLSelectElement | null;
 
     if (launchButton) launchButton.addEventListener('click', launchCallback);
 

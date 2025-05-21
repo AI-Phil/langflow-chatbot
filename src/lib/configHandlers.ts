@@ -1,31 +1,29 @@
 import http from 'http';
-import { ChatbotProfile } from '../types';
+import { Profile, ChatbotProfile } from '../types';
 import { sendJsonError } from './request-utils';
 
-export async function handleGetChatbotConfigRequest(proxyEndpointId: string, res: http.ServerResponse, chatbotConfigurations: Map<string, ChatbotProfile>): Promise<void> {
-    console.log(`RequestHandler: Received GET request for chatbot configuration: '${proxyEndpointId}'`);
-    const fullProfile = chatbotConfigurations.get(proxyEndpointId);
+export async function handleGetChatbotConfigRequest(profileId: string, res: http.ServerResponse, chatbotConfigurations: Map<string, Profile>): Promise<void> {
+    console.log(`RequestHandler: Received GET request for chatbot configuration: '${profileId}'`);
+    const profile = chatbotConfigurations.get(profileId);
 
-    if (fullProfile) {
-        const { flowId, ...clientSafeProfile } = fullProfile; // remove the Langflow flowId from the response
+    if (profile) {
+        const clientSafeProfile: ChatbotProfile = profile.chatbot;
         res.statusCode = 200;
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify(clientSafeProfile));
     } else {
-        sendJsonError(res, 404, `Chatbot configuration with proxyEndpointId '${proxyEndpointId}' not found.`);
+        sendJsonError(res, 404, `Chatbot configuration with profileId '${profileId}' not found.`);
     }
 }
 
-export async function handleListChatbotProfilesRequest(req: http.IncomingMessage, res: http.ServerResponse, chatbotConfigurations: Map<string, ChatbotProfile>): Promise<void> {
+export async function handleListChatbotProfilesRequest(req: http.IncomingMessage, res: http.ServerResponse, chatbotConfigurations: Map<string, Profile>): Promise<void> {
     console.log('RequestHandler: Received GET request to list chatbot profiles.');
     try {
         const profilesList = Array.from(chatbotConfigurations.values()).map(profile => {
-            // Extract only proxyEndpointId and widgetTitle for the list response
-            // Default widgetTitle to proxyEndpointId if not present in profile.labels
-            const proxyId = profile.proxyEndpointId;
-            const widgetTitle = (profile.labels && profile.labels.widgetTitle) ? profile.labels.widgetTitle : proxyId;
+            const id = profile.profileId;
+            const widgetTitle = profile.chatbot?.labels?.widgetTitle || id;
             return {
-                proxyEndpointId: proxyId,
+                profileId: id,
                 widgetTitle: widgetTitle,
             };
         });

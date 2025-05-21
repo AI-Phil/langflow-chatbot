@@ -9,7 +9,7 @@
 import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
-import { ChatbotProfile } from '../../types'; // Updated import path
+import { ChatbotProfile, ServerProfile, Profile } from '../../types'; // Updated import path
 import {
     DEFAULT_ENABLE_STREAM,
     DEFAULT_USE_FLOATING,
@@ -39,12 +39,13 @@ interface BaseConfigFile { // This interface might become redundant or be simpli
 }
 
 interface InstanceConfigFile {
-    chatbots: Array<Partial<ChatbotProfile> & { proxyEndpointId: string; flowId: string }>;
+    profiles: Array<Partial<Profile>>;
 }
 
-export function loadBaseConfig(): { // Removed baseConfigPath parameter
+export function loadBaseConfig(): { 
     langflowConnection: { endpoint_url: string; api_key?: string };
-    chatbotDefaults: Partial<Omit<ChatbotProfile, 'proxyEndpointId' | 'flowId'>>;
+    serverDefaults: Partial<ServerProfile>;
+    chatbotDefaults: Partial<ChatbotProfile>;
 } {
     console.log("ConfigLoader: Loading base configuration from environment variables and UI constants.");
 
@@ -62,8 +63,13 @@ export function loadBaseConfig(): { // Removed baseConfigPath parameter
         api_key = envApiKey;
     } // api_key remains undefined if not in env, which is acceptable.
 
-    const chatbotDefaults = {
+    const serverDefaults: Partial<ServerProfile> = {
         enableStream: DEFAULT_ENABLE_STREAM,
+        datetimeFormat: DEFAULT_DATETIME_FORMAT,
+        // flowId is mandatory and instance-specific, so no default here.
+    };
+
+    const chatbotDefaults: Partial<ChatbotProfile> = {
         floatingWidget: {
             useFloating: DEFAULT_USE_FLOATING,
             floatPosition: DEFAULT_FLOAT_POSITION,
@@ -75,7 +81,6 @@ export function loadBaseConfig(): { // Removed baseConfigPath parameter
             errorSender: DEFAULT_ERROR_SENDER,
             systemSender: DEFAULT_SYSTEM_SENDER,
         },
-        datetimeFormat: DEFAULT_DATETIME_FORMAT,
         template: {
             mainContainerTemplate: DEFAULT_MAIN_CONTAINER_TEMPLATE,
             inputAreaTemplate: DEFAULT_INPUT_AREA_TEMPLATE,
@@ -85,11 +90,12 @@ export function loadBaseConfig(): { // Removed baseConfigPath parameter
 
     return {
         langflowConnection: { endpoint_url: envEndpointUrl, api_key },
+        serverDefaults: serverDefaults,
         chatbotDefaults: chatbotDefaults,
     };
 }
 
-export function loadInstanceConfig(instanceConfigPath: string): Array<Partial<ChatbotProfile> & { proxyEndpointId: string; flowId: string }> {
+export function loadInstanceConfig(instanceConfigPath: string): Array<Profile> {
     const absolutePath = path.resolve(instanceConfigPath);
     console.log(`ConfigLoader: Loading instance-specific chatbot profiles from: ${absolutePath}`);
     if (!fs.existsSync(absolutePath)) {
@@ -98,8 +104,24 @@ export function loadInstanceConfig(instanceConfigPath: string): Array<Partial<Ch
     const fileContents = fs.readFileSync(absolutePath, 'utf-8');
     const parsedConfig = yaml.load(fileContents) as InstanceConfigFile;
 
-    if (!parsedConfig.chatbots || !Array.isArray(parsedConfig.chatbots)) {
-        throw new Error(`Instance YAML config missing required 'chatbots' array. Path: ${absolutePath}`);
+    if (!parsedConfig.profiles || !Array.isArray(parsedConfig.profiles)) {
+        throw new Error(`Instance YAML config missing required 'profiles' array. Path: ${absolutePath}`);
     }
-    return parsedConfig.chatbots;
+
+    // Validate and structure each profile
+    return parsedConfig.profiles.map((p, index) => {
+        if (!p.profileId || !p.server?.flowId) {
+            throw new Error(`ConfigLoader: Profile at index ${index} is missing required 'profileId' or 'server.flowId'. Path: ${absolutePath}`);
+        }
+        const completeProfile: Profile = {
+            profileId: p.profileId,
+            server: {
+                flowId: p.server.flowId,
+                enableStream: p.server.enableStream, // Will be undefined if not present, handled by defaults later
+                datetimeFormat: p.server.datetimeFormat, // Will be undefined if not present
+            },
+            chatbot: p.chatbot || {}, // Ensure chatbot object exists, even if empty
+        } as Profile; // Type assertion
+        return completeProfile;
+    });
 } 

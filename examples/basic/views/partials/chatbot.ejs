@@ -69,20 +69,18 @@
   let currentChatbotInstance = null;
 
   async function launchChatbot() {
-    console.log("launchChatbot (in ejs) called");
-    // Get configuration from our example app's UI logic
-    // In a real application, this might come from a different source or be hardcoded.
-    const userConfig = window.ChatbotExampleApp.ui.getUserProvidedConfig();
-    
-    if (!userConfig.proxyEndpointId) {
-        alert("No Chatbot Profile selected or available. Cannot launch chatbot.");
-        console.error("Launch cancelled by ejs: No proxyEndpointId provided from UI.");
-        return;
+    console.log("Launch button clicked. User config:", userConfig);
+    if (!userConfig.profileId) {
+        // Display error to user in the UI
+        const errorDisplay = document.getElementById('config-error-display');
+        if (errorDisplay) {
+            errorDisplay.textContent = 'Error: Profile ID is missing. Please select a chatbot profile.';
+            errorDisplay.style.display = 'block';
+        }
+        console.error("Launch cancelled by ejs: No profileId provided from UI.");
+        return; // Stop if no profileId
     }
-
-    // --- Beyond the minimal: Handling re-launch --- 
-    // If an instance already exists (e.g., user changed profile or session ID and clicked launch again),
-    // it's good practice to destroy it to clean up resources and event listeners.
+    // Clear any previous error messages
     if (currentChatbotInstance && typeof currentChatbotInstance.destroy === 'function') {
       console.log("Destroying existing chatbot instance...");
       currentChatbotInstance.destroy();
@@ -92,7 +90,7 @@
     // --- Core Plugin Configuration --- 
     const pluginConfig = {
       containerId: 'chatbot-container', // REQUIRED: The ID of the div where the chatbot will be rendered.
-      proxyEndpointId: userConfig.proxyEndpointId, // REQUIRED: Identifies the chatbot profile to use.
+      profileId: userConfig.profileId, // REQUIRED: Identifies the chatbot profile to use.
       sessionId: userConfig.sessionId, // OPTIONAL: Provide a session ID to resume a conversation.
       logLevel: 'info',
     };

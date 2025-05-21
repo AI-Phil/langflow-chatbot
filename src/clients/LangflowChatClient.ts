@@ -66,23 +66,28 @@ import {
 } from '../config/apiPaths'; 
 
 export class LangflowChatClient {
-    private baseApiUrl: string;
-    private proxyEndpointId: string;
-    private chatEndpoint: string;
-    private historyEndpoint: string;
-    private logger: Logger;
+    private readonly baseApiUrl: string;
+    private readonly chatEndpoint: string;
+    private readonly historyEndpoint: string;
+    private readonly logger: Logger;
+    private profileId: string;
 
-    constructor(proxyEndpointId: string, baseApiUrl: string = PROXY_BASE_API_PATH, logger?: Logger) {
-        if (!proxyEndpointId || proxyEndpointId.trim() === '') {
-            throw new Error("proxyEndpointId is required and cannot be empty.");
+    /**
+     * Creates an instance of LangflowChatClient.
+     * @param {string} profileId - The unique identifier for the chatbot profile.
+     * @param {string} [baseApiUrl] - Optional base API URL.
+     * @param {Logger} [logger] - Optional logger instance.
+     */
+    constructor(profileId: string, baseApiUrl: string = PROXY_BASE_API_PATH, logger?: Logger) {
+        if (!profileId || profileId.trim() === '') {
+            throw new Error("profileId is required and cannot be empty.");
         }
-        this.proxyEndpointId = proxyEndpointId;
-        this.baseApiUrl = baseApiUrl.replace(/\/$/, ''); // Remove trailing slash
-        
-        // Construct endpoints using proxyEndpointId
-        this.chatEndpoint = `${this.baseApiUrl}${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}/${this.proxyEndpointId}`;
-        this.historyEndpoint = `${this.baseApiUrl}${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}/${this.proxyEndpointId}/history`;
+        this.profileId = profileId;
+        this.baseApiUrl = baseApiUrl.endsWith('/') ? baseApiUrl.slice(0, -1) : baseApiUrl;
         this.logger = logger || new Logger('info', 'LangflowChatClient');
+        // Construct endpoints using profileId
+        this.chatEndpoint = `${this.baseApiUrl}${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}/${this.profileId}`;
+        this.historyEndpoint = `${this.baseApiUrl}${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}/${this.profileId}/history`;
     }
 
     private generateSessionId(): string {

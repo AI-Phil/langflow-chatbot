@@ -2,7 +2,7 @@ import { LangflowClient } from '@datastax/langflow-client';
 import {
     initializeFlowMappings
 } from '../../../src/lib/startup/flow-mapper';
-import { ChatbotProfile } from '../../../src/types';
+import { Profile } from '../../../src/types';
 import { LANGFLOW_API_BASE_PATH_V1, LANGFLOW_FLOWS_ENDPOINT_SUFFIX } from '../../../src/config/apiPaths';
 
 // Mock global.fetch
@@ -66,10 +66,22 @@ describe('initializeFlowMappings', () => {
             statusText: 'OK'
         });
 
-        const chatbotConfigurations = new Map<string, ChatbotProfile>([
-            ['profile1', { proxyEndpointId: 'profile1', flowId: 'flow-one-endpoint', labels: { widgetTitle: 'Profile 1'} }],
-            ['profile2', { proxyEndpointId: 'profile2', flowId: 'kinetic-constructs-hybrid-search', template: { messageTemplate: '<p></p>'} }],
-            ['profile3', { proxyEndpointId: 'profile3', flowId: '00000000-0000-0000-0000-000000000000', floatingWidget: { useFloating: true } }]
+        const chatbotConfigurations = new Map<string, Profile>([
+            ['profile1', { 
+                profileId: 'profile1', 
+                server: { flowId: 'flow-one-endpoint' }, 
+                chatbot: { labels: { widgetTitle: 'Profile 1'} }
+            }],
+            ['profile2', { 
+                profileId: 'profile2', 
+                server: { flowId: 'kinetic-constructs-hybrid-search' }, 
+                chatbot: { template: { messageTemplate: '<p></p>'} }
+            }],
+            ['profile3', { 
+                profileId: 'profile3', 
+                server: { flowId: '00000000-0000-0000-0000-000000000000' }, 
+                chatbot: { floatingWidget: { useFloating: true } }
+            }]
         ]);
 
         await initializeFlowMappings(mockLangflowEndpoint, 'test-api-key', chatbotConfigurations);
@@ -81,9 +93,9 @@ describe('initializeFlowMappings', () => {
             headers: { 'Accept': 'application/json', 'Authorization': 'Bearer test-api-key' }
         });
 
-        expect(chatbotConfigurations.get('profile1')?.flowId).toBe('uuid-flow-one');
-        expect(chatbotConfigurations.get('profile2')?.flowId).toBe('bf8a66b2-e708-45f5-a23c-9b0796a48d0d');
-        expect(chatbotConfigurations.get('profile3')?.flowId).toBe('00000000-0000-0000-0000-000000000000'); // Unchanged
+        expect(chatbotConfigurations.get('profile1')?.server.flowId).toBe('uuid-flow-one');
+        expect(chatbotConfigurations.get('profile2')?.server.flowId).toBe('bf8a66b2-e708-45f5-a23c-9b0796a48d0d');
+        expect(chatbotConfigurations.get('profile3')?.server.flowId).toBe('00000000-0000-0000-0000-000000000000'); // Unchanged
 
         expect(mockConsoleError).not.toHaveBeenCalled();
         expect(mockConsoleWarn).not.toHaveBeenCalled(); // Assuming all resolvable flow names are found
@@ -107,13 +119,17 @@ describe('initializeFlowMappings', () => {
             json: async () => mockFlowsResponse,
         });
 
-        const chatbotConfigurations = new Map<string, ChatbotProfile>([
-            ['profileA', { proxyEndpointId: 'profileA', flowId: 'flow-a-endpoint', labels: { userSender: 'User A'} }]
+        const chatbotConfigurations = new Map<string, Profile>([
+            ['profileA', { 
+                profileId: 'profileA', 
+                server: { flowId: 'flow-a-endpoint' }, 
+                chatbot: { labels: { userSender: 'User A'} }
+            }]
         ]);
 
         await initializeFlowMappings(mockLangflowEndpoint, undefined, chatbotConfigurations);
 
-        expect(chatbotConfigurations.get('profileA')?.flowId).toBe('uuid-flow-a');
+        expect(chatbotConfigurations.get('profileA')?.server.flowId).toBe('uuid-flow-a');
         expect(mockConsoleError).not.toHaveBeenCalled();
     });
 
@@ -128,8 +144,12 @@ describe('initializeFlowMappings', () => {
             json: async () => mockFlowsResponse,
         });
 
-        const chatbotConfigurations = new Map<string, ChatbotProfile>([
-            ['profileB', { proxyEndpointId: 'profileB', flowId: 'flow-b-endpoint', template: { mainContainerTemplate: '<div></div>'} }]
+        const chatbotConfigurations = new Map<string, Profile>([
+            ['profileB', { 
+                profileId: 'profileB', 
+                server: { flowId: 'flow-b-endpoint' }, 
+                chatbot: { template: { mainContainerTemplate: '<div></div>'} }
+            }]
         ]);
 
         await initializeFlowMappings(mockLangflowEndpoint, 'another-key', chatbotConfigurations);
@@ -141,7 +161,7 @@ describe('initializeFlowMappings', () => {
             headers: { 'Accept': 'application/json', 'Authorization': 'Bearer another-key' }
         });
 
-        expect(chatbotConfigurations.get('profileB')?.flowId).toBe('uuid-flow-b');
+        expect(chatbotConfigurations.get('profileB')?.server.flowId).toBe('uuid-flow-b');
         expect(mockConsoleError).not.toHaveBeenCalled();
     });
 
@@ -154,7 +174,7 @@ describe('initializeFlowMappings', () => {
             statusText: 'Unauthorized'
         });
 
-        const chatbotConfigurations = new Map<string, ChatbotProfile>();
+        const chatbotConfigurations = new Map<string, Profile>();
         await initializeFlowMappings(mockLangflowEndpoint, 'bad-key', chatbotConfigurations);
 
         expect(mockConsoleError).toHaveBeenCalledWith("FlowMapper: CRITICAL - Error during flow ID resolution: Failed to fetch flows from Langflow. Status: 401 Unauthorized. Body: Unauthorized API Key");
@@ -163,7 +183,7 @@ describe('initializeFlowMappings', () => {
     test('should handle network error during fetch', async () => {
         (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Network connection failed'));
 
-        const chatbotConfigurations = new Map<string, ChatbotProfile>();
+        const chatbotConfigurations = new Map<string, Profile>();
         await initializeFlowMappings(mockLangflowEndpoint, 'any-key', chatbotConfigurations);
 
         expect(mockConsoleError).toHaveBeenCalledWith("FlowMapper: CRITICAL - Error during flow ID resolution: Network connection failed");
@@ -177,7 +197,7 @@ describe('initializeFlowMappings', () => {
             statusText: 'OK'
         });
 
-        const chatbotConfigurations = new Map<string, ChatbotProfile>();
+        const chatbotConfigurations = new Map<string, Profile>();
         await initializeFlowMappings(mockLangflowEndpoint, 'any-key', chatbotConfigurations);
         
         expect(mockConsoleError).toHaveBeenCalledWith("FlowMapper: Unexpected response structure for flows list. Expected an array, or {records: [...]}, or {flows: [...]}. Response:", { some_unexpected_key: [] });
@@ -193,15 +213,23 @@ describe('initializeFlowMappings', () => {
             json: async () => mockFlowsResponse,
         });
 
-        const chatbotConfigurations = new Map<string, ChatbotProfile>([
-            ['profileUnresolved', { proxyEndpointId: 'profileUnresolved', flowId: 'non-existent-flow-name', labels: { botSender: 'Bot Unresolved'} }],
-            ['profileResolved', { proxyEndpointId: 'profileResolved', flowId: 'existing-flow', floatingWidget: { floatPosition: 'top-left'} }]
+        const chatbotConfigurations = new Map<string, Profile>([
+            ['profileUnresolved', { 
+                profileId: 'profileUnresolved', 
+                server: { flowId: 'non-existent-flow-name' }, 
+                chatbot: { labels: { botSender: 'Bot Unresolved'} }
+            }],
+            ['profileResolved', { 
+                profileId: 'profileResolved', 
+                server: { flowId: 'existing-flow' }, 
+                chatbot: { floatingWidget: { floatPosition: 'top-left'} }
+            }]
         ]);
 
         await initializeFlowMappings(mockLangflowEndpoint, 'some-key', chatbotConfigurations);
 
-        expect(chatbotConfigurations.get('profileUnresolved')?.flowId).toBe('non-existent-flow-name'); // Unchanged
-        expect(chatbotConfigurations.get('profileResolved')?.flowId).toBe('uuid-existing'); // Resolved
+        expect(chatbotConfigurations.get('profileUnresolved')?.server.flowId).toBe('non-existent-flow-name'); // Unchanged
+        expect(chatbotConfigurations.get('profileResolved')?.server.flowId).toBe('uuid-existing'); // Resolved
         expect(mockConsoleError).toHaveBeenCalledWith("FlowMapper: CRITICAL - Could not resolve flow name 'non-existent-flow-name' for profile 'profileUnresolved'. This profile will not function correctly.");
         expect(mockConsoleWarn).toHaveBeenCalledWith("FlowMapper: Finished flow resolution. 1 profiles resolved. 1 profiles had unresolved flow names: profileUnresolved.");
     });
@@ -212,14 +240,18 @@ describe('initializeFlowMappings', () => {
             json: async () => [], // Empty array
         });
 
-        const chatbotConfigurations = new Map<string, ChatbotProfile>([
-            ['profileWithFlowName', { proxyEndpointId: 'profileWithFlowName', flowId: 'some-flow-name', labels: { widgetTitle: 'Test'} }]
+        const chatbotConfigurations = new Map<string, Profile>([
+            ['profileWithFlowName', { 
+                profileId: 'profileWithFlowName', 
+                server: { flowId: 'some-flow-name' }, 
+                chatbot: { labels: { widgetTitle: 'Test'} }
+            }]
         ]);
-        const originalFlowId = chatbotConfigurations.get('profileWithFlowName')?.flowId;
+        const originalFlowId = chatbotConfigurations.get('profileWithFlowName')?.server.flowId;
 
         await initializeFlowMappings(mockLangflowEndpoint, undefined, chatbotConfigurations);
 
-        expect(chatbotConfigurations.get('profileWithFlowName')?.flowId).toBe(originalFlowId); // Unchanged
+        expect(chatbotConfigurations.get('profileWithFlowName')?.server.flowId).toBe(originalFlowId); // Unchanged
         expect(mockConsoleError).toHaveBeenCalledWith("FlowMapper: CRITICAL - Could not resolve flow name 'some-flow-name' for profile 'profileWithFlowName'. This profile will not function correctly.");
         expect(mockConsoleLog).toHaveBeenCalledWith("FlowMapper: Processed 0 flow entries, successfully mapped 0 flows by endpoint_name.");
     });
@@ -238,13 +270,17 @@ describe('initializeFlowMappings', () => {
             json: async () => mockFlowsResponse,
         });
 
-        const chatbotConfigurations = new Map<string, ChatbotProfile>([
-            ['profileValid', { proxyEndpointId: 'profileValid', flowId: 'valid-flow', labels: { errorSender: 'System Error'} }]
+        const chatbotConfigurations = new Map<string, Profile>([
+            ['profileValid', { 
+                profileId: 'profileValid', 
+                server: { flowId: 'valid-flow' }, 
+                chatbot: { labels: { errorSender: 'System Error'} }
+            }]
         ]);
 
         await initializeFlowMappings(mockLangflowEndpoint, 'key', chatbotConfigurations);
 
-        expect(chatbotConfigurations.get('profileValid')?.flowId).toBe('uuid-valid');
+        expect(chatbotConfigurations.get('profileValid')?.server.flowId).toBe('uuid-valid');
         expect(mockConsoleLog).toHaveBeenCalledWith("FlowMapper: Processed 6 flow entries, successfully mapped 2 flows by endpoint_name.");
         expect(mockConsoleDebug).toHaveBeenCalledTimes(4);
         expect(mockConsoleDebug).toHaveBeenCalledWith("FlowMapper: Skipping a flow entry from Langflow due to missing or invalid id, or unusable name/endpoint_name:", mockFlowsResponse[1]);

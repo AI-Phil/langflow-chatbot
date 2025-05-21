@@ -35,7 +35,18 @@ const mockLogger: jest.Mocked<Logger> = {
     constructor: jest.fn(),
 };
 
-// No need for a detailed mockChatClient object here anymore
+// Default config for most tests
+const mockDefaultContainerId = 'chat-widget-test-container';
+const mockDefaultProfileId = 'test-profile-id';
+
+// LangflowChatClient constructor: (profileId: string, baseApiUrl?: string, logger?: Logger)
+const mockChatClientInstance = new LangflowChatClient(mockDefaultProfileId, undefined, mockLogger);
+
+const defaultTestConfig: ChatWidgetConfigOptions = {
+    labels: {},
+    template: {},
+    // datetimeFormat can still be top-level as per ChatWidgetConfigOptions
+};
 
 describe('ChatWidget', () => {
     let containerElement: HTMLElement;
@@ -59,7 +70,7 @@ describe('ChatWidget', () => {
         jest.clearAllMocks();
 
         MockLangflowChatClient = LangflowChatClient as jest.MockedClass<typeof LangflowChatClient>;
-        // LangflowChatClient constructor: (proxyEndpointId: string, baseApiUrl?: string, logger?: Logger)
+        // LangflowChatClient constructor: (profileId: string, baseApiUrl?: string, logger?: Logger)
         mockChatClientInstance = new MockLangflowChatClient('test-proxy-id', 'http://dummy-api-url', mockLogger) as jest.Mocked<LangflowChatClient>;
         // We will mock specific methods on the instance if ChatWidget itself calls them.
         // For now, it primarily passes the client to other managers which are themselves mocked.

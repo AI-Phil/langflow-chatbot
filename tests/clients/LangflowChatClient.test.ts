@@ -40,7 +40,7 @@ jest.mock('../../src/utils/logger', () => {
 });
 
 describe('LangflowChatClient', () => {
-    const proxyEndpointId = 'test-flow';
+    const profileId = 'test-flow';
     const customBaseApiUrl = 'http://custom.api';
     let client: LangflowChatClient;
 
@@ -51,37 +51,37 @@ describe('LangflowChatClient', () => {
         // randomUUIDMock.mockClear(); // Redundant due to jest.clearAllMocks()
         
         // Re-initialize client for each test to ensure clean state
-        client = new LangflowChatClient(proxyEndpointId);
+        client = new LangflowChatClient(profileId);
     });
 
     describe('constructor', () => {
-        it('should throw an error if proxyEndpointId is empty', () => {
-            expect(() => new LangflowChatClient('')).toThrow("proxyEndpointId is required and cannot be empty.");
+        it('should throw an error if profileId is empty', () => {
+            expect(() => new LangflowChatClient('')).toThrow("profileId is required and cannot be empty.");
         });
 
-        it('should throw an error if proxyEndpointId is whitespace', () => {
-            expect(() => new LangflowChatClient('   ')).toThrow("proxyEndpointId is required and cannot be empty.");
+        it('should throw an error if profileId is whitespace', () => {
+            expect(() => new LangflowChatClient('   ')).toThrow("profileId is required and cannot be empty.");
         });
 
         it('should initialize with default baseApiUrl and new Logger if not provided', () => {
-            const newClient = new LangflowChatClient(proxyEndpointId);
+            const newClient = new LangflowChatClient(profileId);
             expect(newClient['baseApiUrl']).toBe(PROXY_BASE_API_PATH);
-            expect(newClient['chatEndpoint']).toBe(`${PROXY_BASE_API_PATH}${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}/${proxyEndpointId}`);
-            expect(newClient['historyEndpoint']).toBe(`${PROXY_BASE_API_PATH}${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}/${proxyEndpointId}/history`);
+            expect(newClient['chatEndpoint']).toBe(`${PROXY_BASE_API_PATH}${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}/${profileId}`);
+            expect(newClient['historyEndpoint']).toBe(`${PROXY_BASE_API_PATH}${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}/${profileId}/history`);
             expect(Logger).toHaveBeenCalledWith('info', 'LangflowChatClient');
             expect(newClient['logger']).toBe(mockLoggerInstance);
         });
 
         it('should initialize with provided baseApiUrl and remove trailing slash', () => {
-            const newClient = new LangflowChatClient(proxyEndpointId, `${customBaseApiUrl}/`);
+            const newClient = new LangflowChatClient(profileId, `${customBaseApiUrl}/`);
             expect(newClient['baseApiUrl']).toBe(customBaseApiUrl);
-            expect(newClient['chatEndpoint']).toBe(`${customBaseApiUrl}${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}/${proxyEndpointId}`);
-            expect(newClient['historyEndpoint']).toBe(`${customBaseApiUrl}${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}/${proxyEndpointId}/history`);
+            expect(newClient['chatEndpoint']).toBe(`${customBaseApiUrl}${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}/${profileId}`);
+            expect(newClient['historyEndpoint']).toBe(`${customBaseApiUrl}${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}/${profileId}/history`);
         });
 
         it('should initialize with provided logger', () => {
             const customLogger = new Logger('debug');
-            const newClient = new LangflowChatClient(proxyEndpointId, undefined, customLogger);
+            const newClient = new LangflowChatClient(profileId, undefined, customLogger);
             expect(newClient['logger']).toBe(customLogger);
         });
     });
@@ -865,8 +865,8 @@ describe('LangflowChatClient', () => {
             // This test is more about ensuring the URL constructor behaves as expected.
             // The client internally uses new URL(this.historyEndpoint, window.location.origin)
             // We can verify the constructed URL in fetch mock.
-            const relativeClient = new LangflowChatClient(proxyEndpointId, "/api/v1"); // relative baseApiUrl
-            const expectedHistoryEndpoint = `/api/v1${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}/${proxyEndpointId}/history`;
+            const relativeClient = new LangflowChatClient(profileId, "/api/v1"); // relative baseApiUrl
+            const expectedHistoryEndpoint = `/api/v1${PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX}/${profileId}/history`;
             
             (fetch as jest.Mock).mockResolvedValueOnce({
                 ok: true,

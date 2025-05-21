@@ -1,7 +1,7 @@
 import http from 'http';
 import { URL } from 'url';
 import { LangflowClient } from '@datastax/langflow-client';
-import { ChatbotProfile } from '../types';
+import { Profile } from '../types';
 import {
     PROXY_BASE_API_PATH,
     PROXY_CONFIG_ENDPOINT_PREFIX,
@@ -21,7 +21,7 @@ import { handleChatMessageRequest } from './langflow/chatHandlers';
 export async function handleRequest(
     req: http.IncomingMessage,
     res: http.ServerResponse,
-    chatbotConfigurations: Map<string, ChatbotProfile>,
+    chatbotConfigurations: Map<string, Profile>,
     langflowClient: LangflowClient | undefined, // Can be undefined if not initialized
     langflowEndpointUrl: string | undefined,
     langflowApiKey: string | undefined,
@@ -47,28 +47,27 @@ export async function handleRequest(
     const chatRequestPathPrefix = PROXY_BASE_API_PATH + PROXY_CHAT_MESSAGES_ENDPOINT_PREFIX + '/';
 
     if (method === 'GET' && pathname.startsWith(configRequestPathPrefix)) {
-        const proxyEndpointId = pathname.substring(configRequestPathPrefix.length);
-        await handleGetChatbotConfigRequest(proxyEndpointId, res, chatbotConfigurations);
+        const profileId = pathname.substring(configRequestPathPrefix.length);
+        await handleGetChatbotConfigRequest(profileId, res, chatbotConfigurations);
     } else if (pathname.startsWith(chatRequestPathPrefix)) {
         const remainingPath = pathname.substring(chatRequestPathPrefix.length);
         const parts = remainingPath.split('/').filter(p => p.length > 0);
-        const proxyEndpointId = parts[0];
+        const profileId = parts[0];
 
-        if (!proxyEndpointId) {
-            sendJsonError(res, 400, "proxyEndpointId missing in chat URL.");
+        if (!profileId) {
+            sendJsonError(res, 400, "profileId missing in chat URL.");
             return;
         }
 
-        // Resolve profile here, use the true "id" of the flow
-        const profile = chatbotConfigurations.get(proxyEndpointId);
+        const profile = chatbotConfigurations.get(profileId);
         if (!profile) {
-            sendJsonError(res, 404, `Chatbot profile with proxyEndpointId '${proxyEndpointId}' not found.`);
+            sendJsonError(res, 404, `Chatbot profile with profileId '${profileId}' not found.`);
             return;
         }
-        const flowIdToUse = profile.flowId;
+        const flowIdToUse = profile.server.flowId;
 
         if (method === 'POST' && parts.length === 1) {
-            const serverAllowsStream = profile.enableStream !== false; // Default to true if undefined
+            const serverAllowsStream = profile.server.enableStream !== false; // Access enableStream from profile.server, default to true
             await handleChatMessageRequest(req, res, flowIdToUse, serverAllowsStream, langflowClient);
         } else if (method === 'GET' && parts.length === 2 && parts[1] === 'history') {
             const sessionId = parsedUrl.searchParams.get('session_id');

@@ -7,7 +7,7 @@
  * correctly point to the intended Langflow flows. This process typically runs once
  * at startup to prepare the configurations for runtime use.
  */
-import { ChatbotProfile } from '../../types'; // Updated import path
+import { Profile } from '../../types'; // Updated import path
 import {
     LANGFLOW_API_BASE_PATH_V1,
     PROXY_BASE_API_PATH,
@@ -19,7 +19,7 @@ import {
 export async function initializeFlowMappings(
     langflowEndpointUrl: string,
     langflowApiKey: string | undefined,
-    chatbotConfigurations: Map<string, ChatbotProfile>
+    chatbotConfigurations: Map<string, Profile>
 ): Promise<void> {
     console.log("FlowMapper: Initializing flow mappings. Fetching all flows from Langflow...");
     const targetPath = `${LANGFLOW_API_BASE_PATH_V1}${LANGFLOW_FLOWS_ENDPOINT_SUFFIX}`;
@@ -74,7 +74,7 @@ export async function initializeFlowMappings(
         const unresolvedProfiles: string[] = [];
 
         for (const [proxyId, profile] of chatbotConfigurations.entries()) {
-            const configuredFlowId = profile.flowId;
+            const configuredFlowId = profile.server.flowId;
             const isLikelyUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(configuredFlowId);
 
             if (isLikelyUuid) {
@@ -85,7 +85,7 @@ export async function initializeFlowMappings(
             const resolvedUuid = flowNameToIdMap.get(configuredFlowId);
             if (resolvedUuid) {
                 console.log(`FlowMapper: Resolved flow name '${configuredFlowId}' to UUID '${resolvedUuid}' for profile '${proxyId}'.`);
-                profile.flowId = resolvedUuid;
+                profile.server.flowId = resolvedUuid;
                 resolvedProfiles.push(proxyId);
             } else {
                 console.error(`FlowMapper: CRITICAL - Could not resolve flow name '${configuredFlowId}' for profile '${proxyId}'. This profile will not function correctly.`);
