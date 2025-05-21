@@ -9,6 +9,7 @@ chatbots:
     labels:
       widgetTitle: "Memory Chatbot"
       botSender: "Chatbot"
+      welcomeMessage: "Welcome to the Memory Chatbot!"
 
   - proxyEndpointId: "floating-memory" 
     flowId: "memory-chatbot" 
@@ -17,3 +18,4 @@ chatbots:
     labels:
       widgetTitle: "Floating Memory Chatbot"
       botSender: "Chatbot"
+      welcomeMessage: "Welcome to the Floating Memory Chatbot!"

@@ -61,6 +61,7 @@ const mockServerProfile = {
         widgetTitle: 'Server Title',
         userSender: 'ServerUser',
         botSender: 'ServerBot',
+        welcomeMessage: 'Server Welcome Message',
         // errorSender and systemSender can be added if needed for specific tests
     },
     template: {
@@ -193,7 +194,8 @@ describe('LangflowChatbotInstance', () => {
                     messageTemplate: mockServerProfile.template.messageTemplate,
                     mainContainerTemplate: mockServerProfile.template.mainContainerTemplate,
                     inputAreaTemplate: mockServerProfile.template.inputAreaTemplate,
-                    datetimeFormat: mockServerProfile.datetimeFormat
+                    datetimeFormat: mockServerProfile.datetimeFormat,
+                    welcomeMessage: mockServerProfile.labels.welcomeMessage,
                 }));
                 expect(chatWidgetArgs[5]).toBeUndefined(); 
                 expect(typeof chatWidgetArgs[6]).toBe('function');
@@ -227,6 +229,7 @@ describe('LangflowChatbotInstance', () => {
                     messageTemplate: undefined, // As per merging logic if not in server or initial
                     mainContainerTemplate: undefined,
                     inputAreaTemplate: undefined,
+                    welcomeMessage: undefined, // Expect undefined as not in partial server or initial
                     // datetimeFormat would also be undefined if not provided by server/initial
                 }));
             } else {
@@ -249,6 +252,7 @@ describe('LangflowChatbotInstance', () => {
                     userSender: 'Me',
                     botSender: 'Assistant',
                     widgetTitle: 'Chat Assistant',
+                    welcomeMessage: undefined, // Expect undefined by default
                 }));
             } else {
                 throw new Error('MockedChatWidget was not called when testing default value fallback.');
@@ -291,7 +295,8 @@ describe('LangflowChatbotInstance', () => {
                             messageTemplate: mockServerProfile.template.messageTemplate,
                             mainContainerTemplate: mockServerProfile.template.mainContainerTemplate,
                             inputAreaTemplate: mockServerProfile.template.inputAreaTemplate,
-                            datetimeFormat: mockServerProfile.datetimeFormat
+                            datetimeFormat: mockServerProfile.datetimeFormat,
+                            welcomeMessage: mockServerProfile.labels.welcomeMessage,
                         })
                     }));
                 } else {

@@ -13,6 +13,7 @@ export interface Labels {
     botSender?: string;
     errorSender?: string;
     systemSender?: string;
+    welcomeMessage?: string;
 }
 
 export interface Template {

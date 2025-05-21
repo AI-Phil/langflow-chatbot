@@ -66,7 +66,7 @@ describe('ChatSessionManager', () => {
             senderConfig,
             mockDisplayCallbacks,
             mockLogger
-            // No initialSessionId by default
+            // No initialSessionId by default, so welcome message logic in constructor runs
         );
     });
 
@@ -76,10 +76,12 @@ describe('ChatSessionManager', () => {
 
     // Constructor tests
     describe('constructor', () => {
-        it('should initialize without a session ID by default', () => {
+        it('should initialize without a session ID, call clearMessages, and set historyLoaded to true', () => {
+            // This test now largely verifies the state set by the beforeEach block
             expect(sessionManager.currentSessionId).toBeNull();
-            expect(sessionManager.isHistoryLoaded).toBe(false);
             expect(mockLogger.info).toHaveBeenCalledWith("ChatSessionManager: Initialized without a session ID.");
+            expect(mockDisplayCallbacks.clearMessages).toHaveBeenCalledTimes(1); // Called by constructor
+            expect(sessionManager.isHistoryLoaded).toBe(true); // Set by constructor
         });
 
         it('should initialize with a session ID and attempt to load history if initialSessionId is provided', async () => {
@@ -110,20 +112,65 @@ describe('ChatSessionManager', () => {
             expect(mockDisplayCallbacks.scrollChatToBottom).toHaveBeenCalled();
             expect(smWithId.isHistoryLoaded).toBe(true); // Should be true after history load
         });
+
+        it('should display welcome message if no initialSessionId and welcomeMessage is provided', () => {
+            const welcomeMsg = "Hello from the bot!";
+            jest.clearAllMocks(); // Clear mocks from previous default sessionManager instantiation
+            
+            new ChatSessionManager(
+                mockChatClient as any,
+                senderConfig,
+                mockDisplayCallbacks,
+                mockLogger,
+                undefined, // No initialSessionId
+                welcomeMsg
+            );
+
+            expect(mockLogger.info).toHaveBeenCalledWith("ChatSessionManager: Initialized without a session ID.");
+            expect(mockDisplayCallbacks.clearMessages).toHaveBeenCalledTimes(1);
+            expect(mockDisplayCallbacks.addMessage).toHaveBeenCalledWith(senderConfig.botSender, welcomeMsg, false);
+            expect(mockDisplayCallbacks.scrollChatToBottom).toHaveBeenCalledTimes(1);
+            expect(mockChatClient.getMessageHistory).not.toHaveBeenCalled();
+        });
+
+        it('should NOT display welcome message if initialSessionId is provided, even if welcomeMessage is also provided', async () => {
+            const initialSession = "session-init-welcome-test";
+            const welcomeMsg = "You won\'t see me";
+            const historyData: ChatMessageData[] = [{ text: "existing message", sender: "user", timestamp: "2023-01-01T12:00:00Z" }];
+            mockChatClient.getMessageHistory.mockResolvedValueOnce(historyData);
+            jest.clearAllMocks();
+
+            new ChatSessionManager(
+                mockChatClient as any,
+                senderConfig,
+                mockDisplayCallbacks,
+                mockLogger,
+                initialSession,
+                welcomeMsg
+            );
+            
+            await Promise.resolve(); // Settle promises
+
+            expect(mockDisplayCallbacks.addMessage).toHaveBeenCalledWith(senderConfig.userSender, "existing message", expect.anything(), expect.anything());
+            expect(mockDisplayCallbacks.addMessage).not.toHaveBeenCalledWith(senderConfig.botSender, welcomeMsg, false);
+        });
     });
 
     // Getter tests
     describe('getters', () => {
         it('currentSessionId should return the current session ID', () => {
-            expect(sessionManager.currentSessionId).toBeNull();
+            expect(sessionManager.currentSessionId).toBeNull(); // From beforeEach
             sessionManager.updateCurrentSessionId("test-session");
             expect(sessionManager.currentSessionId).toBe("test-session");
         });
 
         it('isHistoryLoaded should return the history loaded status', () => {
+            // sessionManager from beforeEach already has isHistoryLoaded = true
+            expect(sessionManager.isHistoryLoaded).toBe(true); 
+            // Manually set history loaded to false to check transition
+            (sessionManager as any)._isHistoryLoaded = false;
             expect(sessionManager.isHistoryLoaded).toBe(false);
-            // Simulate history loading
-            (sessionManager as any)._isHistoryLoaded = true;
+            (sessionManager as any)._isHistoryLoaded = true; // Set it back
             expect(sessionManager.isHistoryLoaded).toBe(true);
         });
     });
@@ -165,14 +212,18 @@ describe('ChatSessionManager', () => {
         });
 
         it('should do nothing if new ID is null and current is already null', () => {
+            // sessionManager from beforeEach has currentSessionId = null and isHistoryLoaded = true
             expect(sessionManager.currentSessionId).toBeNull();
-            expect(sessionManager.isHistoryLoaded).toBe(false);
-            jest.clearAllMocks();
+            expect(sessionManager.isHistoryLoaded).toBe(true); 
+            const initialClearMessagesCallCount = mockDisplayCallbacks.clearMessages.mock.calls.length;
+            jest.clearAllMocks(); // Clear other mocks
 
             sessionManager.updateCurrentSessionId(null);
             expect(sessionManager.currentSessionId).toBeNull();
-            expect(sessionManager.isHistoryLoaded).toBe(false);
+            expect(sessionManager.isHistoryLoaded).toBe(true); // Stays true because updateCurrentSessionId doesn't change it if it's already null
             expect(mockLogger.info).not.toHaveBeenCalled();
+            // Ensure clearMessages was not called again by updateCurrentSessionId
+            expect(mockDisplayCallbacks.clearMessages.mock.calls.length).toBe(0); // jest.clearAllMocks clears the call count for this specific mock
         });
     });
 
@@ -212,8 +263,12 @@ describe('ChatSessionManager', () => {
 
         beforeEach(() => {
             // Reset _isHistoryLoaded for sessionManager instance for these specific tests
+            // sessionManager is from the outer beforeEach, which already ran its constructor.
             (sessionManager as any)._isHistoryLoaded = false;
             mockNormalizeTimestamp.mockImplementation(ts => new Date(ts as string).toISOString()); // Reset to basic behavior
+            mockDisplayCallbacks.clearMessages.mockClear(); // Clear calls from constructor
+            mockDisplayCallbacks.addMessage.mockClear();
+            mockDisplayCallbacks.scrollChatToBottom.mockClear();
         });
 
         it('should clear messages, add messages from history, and scroll to bottom', async () => {
@@ -232,6 +287,9 @@ describe('ChatSessionManager', () => {
 
         it('should not load history if already loaded', async () => {
             (sessionManager as any)._isHistoryLoaded = true; // Mark as loaded
+            mockDisplayCallbacks.clearMessages.mockClear(); // Crucial: clear calls from constructor
+            mockDisplayCallbacks.addMessage.mockClear();
+
             await sessionManager.loadAndDisplayHistory(historyBase);
 
             expect(mockDisplayCallbacks.clearMessages).not.toHaveBeenCalled();
@@ -266,8 +324,10 @@ describe('ChatSessionManager', () => {
         });
 
         it('should handle empty history array', async () => {
+            mockDisplayCallbacks.clearMessages.mockClear(); // Clear calls from constructor
+
             await sessionManager.loadAndDisplayHistory([]);
-            expect(mockDisplayCallbacks.clearMessages).toHaveBeenCalledTimes(1);
+            expect(mockDisplayCallbacks.clearMessages).toHaveBeenCalledTimes(1); // Called by loadAndDisplayHistory itself
             expect(mockDisplayCallbacks.addMessage).not.toHaveBeenCalled();
             expect(sessionManager.isHistoryLoaded).toBe(true);
             expect(mockDisplayCallbacks.scrollChatToBottom).toHaveBeenCalledTimes(1);
@@ -306,20 +366,20 @@ describe('ChatSessionManager', () => {
         ];
 
         beforeEach(() => {
-            // Ensure sessionManager is fresh and no history loaded
             // Re-construct sessionManager to ensure a clean state for these specific tests
-            sessionManager = new ChatSessionManager(
-                mockChatClient as any, 
-                senderConfig,
-                mockDisplayCallbacks,
-                mockLogger
-            );
-            // (sessionManager as any)._currentSessionId = null; // Handled by new instance
-            // (sessionManager as any)._isHistoryLoaded = false; // Handled by new instance
+            // OR ensure mocks are cleared if using the global one.
+            // For these, local instantiation is safer to avoid interference from outer beforeEach.
+            // However, to fix the current structure, we'll rely on clearing mocks from the global sessionManager.
+            
+            // sessionManager = new ChatSessionManager(...); // This would be an alternative
+            
+            (sessionManager as any)._currentSessionId = null; 
+            (sessionManager as any)._isHistoryLoaded = false; 
             mockChatClient.getMessageHistory.mockReset();
-            mockDisplayCallbacks.clearMessages.mockReset();
-            mockDisplayCallbacks.addMessage.mockReset();
-            mockLogger.info.mockClear(); // Specifically clear info logs for this describe block
+            mockDisplayCallbacks.clearMessages.mockClear(); // Crucial
+            mockDisplayCallbacks.addMessage.mockClear(); // Crucial
+            mockDisplayCallbacks.scrollChatToBottom.mockClear(); // Crucial
+            mockLogger.info.mockClear(); 
             mockLogger.error.mockClear();
             mockLogger.warn.mockClear();
         });
@@ -346,6 +406,9 @@ describe('ChatSessionManager', () => {
 
         it('should handle empty history data from client', async () => {
             mockChatClient.getMessageHistory.mockResolvedValueOnce([]); 
+            // sessionManager here is the one from the outer beforeEach, then modified by inner beforeEach.
+            // Its constructor would have called clearMessages once.
+            // setSessionIdAndLoadHistory will call it again if historyData is null/empty.
 
             await sessionManager.setSessionIdAndLoadHistory(sessionId);
             
@@ -356,24 +419,77 @@ describe('ChatSessionManager', () => {
             expect(mockDisplayCallbacks.clearMessages).toHaveBeenCalledTimes(1); 
             expect(mockDisplayCallbacks.addMessage).not.toHaveBeenCalled();
             expect(sessionManager.isHistoryLoaded).toBe(true); 
-            // Check for logs from loadAndDisplayHistory when history is empty
-            expect(mockLogger.info).toHaveBeenCalledWith("Loading and displaying history...");
-            expect(mockLogger.info).toHaveBeenCalledWith("History loaded and displayed.");
-            // Ensure the specific log for null/undefined history is NOT called here
-            expect(mockLogger.info).not.toHaveBeenCalledWith("No history data found for the session, or history is empty.");
+            expect(mockLogger.info).toHaveBeenCalledWith(`Setting session ID to: ${sessionId} and loading history.`);
+            // This is the key change: When history is empty ([]), we now log this specific message
+            expect(mockLogger.info).toHaveBeenCalledWith("No history data found for the session, or history is empty.");
+            // And loadAndDisplayHistory is NOT called, so its logs are not present.
+            expect(mockLogger.info).not.toHaveBeenCalledWith("Loading and displaying history...");
+            expect(mockLogger.info).not.toHaveBeenCalledWith("History loaded and displayed.");
         });
 
-         it('should handle null history data from client', async () => {
-            mockChatClient.getMessageHistory.mockResolvedValueOnce(null as any); 
+        it('should handle null history data from client and display welcome message if provided', async () => {
+            const testSessionId = "session-for-null-hist-test";
+            const welcomeMsg = "Welcome! It is your first time.";
+            
+            // Create a completely isolated SessionManager for this test
+            const localSessionManager = new ChatSessionManager(
+                mockChatClient as any,
+                senderConfig,
+                mockDisplayCallbacks, // Global mock, but we'll clear its methods
+                mockLogger,
+                undefined, // No initial session ID
+                welcomeMsg   // Welcome message provided
+            );
+
+            // Constructor of localSessionManager has ALREADY called addMessage.
+            // We must clear the mock AFTER construction if we want to test calls from setSessionIdAndLoadHistory.
+            mockDisplayCallbacks.addMessage.mockClear();
+            mockDisplayCallbacks.clearMessages.mockClear();
+            mockDisplayCallbacks.scrollChatToBottom.mockClear();
+            // also clear relevant logger calls from constructor if necessary
+            mockLogger.info.mockClear(); 
+
+            mockChatClient.getMessageHistory.mockResolvedValueOnce(null as any); // For the call from setSessionIdAndLoadHistory
+
+            await localSessionManager.setSessionIdAndLoadHistory(testSessionId);
+
+            // clearMessages is called inside setSessionIdAndLoadHistory when history is null
+            expect(mockDisplayCallbacks.clearMessages).toHaveBeenCalledTimes(1); 
+            // addMessage should be called by setSessionIdAndLoadHistory with the welcome message
+            expect(mockDisplayCallbacks.addMessage).toHaveBeenCalledTimes(1); 
+            expect(mockDisplayCallbacks.addMessage).toHaveBeenCalledWith(senderConfig.botSender, welcomeMsg, false);
+            expect(mockDisplayCallbacks.scrollChatToBottom).toHaveBeenCalledTimes(1);
+            
+            expect(localSessionManager.isHistoryLoaded).toBe(true);
+            // Check specific logs from setSessionIdAndLoadHistory path
+            expect(mockLogger.info).toHaveBeenCalledWith(`Setting session ID to: ${testSessionId} and loading history.`);
+            expect(mockLogger.info).toHaveBeenCalledWith("No history data found for the session, or history is empty.");
+        });
+
+        it('should handle empty history data from client and display welcome message if provided', async () => {
+            mockChatClient.getMessageHistory.mockResolvedValueOnce([]);
+            const welcomeMsg = "Welcome aboard!";
+            // SessionManager is re-initialized LOCALLY for this test in the provided code block
+            sessionManager = new ChatSessionManager(
+                mockChatClient as any,
+                senderConfig,
+                mockDisplayCallbacks,
+                mockLogger,
+                undefined, // No initialSessionId
+                welcomeMsg   // Welcome message provided
+            );
+            // The constructor of this new sessionManager will call clearMessages once.
+            // Then setSessionIdAndLoadHistory will call it again.
+            mockDisplayCallbacks.clearMessages.mockClear(); // Clear the call from the local constructor.
 
             await sessionManager.setSessionIdAndLoadHistory(sessionId);
-            await Promise.resolve(); 
+            await Promise.resolve();
 
-            expect(mockDisplayCallbacks.clearMessages).toHaveBeenCalledTimes(1);
-            expect(mockDisplayCallbacks.addMessage).not.toHaveBeenCalled();
-            expect(sessionManager.isHistoryLoaded).toBe(true); 
-            // This is the correct test for this specific log message
+            expect(mockDisplayCallbacks.clearMessages).toHaveBeenCalledTimes(1); // Called by setSessionIdAndLoadHistory
+            expect(mockDisplayCallbacks.addMessage).toHaveBeenCalledWith(senderConfig.botSender, welcomeMsg, false);
+            expect(sessionManager.isHistoryLoaded).toBe(true);
             expect(mockLogger.info).toHaveBeenCalledWith("No history data found for the session, or history is empty.");
+            expect(mockDisplayCallbacks.scrollChatToBottom).toHaveBeenCalled();
         });
 
         it('should handle error when loading history', async () => {
@@ -413,31 +529,55 @@ describe('ChatSessionManager', () => {
             expect(mockLogger.info).toHaveBeenCalledWith(`Session ID is already ${sessionId} and history is loaded.`);
         });
 
-        it('should clear session and messages if sessionId is undefined', async () => {
+        it('should clear session and messages if sessionId is undefined, and show welcome message if provided', async () => {
             sessionManager.updateCurrentSessionId("some-old-session"); // Have an existing session
             (sessionManager as any)._isHistoryLoaded = true;
+            const welcomeMsg = "Starting fresh!";
+            // Re-initialize sessionManager with welcome message for this test
+            sessionManager = new ChatSessionManager(
+                mockChatClient as any,
+                senderConfig,
+                mockDisplayCallbacks,
+                mockLogger,
+                undefined, // Will be effectively cleared
+                welcomeMsg
+            );
             jest.clearAllMocks();
 
             await sessionManager.setSessionIdAndLoadHistory(undefined);
 
             expect(sessionManager.currentSessionId).toBeNull();
             expect(mockDisplayCallbacks.clearMessages).toHaveBeenCalledTimes(1);
+            expect(mockDisplayCallbacks.addMessage).toHaveBeenCalledWith(senderConfig.botSender, welcomeMsg, false);
             expect(sessionManager.isHistoryLoaded).toBe(true); // Marked as loaded (empty state)
             expect(mockLogger.info).toHaveBeenCalledWith("No session ID provided, or session ID is empty. Clearing session and messages.");
             expect(mockChatClient.getMessageHistory).not.toHaveBeenCalled();
+            expect(mockDisplayCallbacks.scrollChatToBottom).toHaveBeenCalled();
         });
 
-        it('should clear session and messages if sessionId is an empty string', async () => {
+        it('should clear session and messages if sessionId is an empty string, and show welcome message if provided', async () => {
             sessionManager.updateCurrentSessionId("some-old-session");
             (sessionManager as any)._isHistoryLoaded = true;
+            const welcomeMsg = "Ready for a new chat!";
+            // Re-initialize sessionManager with welcome message for this test
+            sessionManager = new ChatSessionManager(
+                mockChatClient as any,
+                senderConfig,
+                mockDisplayCallbacks,
+                mockLogger,
+                undefined, // Will be effectively cleared
+                welcomeMsg
+            );
             jest.clearAllMocks();
 
             await sessionManager.setSessionIdAndLoadHistory("   "); // Empty or whitespace
 
             expect(sessionManager.currentSessionId).toBeNull();
             expect(mockDisplayCallbacks.clearMessages).toHaveBeenCalledTimes(1);
+            expect(mockDisplayCallbacks.addMessage).toHaveBeenCalledWith(senderConfig.botSender, welcomeMsg, false);
             expect(sessionManager.isHistoryLoaded).toBe(true);
             expect(mockChatClient.getMessageHistory).not.toHaveBeenCalled();
+            expect(mockDisplayCallbacks.scrollChatToBottom).toHaveBeenCalled();
         });
     });
 }); 

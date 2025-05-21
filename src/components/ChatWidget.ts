@@ -22,6 +22,8 @@ export interface ChatWidgetConfigOptions extends Partial<SenderConfig> {
     widgetTitle?: string;
     /** Optional datetime format string (e.g., 'HH:mm') for displaying message timestamps. */
     datetimeFormat?: string;
+    /** Optional welcome message to display when chat history is empty. */
+    welcomeMessage?: string;
 }
 
 /**
@@ -50,6 +52,7 @@ export class ChatWidget {
         messageTemplate?: string;
         widgetTitle?: string;
         datetimeFormat?: string;
+        welcomeMessage?: string;
     };
     
     private sendButtonClickListener?: () => void;
@@ -108,6 +111,7 @@ export class ChatWidget {
             messageTemplate: configOptions.messageTemplate,
             widgetTitle: configOptions.widgetTitle, 
             datetimeFormat: configOptions.datetimeFormat,
+            welcomeMessage: configOptions.welcomeMessage,
         };
         
         const templateMgrConfig: TemplateManagerConfig = {
@@ -148,7 +152,8 @@ export class ChatWidget {
                 scrollChatToBottom: () => this.displayManager.scrollChatToBottom(),
             },
             this.logger,
-            initialSessionId // Pass initialSessionId to SessionManager for it to handle initial load
+            initialSessionId, // Pass initialSessionId to SessionManager for it to handle initial load
+            this.config.welcomeMessage // Pass welcome message to SessionManager
         );
         
         const messageProcessorCallbacks: MessageProcessorUICallbacks = {

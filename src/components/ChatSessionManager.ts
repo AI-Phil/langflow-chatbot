@@ -23,6 +23,7 @@ export class ChatSessionManager {
     private logger: Logger;
     private _currentSessionId: string | null = null;
     private _isHistoryLoaded: boolean = false;
+    private welcomeMessage?: string;
 
     /**
      * Constructs a ChatSessionManager instance.
@@ -31,18 +32,21 @@ export class ChatSessionManager {
      * @param displayCallbacks Callbacks for UI display operations.
      * @param logger Logger instance.
      * @param initialSessionId Optional initial session ID to load history for.
+     * @param welcomeMessage Optional message to display if chat history is empty.
      */
     constructor(
         client: LangflowChatClient,
         config: SenderConfig,
         displayCallbacks: SessionManagerDisplayCallbacks,
         logger: Logger,
-        initialSessionId?: string
+        initialSessionId?: string,
+        welcomeMessage?: string
     ) {
         this.client = client;
         this.config = config;
         this.displayCallbacks = displayCallbacks;
         this.logger = logger;
+        this.welcomeMessage = welcomeMessage;
 
         if (initialSessionId) {
             this.logger.info(`ChatSessionManager: Initializing with session ID: ${initialSessionId}`);
@@ -52,6 +56,14 @@ export class ChatSessionManager {
             this.setSessionIdAndLoadHistory(initialSessionId);
         } else {
             this.logger.info("ChatSessionManager: Initialized without a session ID.");
+            // If no initial session ID, and there's a welcome message, display it.
+            // Ensure messages are cleared first, as there's no history to load that would do it.
+            this.displayCallbacks.clearMessages();
+            if (this.welcomeMessage) {
+                this.displayCallbacks.addMessage(this.config.botSender, this.welcomeMessage, false);
+                this.displayCallbacks.scrollChatToBottom();
+            }
+            this._isHistoryLoaded = true; // Mark as "loaded" as we've handled the initial state.
         }
     }
 
@@ -161,11 +173,15 @@ export class ChatSessionManager {
 
                 try {
                     const historyData = await this.client.getMessageHistory(sessionId);
-                    if (historyData) {
+                    if (historyData && historyData.length > 0) {
                         await this.loadAndDisplayHistory(historyData);
                     } else {
                         this.logger.info("No history data found for the session, or history is empty.");
                         this.displayCallbacks.clearMessages(); // Clear display if history is empty
+                        if (this.welcomeMessage) {
+                            this.displayCallbacks.addMessage(this.config.botSender, this.welcomeMessage, false);
+                            this.displayCallbacks.scrollChatToBottom();
+                        }
                         this._isHistoryLoaded = true; // Mark as loaded even if history was empty
                     }
                 } catch (error) {
@@ -180,6 +196,10 @@ export class ChatSessionManager {
             this.logger.info("No session ID provided, or session ID is empty. Clearing session and messages.");
             this.updateCurrentSessionId(null);
             this.displayCallbacks.clearMessages();
+            if (this.welcomeMessage) {
+                this.displayCallbacks.addMessage(this.config.botSender, this.welcomeMessage, false);
+                this.displayCallbacks.scrollChatToBottom();
+            }
             this._isHistoryLoaded = true; // Mark as "loaded" (i.e., processed empty/cleared state)
         }
     }

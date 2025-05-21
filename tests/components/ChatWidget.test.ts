@@ -162,7 +162,8 @@ describe('ChatWidget', () => {
                 { userSender: "You", botSender: "Bot", errorSender: "Error", systemSender: "System" },
                 expect.any(Object), // SessionManagerDisplayCallbacks - check specific callbacks later if needed
                 mockLogger,
-                undefined // initialSessionId
+                undefined, // initialSessionId
+                undefined // welcomeMessage (default config)
             );
             expect(MockChatMessageProcessor).toHaveBeenCalledWith(
                 mockChatClientInstance,
@@ -184,12 +185,13 @@ describe('ChatWidget', () => {
                 inputAreaTemplate: "<input />",
                 messageTemplate: "<msg></msg>",
                 datetimeFormat: "HH:mm",
+                welcomeMessage: "Hello there!",
             };
 
             // Reset and define specific mock behavior for getMessageTemplate for this test
             mockTemplateManagerInstance.getMessageTemplate = jest.fn().mockReturnValueOnce("<msg></msg>");
 
-            new ChatWidget(containerElement, mockChatClientInstance, false, customConfig, mockLogger, 'custom-session-id');
+            new ChatWidget(containerElement, mockChatClientInstance, false, customConfig, mockLogger, 'custom-session-id', undefined);
 
             expect(MockChatTemplateManager).toHaveBeenCalledWith(
                 { 
@@ -222,7 +224,8 @@ describe('ChatWidget', () => {
                 },
                 expect.any(Object),
                 mockLogger,
-                'custom-session-id' 
+                'custom-session-id',
+                customConfig.welcomeMessage // welcomeMessage from customConfig
             );
             expect(MockChatMessageProcessor).toHaveBeenCalledWith(
                 mockChatClientInstance,
@@ -526,7 +529,7 @@ describe('ChatWidget', () => {
 
             // Test with null session ID
             onSessionUpdateMock.mockClear();
-            mockSessionManagerInstance.setSessionIdAndLoadHistory.mockClear();
+            (mockSessionManagerInstance.setSessionIdAndLoadHistory as jest.Mock).mockClear();
             await widget.setSessionId(null);
             expect(mockSessionManagerInstance.setSessionIdAndLoadHistory).toHaveBeenCalledWith(undefined);
             expect(onSessionUpdateMock).not.toHaveBeenCalled(); // Should not be called for null
@@ -567,17 +570,19 @@ describe('ChatWidget', () => {
             expect(mockDisplayManagerInstance.setDatetimeHandler).toHaveBeenCalledWith(mockHandler);
         });
 
-        it('getInternalConfig should return the resolved internal config', () => {
-            const customConfig: ChatWidgetConfigOptions = {
+        it('getInternalConfig should return the resolved internal config including welcome message', () => {
+            const customConfigWithWelcome: ChatWidgetConfigOptions = {
                 userSender: "CustomUser",
-                widgetTitle: "Custom Title"
+                widgetTitle: "Custom Title",
+                welcomeMessage: "Welcome to the test!"
             };
-            const widget = new ChatWidget(containerElement, mockChatClientInstance, true, customConfig, mockLogger);
+            const widget = new ChatWidget(containerElement, mockChatClientInstance, true, customConfigWithWelcome, mockLogger);
             const internalConfig = widget.getInternalConfig();
 
             expect(internalConfig.userSender).toBe("CustomUser");
-            expect(internalConfig.botSender).toBe("Bot"); // Default
+            expect(internalConfig.botSender).toBe("Bot"); 
             expect(internalConfig.widgetTitle).toBe("Custom Title");
+            expect(internalConfig.welcomeMessage).toBe("Welcome to the test!");
         });
     });
 

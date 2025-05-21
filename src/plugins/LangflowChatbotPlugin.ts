@@ -36,6 +36,7 @@ interface FullChatbotProfile extends Omit<LangflowChatbotInitConfig, 'proxyEndpo
     botSender?: string;
     errorSender?: string; 
     systemSender?: string;
+    welcomeMessage?: string;
   };
   template?: {
     messageTemplate?: string;
@@ -122,8 +123,9 @@ export class LangflowChatbotInstance {
           widgetTitle: safeServerLabels.widgetTitle || this.initialConfig.widgetTitle || 'Chat Assistant',
           userSender: safeServerLabels.userSender || this.initialConfig.userSender || 'Me',
           botSender: safeServerLabels.botSender || this.initialConfig.botSender || 'Assistant',
-          errorSender: safeServerLabels.errorSender, // These might be undefined, which is fine
+          errorSender: safeServerLabels.errorSender,
           systemSender: safeServerLabels.systemSender,
+          welcomeMessage: safeServerLabels.welcomeMessage,
         },
         template: {
           messageTemplate: safeServerTemplate.messageTemplate || this.initialConfig.messageTemplate,
@@ -160,7 +162,8 @@ export class LangflowChatbotInstance {
               messageTemplate: mergedConfig.template.messageTemplate,
               mainContainerTemplate: mergedConfig.template.mainContainerTemplate,
               inputAreaTemplate: mergedConfig.template.inputAreaTemplate,
-              datetimeFormat: mergedConfig.datetimeFormat
+              datetimeFormat: mergedConfig.datetimeFormat,
+              welcomeMessage: mergedConfig.labels.welcomeMessage,
             },
             position: mergedConfig.floatingWidget.floatPosition,
             initialSessionId: this.initialConfig.sessionId,
@@ -189,7 +192,8 @@ export class LangflowChatbotInstance {
             mainContainerTemplate: mergedConfig.template.mainContainerTemplate,
             inputAreaTemplate: mergedConfig.template.inputAreaTemplate,
             widgetTitle: mergedConfig.labels.widgetTitle,
-            datetimeFormat: mergedConfig.datetimeFormat
+            datetimeFormat: mergedConfig.datetimeFormat,
+            welcomeMessage: mergedConfig.labels.welcomeMessage,
           },
           this.logger || new Logger('info', 'LangflowChatbot'),
           this.initialConfig.sessionId,
