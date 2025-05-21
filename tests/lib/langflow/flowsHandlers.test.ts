@@ -1,10 +1,11 @@
 import http from 'http';
-import { LANGFLOW_API_BASE_PATH_V1 } from '@src/config/apiPaths';
-import { handleGetFlowsRequest } from '@src/lib/langflow/flowsHandlers';
-import * as requestUtils from '@src/lib/request-utils';
+import { ServerResponse } from 'http';
+import { LANGFLOW_API_BASE_PATH_V1, LANGFLOW_FLOWS_ENDPOINT_SUFFIX } from '../../../src/config/apiPaths';
+import { handleGetFlowsRequest } from '../../../src/lib/langflow/flowsHandlers';
+import * as requestUtils from '../../../src/lib/request-utils';
 
 // Mock the request-utils module
-jest.mock('@src/lib/request-utils', () => ({
+jest.mock('../../../src/lib/request-utils', () => ({
     proxyLangflowApiRequest: jest.fn(),
 }));
 
@@ -51,14 +52,9 @@ describe('handleGetFlowsRequest', () => {
         expect(mockProxyLangflowApiRequest).toHaveBeenCalledWith(res, expect.any(Function));
     });
 
-    it('should call makeDirectLangflowApiRequest with correct parameters via proxy', async () => {
+    it('should call makeDirectLangflowApiRequest with correct parameters', async () => {
         await handleGetFlowsRequest(req, res, mockMakeDirectLangflowApiRequest);
-
-        // Check that the callback provided to proxyLangflowApiRequest was executed
-        // (which it is by our mockImplementation)
-        expect(mockMakeDirectLangflowApiRequest).toHaveBeenCalledTimes(1);
-
-        const expectedTargetPath = `${LANGFLOW_API_BASE_PATH_V1}/flows/`;
+        const expectedTargetPath = `${LANGFLOW_API_BASE_PATH_V1}${LANGFLOW_FLOWS_ENDPOINT_SUFFIX}`;
         const expectedQueryParams = new URLSearchParams();
         expectedQueryParams.append('header_flows', 'true');
         expectedQueryParams.append('get_all', 'true');

@@ -8,7 +8,13 @@
  * at startup to prepare the configurations for runtime use.
  */
 import { ChatbotProfile } from '../../types'; // Updated import path
-import { LANGFLOW_API_BASE_PATH_V1 } from '../../config/apiPaths'; // Updated import path
+import {
+    LANGFLOW_API_BASE_PATH_V1,
+    PROXY_BASE_API_PATH,
+    PROXY_FLOWS_CONFIG_ENDPOINT_SUFFIX,
+    PROXY_PROFILES_LIST_SUFFIX,
+    LANGFLOW_FLOWS_ENDPOINT_SUFFIX
+} from '../../config/apiPaths';
 
 export async function initializeFlowMappings(
     langflowEndpointUrl: string,
@@ -16,7 +22,7 @@ export async function initializeFlowMappings(
     chatbotConfigurations: Map<string, ChatbotProfile>
 ): Promise<void> {
     console.log("FlowMapper: Initializing flow mappings. Fetching all flows from Langflow...");
-    const targetPath = `${LANGFLOW_API_BASE_PATH_V1}/flows/`;
+    const targetPath = `${LANGFLOW_API_BASE_PATH_V1}${LANGFLOW_FLOWS_ENDPOINT_SUFFIX}`;
     const queryParams = new URLSearchParams();
     queryParams.append('remove_example_flows', 'true');
 

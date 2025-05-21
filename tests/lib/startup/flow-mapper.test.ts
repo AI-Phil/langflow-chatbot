@@ -1,6 +1,9 @@
-import { initializeFlowMappings } from '@src/lib/startup/flow-mapper';
-import { ChatbotProfile } from '@src/types';
-import { LANGFLOW_API_BASE_PATH_V1 } from '@src/config/apiPaths';
+import { LangflowClient } from '@datastax/langflow-client';
+import {
+    initializeFlowMappings
+} from '../../../src/lib/startup/flow-mapper';
+import { ChatbotProfile } from '../../../src/types';
+import { LANGFLOW_API_BASE_PATH_V1, LANGFLOW_FLOWS_ENDPOINT_SUFFIX } from '../../../src/config/apiPaths';
 
 // Mock global.fetch
 global.fetch = jest.fn();
@@ -71,7 +74,7 @@ describe('initializeFlowMappings', () => {
 
         await initializeFlowMappings(mockLangflowEndpoint, 'test-api-key', chatbotConfigurations);
 
-        const expectedUrl = new URL(`${LANGFLOW_API_BASE_PATH_V1}/flows/`, mockLangflowEndpoint);
+        const expectedUrl = new URL(`${LANGFLOW_API_BASE_PATH_V1}${LANGFLOW_FLOWS_ENDPOINT_SUFFIX}`, mockLangflowEndpoint);
         expectedUrl.searchParams.append('remove_example_flows', 'true');
         expect(global.fetch).toHaveBeenCalledWith(expectedUrl.toString(), {
             method: 'GET',
@@ -131,7 +134,7 @@ describe('initializeFlowMappings', () => {
 
         await initializeFlowMappings(mockLangflowEndpoint, 'another-key', chatbotConfigurations);
         
-        const expectedUrl = new URL(`${LANGFLOW_API_BASE_PATH_V1}/flows/`, mockLangflowEndpoint);
+        const expectedUrl = new URL(`${LANGFLOW_API_BASE_PATH_V1}${LANGFLOW_FLOWS_ENDPOINT_SUFFIX}`, mockLangflowEndpoint);
         expectedUrl.searchParams.append('remove_example_flows', 'true');
         expect(global.fetch).toHaveBeenCalledWith(expectedUrl.toString(), {
             method: 'GET',
