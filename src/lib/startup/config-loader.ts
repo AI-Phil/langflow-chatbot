@@ -10,62 +10,82 @@ import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
 import { ChatbotProfile } from '../../types'; // Updated import path
+import {
+    DEFAULT_ENABLE_STREAM,
+    DEFAULT_USE_FLOATING,
+    DEFAULT_FLOAT_POSITION,
+    DEFAULT_WIDGET_TITLE,
+    DEFAULT_USER_SENDER,
+    DEFAULT_BOT_SENDER,
+    DEFAULT_ERROR_SENDER,
+    DEFAULT_SYSTEM_SENDER,
+    DEFAULT_DATETIME_FORMAT,
+    DEFAULT_MAIN_CONTAINER_TEMPLATE,
+    DEFAULT_INPUT_AREA_TEMPLATE,
+    DEFAULT_MESSAGE_TEMPLATE,
+} from '../../config/uiConstants';
 
 // New private helper function to retrieve environment variables
 function getEnvVariable(variableName: string): string | undefined {
-    // Removed temporary debug log
     return process.env[variableName];
 }
 
-interface BaseConfigFile {
-    langflow_connection: {
+interface BaseConfigFile { // This interface might become redundant or be simplified
+    langflow_connection?: { // Now optional in a hypothetical file context, but mandatory from env
         endpoint_url: string;
         api_key?: string;
     };
-    chatbot_defaults?: Partial<Omit<ChatbotProfile, 'proxyEndpointId' | 'flowId'>>;
+    // chatbot_defaults is no longer read from a base YAML file.
 }
 
 interface InstanceConfigFile {
     chatbots: Array<Partial<ChatbotProfile> & { proxyEndpointId: string; flowId: string }>;
 }
 
-export function loadBaseConfig(baseConfigPath: string): {
+export function loadBaseConfig(): { // Removed baseConfigPath parameter
     langflowConnection: { endpoint_url: string; api_key?: string };
     chatbotDefaults: Partial<Omit<ChatbotProfile, 'proxyEndpointId' | 'flowId'>>;
 } {
-    const absolutePath = path.resolve(baseConfigPath);
-    console.log(`ConfigLoader: Loading base configuration from: ${absolutePath}`);
-    if (!fs.existsSync(absolutePath)) {
-        throw new Error(`Base configuration file (YAML) not found at ${absolutePath}.`);
-    }
-    const fileContents = fs.readFileSync(absolutePath, 'utf-8');
-    const parsedConfig = yaml.load(fileContents) as BaseConfigFile;
+    console.log("ConfigLoader: Loading base configuration from environment variables and UI constants.");
 
     const envEndpointUrl = getEnvVariable('LANGFLOW_ENDPOINT_URL');
     const envApiKey = getEnvVariable('LANGFLOW_API_KEY');
 
-    let endpoint_url: string;
-    if (envEndpointUrl) {
-        console.log(`ConfigLoader: Using LANGFLOW_ENDPOINT_URL from environment: ${envEndpointUrl}`);
-        endpoint_url = envEndpointUrl;
-    } else if (parsedConfig.langflow_connection && parsedConfig.langflow_connection.endpoint_url) {
-        endpoint_url = parsedConfig.langflow_connection.endpoint_url;
-    } else {
-        throw new Error(`Langflow endpoint URL is not defined in environment variables (LANGFLOW_ENDPOINT_URL) or in the base YAML config. Path: ${absolutePath}`);
+    if (!envEndpointUrl) {
+        throw new Error("Langflow endpoint URL is not defined in environment variable LANGFLOW_ENDPOINT_URL.");
     }
+    console.log(`ConfigLoader: Using LANGFLOW_ENDPOINT_URL from environment: ${envEndpointUrl}`);
 
     let api_key: string | undefined;
     if (envApiKey) {
         console.log("ConfigLoader: Using LANGFLOW_API_KEY from environment.");
         api_key = envApiKey;
-    } else if (parsedConfig.langflow_connection && parsedConfig.langflow_connection.api_key) {
-        api_key = parsedConfig.langflow_connection.api_key;
-    }
-    // If api_key is still undefined here, it means it wasn't in env or config, which is acceptable as it's optional.
+    } // api_key remains undefined if not in env, which is acceptable.
+
+    const chatbotDefaults = {
+        enableStream: DEFAULT_ENABLE_STREAM,
+        floatingWidget: {
+            useFloating: DEFAULT_USE_FLOATING,
+            floatPosition: DEFAULT_FLOAT_POSITION,
+        },
+        labels: {
+            widgetTitle: DEFAULT_WIDGET_TITLE,
+            userSender: DEFAULT_USER_SENDER,
+            botSender: DEFAULT_BOT_SENDER,
+            errorSender: DEFAULT_ERROR_SENDER,
+            systemSender: DEFAULT_SYSTEM_SENDER,
+        },
+        datetimeFormat: DEFAULT_DATETIME_FORMAT,
+        template: {
+            mainContainerTemplate: DEFAULT_MAIN_CONTAINER_TEMPLATE,
+            inputAreaTemplate: DEFAULT_INPUT_AREA_TEMPLATE,
+            messageTemplate: DEFAULT_MESSAGE_TEMPLATE,
+        },
+    };
 
     return {
-        langflowConnection: { endpoint_url, api_key },
-        chatbotDefaults: parsedConfig.chatbot_defaults || {},
+        langflowConnection: { endpoint_url: envEndpointUrl, api_key },
+        chatbotDefaults: chatbotDefaults,
     };
 }
 

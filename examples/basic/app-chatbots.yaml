@@ -1,5 +1,6 @@
-# Application-specific chatbot instances for the 'basic' example.
-# These profiles will inherit from 'chatbot_defaults' defined in the root chatbot-config.yaml.
+langflow_connection:
+  endpoint_url: "http://localhost:7860"
+  # api_key: ""
 
 chatbots:
   - proxyEndpointId: "memory" 
@@ -19,3 +20,12 @@ chatbots:
       widgetTitle: "Floating Memory Chatbot"
       botSender: "Chatbot"
       welcomeMessage: "Welcome to the Floating Memory Chatbot!"
+
+  - proxyEndpointId: "product-recommender" 
+    flowId: "bce8ac44-7542-4027-a969-43281e1f66d9" 
+    floatingWidget:
+      useFloating: false
+    labels:
+      widgetTitle: "Product Recommender"
+      botSender: "Assistant"
+      welcomeMessage: "How can I help you find the perfect product?"

@@ -15,15 +15,16 @@ const port = 3001;
 // Configuration for Langflow Proxy Service now comes primarily from chatbot-config.yaml
 let langflowProxy: LangflowProxyService;
 
-// The proxyConfig now only needs the path to the YAML configuration file.
+// The proxyConfig now only needs the path to the instance-specific chatbot configuration file.
+// Base configuration (Langflow connection) is sourced from environment variables.
+// Default chatbot behaviors are sourced from uiConstants.ts.
 const proxyConfig: LangflowProxyConfig = {
-    baseConfigPath: path.join(__dirname, '..', '..', 'chatbot-config.yaml'),
     instanceConfigPath: path.join(__dirname, 'app-chatbots.yaml')
 };
 
 try {
     langflowProxy = new LangflowProxyService(proxyConfig);
-    console.log(`Basic Server: LangflowProxyService initialized using base config: ${proxyConfig.baseConfigPath} and instance config: ${proxyConfig.instanceConfigPath}.`);
+    console.log(`Basic Server: LangflowProxyService initialized using instance config: ${proxyConfig.instanceConfigPath}. Base Langflow connection details are read from environment variables (LANGFLOW_ENDPOINT_URL, LANGFLOW_API_KEY).`);
 } catch (error) {
     console.error("Basic Server: CRITICAL - Failed to initialize LangflowProxyService:", error);
     process.exit(1); // Exit if proxy can't be set up

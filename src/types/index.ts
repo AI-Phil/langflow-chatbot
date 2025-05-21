@@ -5,6 +5,7 @@ export interface ChatbotProfile {
     labels?: Labels;
     template?: Template;
     floatingWidget?: FloatingWidget;
+    datetimeFormat?: string;
 }
 
 export interface Labels {
@@ -35,6 +36,5 @@ export interface SenderConfig {
 }
 
 export interface LangflowProxyConfig {
-    baseConfigPath: string;
     instanceConfigPath: string;
 } 

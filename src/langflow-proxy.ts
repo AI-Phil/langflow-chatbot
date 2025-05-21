@@ -7,30 +7,28 @@ import { ChatbotProfile, LangflowProxyConfig } from './types';
 
 export class LangflowProxyService {
     private langflowClient!: LangflowClient;
-    private langflowEndpointUrl!: string;
-    private langflowApiKey?: string;
-    private chatbotConfigurations: Map<string, ChatbotProfile> = new Map();
+    private flowConfigs: Map<string, ChatbotProfile> = new Map();
+    private langflowConnectionDetails: { endpoint_url: string; api_key?: string };
 
     constructor(config: LangflowProxyConfig) {
         try {
-            const { langflowConnection, chatbotDefaults } = loadBaseConfig(config.baseConfigPath);
+            const { langflowConnection, chatbotDefaults } = loadBaseConfig();
             
-            this.langflowEndpointUrl = langflowConnection.endpoint_url;
-            this.langflowApiKey = langflowConnection.api_key || undefined;
+            this.langflowConnectionDetails = langflowConnection;
 
             const clientConfig: { baseUrl: string; apiKey?: string } = {
-                baseUrl: this.langflowEndpointUrl,
+                baseUrl: langflowConnection.endpoint_url,
             };
-            if (this.langflowApiKey && this.langflowApiKey.trim() !== '') {
-                clientConfig.apiKey = this.langflowApiKey;
+            if (langflowConnection.api_key && langflowConnection.api_key.trim() !== '') {
+                clientConfig.apiKey = langflowConnection.api_key;
             }
             
             this.langflowClient = new LangflowClient(clientConfig);
-            console.log(`LangflowProxyService: LangflowClient initialized. Configured Endpoint: ${this.langflowEndpointUrl}`);
+            console.log(`LangflowProxyService: LangflowClient initialized. Configured Endpoint: ${langflowConnection.endpoint_url}`);
 
-            const chatbotInstanceProfiles = loadInstanceConfig(config.instanceConfigPath);
+            const instanceProfiles = loadInstanceConfig(config.instanceConfigPath);
 
-            this._processChatbotProfiles(chatbotDefaults, chatbotInstanceProfiles);
+            this._processChatbotProfiles(chatbotDefaults, instanceProfiles);
 
         } catch (error: any) {
             console.error(`LangflowProxyService: CRITICAL - Failed to initialize due to configuration error: ${error.message}`);
@@ -64,7 +62,7 @@ export class LangflowProxyService {
                     },
                 };
 
-                this.chatbotConfigurations.set(completeProfile.proxyEndpointId, completeProfile);
+                this.flowConfigs.set(completeProfile.proxyEndpointId, completeProfile);
                 loadedCount++;
                 // Initial log will show the configured ID (name or UUID)
                 console.log(`LangflowProxyService: Loaded chatbot profile: '${completeProfile.proxyEndpointId}' configured with flow identifier '${completeProfile.flowId}'.`);
@@ -73,10 +71,18 @@ export class LangflowProxyService {
             }
         }
         console.log(`LangflowProxyService: Successfully processed ${loadedCount} chatbot profile(s) from instance configuration.`);
+
+        if (this.flowConfigs.size === 0) {
+            console.warn("LangflowProxyService: No chatbot profiles were loaded. The service may not function as expected.");
+        }
     }
 
     public async initializeFlows(): Promise<void> {
-        await initializeFlowMappings(this.langflowEndpointUrl, this.langflowApiKey, this.chatbotConfigurations);
+        await initializeFlowMappings(
+            this.langflowConnectionDetails.endpoint_url, 
+            this.langflowConnectionDetails.api_key, 
+            this.flowConfigs
+        );
     }
 
     private async _makeDirectLangflowApiRequest(
@@ -85,7 +91,7 @@ export class LangflowProxyService {
         method: 'GET', 
         queryParams?: URLSearchParams
     ): Promise<Response | null> { 
-        if (!this.langflowEndpointUrl) {
+        if (!this.langflowConnectionDetails.endpoint_url) {
             console.warn(`LangflowProxyService: Attempted API call to "${path}" when Langflow endpoint URL is not configured.`);
             res.statusCode = 503;
             res.setHeader('Content-Type', 'application/json');
@@ -93,7 +99,7 @@ export class LangflowProxyService {
             return null;
         }
 
-        const targetUrl = new URL(path, this.langflowEndpointUrl);
+        const targetUrl = new URL(path, this.langflowConnectionDetails.endpoint_url);
         if (queryParams) {
             queryParams.forEach((value, key) => {
                 targetUrl.searchParams.append(key, value);
@@ -105,8 +111,8 @@ export class LangflowProxyService {
         const headers: HeadersInit = {
             'Accept': 'application/json',
         };
-        if (this.langflowApiKey) {
-            headers['Authorization'] = `Bearer ${this.langflowApiKey}`;
+        if (this.langflowConnectionDetails.api_key) {
+            headers['Authorization'] = `Bearer ${this.langflowConnectionDetails.api_key}`;
         }
         return fetch(targetUrl.toString(), {
             method: method,
@@ -118,11 +124,23 @@ export class LangflowProxyService {
         await handleRequestFromModule(
             req,
             res,
-            this.chatbotConfigurations,
+            this.flowConfigs,
             this.langflowClient,
-            this.langflowEndpointUrl,
-            this.langflowApiKey,
+            this.langflowConnectionDetails.endpoint_url,
+            this.langflowConnectionDetails.api_key,
             this._makeDirectLangflowApiRequest.bind(this)
         );
+    }
+
+    public getChatbotProfile(proxyEndpointId: string): ChatbotProfile | undefined {
+        return this.flowConfigs.get(proxyEndpointId);
+    }
+
+    public getLangflowConnectionDetails(): { endpoint_url: string; api_key?: string } {
+        return this.langflowConnectionDetails;
+    }
+
+    public getAllFlowConfigs(): Map<string, ChatbotProfile> {
+        return this.flowConfigs;
     }
 } 
