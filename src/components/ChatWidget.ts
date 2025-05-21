@@ -6,6 +6,8 @@ import { ChatTemplateManager, TemplateManagerConfig } from './ChatTemplateManage
 import { ChatSessionManager } from './ChatSessionManager';
 import { DatetimeHandler } from '../utils/datetimeUtils';
 import { SenderConfig, Labels, Template } from '../types';
+import { IMessageParser } from './messageParsers/IMessageParser';
+import { PlaintextMessageParser } from './messageParsers/PlaintextMessageParser';
 
 /**
  * Configuration options for the ChatWidget.
@@ -54,6 +56,8 @@ export class ChatWidget {
     private displayManager: ChatDisplayManager;
     private templateManager: ChatTemplateManager;
     private sessionManager: ChatSessionManager;
+    private uiCallbacks: MessageProcessorUICallbacks;
+    private messageParser: IMessageParser;
 
     /**
      * Constructs a ChatWidget instance.
@@ -99,7 +103,6 @@ export class ChatWidget {
             welcomeMessage: undefined, // Default to no welcome message
         };
         const effectiveLabels = { ...defaultLabels, ...configOptions.labels }; 
-        // Templates default to undefined, letting ChatTemplateManager handle internal defaults
         const effectiveTemplate = { ...configOptions.template }; 
 
         this.config = {
@@ -124,6 +127,8 @@ export class ChatWidget {
 
         this.render();
 
+        // Construct displayMgrConfig by directly passing properties from this.config
+        // This assumes ChatDisplayManagerConfig is designed to accept these directly.
         const displayMgrConfig: ChatDisplayManagerConfig = {
             messageTemplate: this.templateManager.getMessageTemplate(),
             userSender: this.config.userSender,
@@ -132,6 +137,7 @@ export class ChatWidget {
             systemSender: this.config.systemSender,
             datetimeFormat: this.config.datetimeFormat,
         };
+
         this.displayManager = new ChatDisplayManager(
             this.element, 
             displayMgrConfig, 
@@ -140,21 +146,21 @@ export class ChatWidget {
 
         this.sessionManager = new ChatSessionManager(
             this.chatClient,
-            { // SenderConfig for session manager
+            { 
                 userSender: this.config.userSender,
                 botSender: this.config.botSender,
                 errorSender: this.config.errorSender,
                 systemSender: this.config.systemSender,
             },
-            { // SessionManagerDisplayCallbacks
+            { 
                 clearMessages: () => this.displayManager.clearMessages(),
                 addMessage: (sender: string, message: string, isThinking?: boolean, datetime?: string) => 
                     this.displayManager.addMessageToDisplay(sender, message, isThinking, datetime),
                 scrollChatToBottom: () => this.displayManager.scrollChatToBottom(),
             },
             this.logger,
-            initialSessionId, // Pass initialSessionId to SessionManager for it to handle initial load
-            this.config.welcomeMessage // Pass welcome message to SessionManager
+            initialSessionId, 
+            this.config.welcomeMessage 
         );
         
         const messageProcessorCallbacks: MessageProcessorUICallbacks = {
@@ -165,8 +171,7 @@ export class ChatWidget {
             setBotMessageElement: (element) => { this.currentBotMessageElement = element; },
             scrollChatToBottom: () => this.displayManager.scrollChatToBottom(),
             updateSessionId: (sessionId) => {
-                this.sessionManager.processSessionIdUpdateFromFlow(sessionId); // Inform SessionManager
-                // Notify external listeners if the session ID has genuinely changed or is newly established.
+                this.sessionManager.processSessionIdUpdateFromFlow(sessionId); 
                 if (this.onSessionIdUpdateCallback && (capturedInitialSessionId !== sessionId || !capturedInitialSessionId)) {
                     this.onSessionIdUpdateCallback(sessionId);
                 }
@@ -174,18 +179,22 @@ export class ChatWidget {
             setInputDisabled: (disabled: boolean) => this.setInputDisabled(disabled),
         };
 
+        this.uiCallbacks = messageProcessorCallbacks;
+        this.messageParser = new PlaintextMessageParser();
+
         this.messageProcessor = new ChatMessageProcessor(
             this.chatClient,
-            { // SenderConfig for message processor
+            { 
                 userSender: this.config.userSender,
                 botSender: this.config.botSender,
                 errorSender: this.config.errorSender,
                 systemSender: this.config.systemSender,
             },
             this.logger,
-            messageProcessorCallbacks,
-            () => this.enableStream, // Pass a function to get the current enableStream state
-            () => this.sessionManager.currentSessionId // Pass a function to get the current session ID
+            this.uiCallbacks,
+            this.messageParser,
+            () => this.enableStream,
+            () => this.sessionManager.currentSessionId
         );
     }
 

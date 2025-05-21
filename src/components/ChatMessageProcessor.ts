@@ -18,6 +18,7 @@ import { LangflowChatClient, BotResponse, StreamEvent, StreamEventType, StreamEv
 import { Logger } from '../utils/logger';
 import { SenderConfig } from '../types';
 import { THINKING_BUBBLE_HTML } from '../config/uiConstants';
+import { IMessageParser } from './messageParsers/IMessageParser';
 
 export interface MessageProcessorUICallbacks {
     addMessage: (sender: string, message: string, isThinking?: boolean, datetime?: string) => HTMLElement | null;
@@ -37,6 +38,7 @@ export class ChatMessageProcessor {
      * @param config Configuration defining the sender names/roles (e.g., user, bot, error, system).
      * @param logger Logger instance for logging messages.
      * @param ui Callbacks for UI interactions related to message processing.
+     * @param messageParser The message parser for parsing messages.
      * @param getEnableStream Function to dynamically get the current stream enabled status.
      * @param getCurrentSessionId Function to dynamically get the current session ID.
      */
@@ -45,6 +47,7 @@ export class ChatMessageProcessor {
         private config: SenderConfig,
         private logger: Logger,
         private ui: MessageProcessorUICallbacks,
+        private messageParser: IMessageParser,
         private getEnableStream: () => boolean,
         private getCurrentSessionId: () => string | null
     ) {}
@@ -92,7 +95,8 @@ export class ChatMessageProcessor {
         const botElement = this.ui.getBotMessageElement();
         if (botElement && botElement.classList.contains('thinking')) {
             const fullErrorMessage = detailErrorMessage ? `${baseErrorMessage}: ${detailErrorMessage}` : baseErrorMessage;
-            this.ui.updateMessageContent(botElement, fullErrorMessage);
+            const parsedErrorMessage = this.messageParser.parseComplete(fullErrorMessage);
+            this.ui.updateMessageContent(botElement, parsedErrorMessage);
             botElement.classList.remove('thinking', 'bot-message');
             botElement.classList.add('error-message');
             return true;
@@ -130,7 +134,8 @@ export class ChatMessageProcessor {
             this.logger.error("Failed to process stream message:", error);
             const displayMessage = error.message || "Error processing stream.";
             if (!this.tryUpdateThinkingToError("Stream Error", displayMessage)) {
-                this.ui.addMessage(this.config.errorSender, `Stream Error: ${displayMessage}`, false, new Date().toISOString());
+                const parsedDisplayMessage = this.messageParser.parseComplete(`Stream Error: ${displayMessage}`);
+                this.ui.addMessage(this.config.errorSender, parsedDisplayMessage, false, new Date().toISOString());
             }
         } finally {
             const botElementForFinally = this.ui.getBotMessageElement();
@@ -138,9 +143,11 @@ export class ChatMessageProcessor {
                 botElementForFinally.classList.remove('thinking');
                 const messageSpan = botElementForFinally.querySelector('.message-text-content');
                 if(messageSpan && messageSpan.innerHTML.trim() === "" && !botElementForFinally.classList.contains('error-message')){
-                    this.ui.updateMessageContent(botElementForFinally, "(No content streamed)");
+                    const parsedNoContent = this.messageParser.parseComplete("(No content streamed)");
+                    this.ui.updateMessageContent(botElementForFinally, parsedNoContent);
                 } else if (messageSpan && messageSpan.innerHTML.includes('thinking-bubble') && !botElementForFinally.classList.contains('error-message')) {
-                    this.ui.updateMessageContent(botElementForFinally, "(No content streamed)");
+                    const parsedNoContent = this.messageParser.parseComplete("(No content streamed)");
+                    this.ui.updateMessageContent(botElementForFinally, parsedNoContent);
                 }
             }
             this.ui.setBotMessageElement(null);
@@ -215,7 +222,8 @@ export class ChatMessageProcessor {
         if (botMessageElement) {
             const textSpan = botMessageElement.querySelector<HTMLElement>('.message-text-content');
             if (textSpan) {
-                textSpan.innerHTML += data.chunk; // Append new chunk to existing content
+                const parsedChunk = this.messageParser.parseChunk(data.chunk, accumulatedResponse);
+                textSpan.innerHTML += parsedChunk;
                 this.ui.scrollChatToBottom();
             } else {
                 // This case should ideally not happen if the message template is correct and thinking indicator was cleared properly
@@ -235,12 +243,14 @@ export class ChatMessageProcessor {
         const currentBotElement = this.ui.getBotMessageElement();
         if (currentBotElement) {
             const displayMessage = data.detail ? `${data.message}: ${data.detail}` : data.message;
-            this.ui.updateMessageContent(currentBotElement, displayMessage);
+            const parsedDisplayMessage = this.messageParser.parseComplete(displayMessage);
+            this.ui.updateMessageContent(currentBotElement, parsedDisplayMessage);
             currentBotElement.classList.remove('thinking', 'bot-message');
             currentBotElement.classList.add('error-message');
         } else {
             // If no current bot element, add a new error message
-            this.ui.addMessage(this.config.errorSender, `Stream Error: ${data.message}${data.detail ? " Details: " + JSON.stringify(data.detail) : ""}`, false, new Date().toISOString());
+            const parsedErrorMessage = this.messageParser.parseComplete(`Stream Error: ${data.message}${data.detail ? " Details: " + JSON.stringify(data.detail) : ""}`);
+            this.ui.addMessage(this.config.errorSender, parsedErrorMessage, false, new Date().toISOString());
         }
     }
 
@@ -267,13 +277,16 @@ export class ChatMessageProcessor {
 
         if (currentBotElement) {
             if (data.flowResponse?.reply) {
-                this.ui.updateMessageContent(currentBotElement, data.flowResponse.reply);
+                const parsedReply = this.messageParser.parseComplete(data.flowResponse.reply);
+                this.ui.updateMessageContent(currentBotElement, parsedReply);
             } else if (accumulatedResponse) {
                 // If no explicit reply in 'end' event, but we accumulated tokens, ensure that's the final content.
-                this.ui.updateMessageContent(currentBotElement, accumulatedResponse);
+                const parsedAccumulated = this.messageParser.parseComplete(accumulatedResponse);
+                this.ui.updateMessageContent(currentBotElement, parsedAccumulated);
             } else {
                 // No reply in end event, and no accumulated tokens from 'token' events
-                this.ui.updateMessageContent(currentBotElement, "(empty response)");
+                const parsedEmptyResponse = this.messageParser.parseComplete("(empty response)");
+                this.ui.updateMessageContent(currentBotElement, parsedEmptyResponse);
             }
             currentBotElement.classList.remove('thinking'); // Ensure thinking class is removed
         }
@@ -299,21 +312,25 @@ export class ChatMessageProcessor {
 
             if (botElement && botElement.classList.contains('thinking')) {
                 if (result.reply) {
-                    this.ui.updateMessageContent(botElement, result.reply);
+                    const parsedReply = this.messageParser.parseComplete(result.reply);
+                    this.ui.updateMessageContent(botElement, parsedReply);
                 } else if (result.error) {
                     const errorMessage = result.detail ? `${result.error}: ${result.detail}` : result.error;
-                    this.ui.updateMessageContent(botElement, errorMessage);
+                    const parsedErrorMessage = this.messageParser.parseComplete(errorMessage);
+                    this.ui.updateMessageContent(botElement, parsedErrorMessage);
                     botElement.classList.remove('bot-message'); // It's an error, not a regular bot message
                     botElement.classList.add('error-message');
                 } else {
                     this.logger.warn("handleNonStreamingResponse: No reply content or error from bot.");
-                    this.ui.updateMessageContent(botElement, "Sorry, I couldn't get a valid response.");
+                    const parsedNoResponse = this.messageParser.parseComplete("Sorry, I couldn't get a valid response.");
+                    this.ui.updateMessageContent(botElement, parsedNoResponse);
                 }
                 botElement.classList.remove('thinking');
             } else {
                 // Fallback if the thinking bubble was somehow lost or not set correctly
                 this.logger.warn("handleNonStreamingResponse: Thinking message element was not found or not in expected state. Adding new message.");
-                this.ui.addMessage(this.config.botSender, result.reply || "Sorry, I couldn't get a valid response.", false, new Date().toISOString());
+                const parsedFallbackReply = this.messageParser.parseComplete(result.reply || "Sorry, I couldn't get a valid response.");
+                this.ui.addMessage(this.config.botSender, parsedFallbackReply, false, new Date().toISOString());
             }
 
             if (result.sessionId) {
@@ -324,7 +341,8 @@ export class ChatMessageProcessor {
             this.logger.error("Failed to send message via ChatClient:", error);
             const exceptionMessage = error.message || "Failed to send message.";
             if (!this.tryUpdateThinkingToError("Error sending message", exceptionMessage)) {
-                this.ui.addMessage(this.config.errorSender, `Error: ${exceptionMessage}`, false, new Date().toISOString());
+                const parsedErrorMessage = this.messageParser.parseComplete(`Error: ${exceptionMessage}`);
+                this.ui.addMessage(this.config.errorSender, parsedErrorMessage, false, new Date().toISOString());
             }
         } finally {
             this.ui.setBotMessageElement(null);

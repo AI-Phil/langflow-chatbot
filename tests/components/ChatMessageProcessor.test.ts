@@ -4,12 +4,17 @@ import { ChatMessageProcessor, MessageProcessorUICallbacks } from '../../src/com
 import { LangflowChatClient, BotResponse, StreamEvent, StreamEventType, StreamEventDataMap } from '../../src/clients/LangflowChatClient';
 import { Logger } from '../../src/utils/logger';
 import { SenderConfig } from '../../src/types';
+import { THINKING_BUBBLE_HTML } from '../../src/config/uiConstants';
+import { PlaintextMessageParser } from '../../src/components/messageParsers/PlaintextMessageParser';
 
 // Mocks
 const mockChatClient = {
     sendMessage: jest.fn(),
     streamMessage: jest.fn(),
     getMessageHistory: jest.fn(),
+    getHistory: jest.fn(),
+    setFlowId: jest.fn(),
+    setSessionId: jest.fn(),
     // We don't need to mock the constructor or private members here,
     // as ChatMessageProcessor receives an instance of LangflowChatClient.
     // We provide an object that quacks like the parts of LangflowChatClient it uses.
@@ -31,6 +36,8 @@ const mockLogger: jest.Mocked<Logger> = {
     format: jest.fn((level, ...args) => [`[TestLogger] [${level.toUpperCase()}]`, ...args]),
     // @ts-ignore 
     constructor: jest.fn(),
+    setDebug: jest.fn(),
+    updateDebug: jest.fn(),
 };
 
 const mockUiCallbacks: jest.Mocked<MessageProcessorUICallbacks> = {
@@ -72,6 +79,7 @@ const senderConfig: SenderConfig = {
 describe('ChatMessageProcessor', () => {
     let processor: ChatMessageProcessor;
     let mockBotMessageElement: HTMLElement | null;
+    let mockPlaintextParser: PlaintextMessageParser;
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -133,12 +141,14 @@ describe('ChatMessageProcessor', () => {
         // mockUiCallbacks.updateMessageContent = jest.fn(); // Already specifically mocked or covered by loop
         // mockUiCallbacks.updateSessionId = jest.fn();
 
+        mockPlaintextParser = new PlaintextMessageParser();
 
         processor = new ChatMessageProcessor(
             mockChatClient as any, 
             senderConfig,
             mockLogger,
             mockUiCallbacks,
+            mockPlaintextParser,
             mockGetEnableStream,
             mockGetCurrentSessionId
         );

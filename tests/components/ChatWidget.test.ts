@@ -94,12 +94,12 @@ describe('ChatWidget', () => {
         MockChatDisplayManager.mockImplementation(() => mockDisplayManagerInstance);
         
         mockSessionManagerInstance = {
-            currentSessionId: 'initial-session-id',
+            currentSessionId: 'initial-session-id' as string | null,
             isHistoryLoaded: false,
             loadAndDisplayHistory: jest.fn().mockResolvedValue(undefined),
             processSessionIdUpdateFromFlow: jest.fn(),
             setSessionIdAndLoadHistory: jest.fn().mockResolvedValue(undefined),
-            updateCurrentSessionId: jest.fn(), // Added for completeness, may not be directly called by widget
+            updateCurrentSessionId: jest.fn(),
         } as any;
         MockChatSessionManager.mockImplementation(() => mockSessionManagerInstance);
 
@@ -172,6 +172,7 @@ describe('ChatWidget', () => {
                 { userSender: "You", botSender: "Bot", errorSender: "Error", systemSender: "System" },
                 mockLogger,
                 expect.any(Object), // MessageProcessorUICallbacks
+                expect.anything(),  // <<<< Added for IMessageParser
                 expect.any(Function), // getEnableStream
                 expect.any(Function)  // getCurrentSessionId
             );
@@ -243,14 +244,29 @@ describe('ChatWidget', () => {
                     systemSender: customConfig.labels?.systemSender 
                 },
                 mockLogger,
-                expect.any(Object),
-                expect.any(Function),
-                expect.any(Function)
+                expect.any(Object), // MessageProcessorUICallbacks
+                expect.anything(),  // <<<< Added for IMessageParser
+                expect.any(Function), // getEnableStream
+                expect.any(Function)  // getCurrentSessionId
             );
-            // Check getEnableStream directly if possible or its effect
+            // Check getEnableStream directly
             const processorArgs = MockChatMessageProcessor.mock.calls[0];
-            const getEnableStreamFn = processorArgs[4] as () => boolean;
-            expect(getEnableStreamFn()).toBe(false); // Was passed as false in constructor
+            const getEnableStreamFn = processorArgs[5] as () => boolean;
+            expect(getEnableStreamFn()).toBe(false);
+
+            // Check getCurrentSessionId
+            const getCurrentSessionIdFn = processorArgs[6] as () => string | null;
+            (mockSessionManagerInstance as { currentSessionId: string | null }).currentSessionId = 'test-session-for-getter';
+            expect(getCurrentSessionIdFn()).toBe('test-session-for-getter');
+        });
+
+        // Test for enableStream default value (true)
+        it('should default enableStream to true and pass getter to ChatMessageProcessor', () => {
+            new ChatWidget(containerElement, mockChatClientInstance, undefined, minimalConfig, mockLogger);
+            expect(MockChatMessageProcessor).toHaveBeenCalled();
+            const processorArgs = MockChatMessageProcessor.mock.calls[0];
+            const getEnableStreamFn = processorArgs[5] as () => boolean; // <<<< Index changed from 4 to 5
+            expect(getEnableStreamFn()).toBe(true);
         });
 
         it('should store and use onSessionIdUpdate callback', () => {
