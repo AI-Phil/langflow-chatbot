@@ -45,15 +45,10 @@ interface FullChatbotProfile extends Omit<LangflowChatbotInitConfig, 'proxyEndpo
   datetimeFormat?: string; // Added datetimeFormat
 }
 
-// Default templates are now managed by ChatTemplateManager and ChatWidget
-// const DEFAULT_PLUGIN_MAIN_CONTAINER_TEMPLATE = `...`; // REMOVED
-// const DEFAULT_PLUGIN_INPUT_AREA_TEMPLATE = `...`; // REMOVED
-// const DEFAULT_PLUGIN_MESSAGE_TEMPLATE = `...`; // REMOVED
-
 export class LangflowChatbotInstance {
   private initialConfig: LangflowChatbotInitConfig;
   private serverProfile!: FullChatbotProfile; // Will be fetched
-  private chatClient!: LangflowChatClient;
+  private chatClient: LangflowChatClient | null = null;
   private widgetInstance: any; // Placeholder for ChatWidget or FloatingChatWidget
   private isInitialized: boolean = false;
   private listeners: { [event: string]: Array<(data: any) => void> } = {}; // For emitting events like sessionChanged
@@ -211,12 +206,15 @@ export class LangflowChatbotInstance {
   destroy() {
     if (this.widgetInstance && typeof this.widgetInstance.destroy === 'function') {
       this.widgetInstance.destroy();
-      this.widgetInstance = null;
     }
+    this.widgetInstance = null;
+
     if (this.initialConfig.containerId && !this.initialConfig.useFloating) {
       const chatContainer = document.getElementById(this.initialConfig.containerId);
       if (chatContainer) chatContainer.innerHTML = '';
     }
+    
+    this.chatClient = null;
     this.isInitialized = false;
     this.listeners = {}; // Clear listeners on destroy
     this.logger.info("Instance destroyed.");
