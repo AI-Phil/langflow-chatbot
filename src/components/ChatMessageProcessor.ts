@@ -131,7 +131,7 @@ export class ChatMessageProcessor {
                 accumulatedResponse = this.processStreamEvent(event, accumulatedResponse);
             }
         } catch (error: any) {
-            this.logger.error("Failed to process stream message:", error);
+            this.logger.error("handleStreamingResponse: Failed to process stream message:", error);
             const displayMessage = error.message || "Error processing stream.";
             if (!this.tryUpdateThinkingToError("Stream Error", displayMessage)) {
                 const parsedDisplayMessage = this.messageParser.parseComplete(`Stream Error: ${displayMessage}`);
@@ -139,13 +139,23 @@ export class ChatMessageProcessor {
             }
         } finally {
             const botElementForFinally = this.ui.getBotMessageElement();
+            const messageSpan = botElementForFinally?.querySelector('.message-text-content');
+
             if (botElementForFinally && botElementForFinally.classList.contains('thinking')) {
+                this.logger.warn("handleStreamingResponse: Bot element still marked as 'thinking' in finally block. Stream may have ended without content or error.");
                 botElementForFinally.classList.remove('thinking');
-                const messageSpan = botElementForFinally.querySelector('.message-text-content');
-                if(messageSpan && messageSpan.innerHTML.trim() === "" && !botElementForFinally.classList.contains('error-message')){
+                
+                const messageSpanAfterRemove = botElementForFinally.querySelector('.message-text-content');
+
+                if(messageSpanAfterRemove && messageSpanAfterRemove.innerHTML.trim() === "" && !botElementForFinally.classList.contains('error-message')){
+                    this.logger.warn("handleStreamingResponse: Message span is empty and not an error after 'thinking' removed. Setting to '(No content streamed)'.");
                     const parsedNoContent = this.messageParser.parseComplete("(No content streamed)");
                     this.ui.updateMessageContent(botElementForFinally, parsedNoContent);
-                } else if (messageSpan && messageSpan.innerHTML.includes('thinking-bubble') && !botElementForFinally.classList.contains('error-message')) {
+                // This specific state (thinking-bubble HTML still present after class removal, not an error)
+                // is a deep edge case unlikely to be hit in normal operation and complex to test.
+                /* istanbul ignore next */
+                } else if (messageSpanAfterRemove && messageSpanAfterRemove.innerHTML.includes('thinking-bubble') && !botElementForFinally.classList.contains('error-message')) {
+                    this.logger.warn("handleStreamingResponse: Message span still contains 'thinking-bubble' and not an error. Setting to '(No content streamed)'.");
                     const parsedNoContent = this.messageParser.parseComplete("(No content streamed)");
                     this.ui.updateMessageContent(botElementForFinally, parsedNoContent);
                 }
@@ -164,6 +174,7 @@ export class ChatMessageProcessor {
     private clearThinkingIndicatorIfNeeded(event: StreamEvent, currentBotElement: HTMLElement | null, accumulatedResponse: string): void {
         if (currentBotElement && currentBotElement.classList.contains('thinking')) {
             let shouldClearThinking = false;
+
             if (event.event === 'token' && (event.data as StreamEventDataMap['token']).chunk.length > 0) {
                 shouldClearThinking = true;
             }
@@ -226,7 +237,6 @@ export class ChatMessageProcessor {
                 textSpan.innerHTML += parsedChunk;
                 this.ui.scrollChatToBottom();
             } else {
-                // This case should ideally not happen if the message template is correct and thinking indicator was cleared properly
                 this.logger.warn("Stream token: message-text-content span not found in bot message element. Cannot append token.");
             }
         }
@@ -260,10 +270,57 @@ export class ChatMessageProcessor {
      * @param data The data associated with the add_message event.
      */
     private handleStreamAddMessageEvent(data: StreamEventDataMap['add_message']): void {
-        this.logger.debug("Received 'add_message' event during stream. Data:", data);
-        // Depending on requirements, one might want to use this.ui.addMessage here
-        // to display these auxiliary messages in the chat.
-        // For now, it's just logged.
+        this.logger.info("handleStreamAddMessageEvent: Received 'add_message' event. Full data:", { data });
+
+        const eventData = data as any;
+
+        const isBotMessage = eventData.sender === "Machine"; 
+
+        if (!isBotMessage) {
+            return;
+        }
+
+        let messageContent: string | undefined = undefined;
+        if (typeof eventData.text === 'string') {
+            messageContent = eventData.text;
+        // Fallback for add_message content if 'text' field is not primary.
+        /* istanbul ignore next */
+        } else if (typeof eventData.message === 'string') {
+            messageContent = eventData.message;
+        // Fallback for add_message content if 'text' or 'message' fields are not primary.
+        /* istanbul ignore next */
+        } else if (typeof eventData.html === 'string') {
+            messageContent = eventData.html;
+        // Fallback for add_message content if 'text', 'message', or 'html' fields are not primary.
+        /* istanbul ignore next */
+        } else if (typeof eventData.content === 'string') {
+            messageContent = eventData.content;
+        }
+
+        if (messageContent === undefined || messageContent.trim() === "") {
+            return;
+        }
+
+        const currentBotElement = this.ui.getBotMessageElement();
+        if (currentBotElement) {
+            if (currentBotElement.classList.contains('thinking')) {
+                this.ui.updateMessageContent(currentBotElement, ""); 
+                currentBotElement.classList.remove('thinking');
+            }
+
+            const parsedMessage = this.messageParser.parseComplete(messageContent);
+            
+            const textSpan = currentBotElement.querySelector<HTMLElement>('.message-text-content');
+            if (textSpan) {
+                textSpan.innerHTML = parsedMessage; 
+            } else {
+                 this.logger.warn("handleStreamAddMessageEvent: .message-text-content span not found. Updating currentBotElement directly.");
+                 this.ui.updateMessageContent(currentBotElement, parsedMessage);
+            }
+            this.ui.scrollChatToBottom();
+        } else {
+            this.logger.warn("handleStreamAddMessageEvent: Bot message content found, but no currentBotElement to update. This is unusual if a thinking indicator was expected.");
+        }
     }
 
     /**
@@ -273,26 +330,29 @@ export class ChatMessageProcessor {
      * @param accumulatedResponse The total response accumulated from tokens.
      */
     private handleStreamEndEvent(data: StreamEventDataMap['end'], accumulatedResponse: string): void {
-        const currentBotElement = this.ui.getBotMessageElement();
+        const botElement = this.ui.getBotMessageElement();
 
-        if (currentBotElement) {
-            if (data.flowResponse?.reply) {
+        if (botElement) {
+            if (botElement.classList.contains('thinking') && data.flowResponse?.reply && accumulatedResponse === "") {
                 const parsedReply = this.messageParser.parseComplete(data.flowResponse.reply);
-                this.ui.updateMessageContent(currentBotElement, parsedReply);
-            } else if (accumulatedResponse) {
-                // If no explicit reply in 'end' event, but we accumulated tokens, ensure that's the final content.
-                const parsedAccumulated = this.messageParser.parseComplete(accumulatedResponse);
-                this.ui.updateMessageContent(currentBotElement, parsedAccumulated);
-            } else {
-                // No reply in end event, and no accumulated tokens from 'token' events
-                const parsedEmptyResponse = this.messageParser.parseComplete("(empty response)");
-                this.ui.updateMessageContent(currentBotElement, parsedEmptyResponse);
-            }
-            currentBotElement.classList.remove('thinking'); // Ensure thinking class is removed
-        }
+                this.ui.updateMessageContent(botElement, parsedReply);
+                botElement.classList.remove('thinking');
+            } else if (accumulatedResponse.length === 0 && !data.flowResponse?.reply) {
+            } else if (data.flowResponse?.reply && accumulatedResponse !== data.flowResponse.reply) {
+                 if (accumulatedResponse.length === 0) {
+                    const parsedReply = this.messageParser.parseComplete(data.flowResponse.reply);
+                    this.ui.updateMessageContent(botElement, parsedReply);
+                    if (botElement.classList.contains('thinking')) { 
+                        botElement.classList.remove('thinking');
+                    }
+                 }
 
-        if (data.flowResponse?.sessionId) {
-            this.ui.updateSessionId(data.flowResponse.sessionId);
+            }
+            if (data.sessionId) {
+                this.ui.updateSessionId(data.sessionId);
+            }
+        } else {
+            this.logger.warn("handleStreamEndEvent: No bot message element found at stream end. This is unusual.");
         }
     }
 

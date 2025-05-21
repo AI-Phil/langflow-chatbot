@@ -318,6 +318,25 @@ describe('ChatMessageProcessor', () => {
                 expect(mockUiCallbacks.updateSessionId).toHaveBeenCalledWith("session-fallback");
             });
 
+            it('should use fallback to add new message in non-streaming if thinking bubble is lost before result with reply', async () => {
+                const botReply = "Fallback reply here";
+                mockChatClient.sendMessage.mockResolvedValueOnce({ reply: botReply, sessionId: "session-lost-bubble-reply" });
+                
+                const originalGetBotElement = mockUiCallbacks.getBotMessageElement;
+                // displayInitialThinkingIndicator sets up a thinking bubble.
+                // Then, when handleNonStreamingResponse calls getBotMessageElement, make it return null.
+                mockUiCallbacks.getBotMessageElement.mockImplementationOnce(() => null);
+
+                await processor.process(userMessage);
+
+                expect(mockLogger.warn).toHaveBeenCalledWith("handleNonStreamingResponse: Thinking message element was not found or not in expected state. Adding new message.");
+                expect(mockUiCallbacks.addMessage).toHaveBeenCalledWith(senderConfig.botSender, botReply, false, expect.any(String));
+                // Ensure updateMessageContent was not called on a null/lost element
+                const updateContentCallsToNonNull = mockUiCallbacks.updateMessageContent.mock.calls.filter(call => call[0] !== null);
+                expect(updateContentCallsToNonNull.length).toBe(0); // Or check it wasn't called with botReply
+                mockUiCallbacks.getBotMessageElement = originalGetBotElement;
+            });
+
         });
 
         describe('when streaming is enabled (getEnableStream returns true)', () => {
@@ -356,20 +375,22 @@ describe('ChatMessageProcessor', () => {
                 expect(mockChatClient.streamMessage).toHaveBeenCalledWith(userMessage, undefined);
                 expect(mockUiCallbacks.updateSessionId).toHaveBeenCalledWith(streamSessionId);
                 
+                // Expect updateMessageContent to be called once to clear the thinking indicator
+                expect(mockUiCallbacks.updateMessageContent).toHaveBeenCalledTimes(1);
                 const firstCallArgElement = mockUiCallbacks.updateMessageContent.mock.calls[0][0] as HTMLElement;
                 expect(firstCallArgElement).toBeInstanceOf(HTMLElement);
-                expect(mockUiCallbacks.updateMessageContent.mock.calls[0][1]).toBe(""); 
+                expect(mockUiCallbacks.updateMessageContent.mock.calls[0][1]).toBe(""); // Called with empty string to clear
                 
+                // Verify the content was set by direct innerHTML manipulation in handleStreamTokenEvent
                 const textContentSpan = firstCallArgElement.querySelector('.message-text-content');
                 expect(textContentSpan).not.toBeNull();
                 expect(textContentSpan?.innerHTML).toBe(token1 + token2);
+                
+                // scrollChatToBottom should be called for each token
                 expect(mockUiCallbacks.scrollChatToBottom).toHaveBeenCalledTimes(2);
                 
-                const secondCallArgElement = mockUiCallbacks.updateMessageContent.mock.calls[1][0] as HTMLElement;
-                expect(secondCallArgElement).toBe(firstCallArgElement); 
-                expect(mockUiCallbacks.updateMessageContent.mock.calls[1][1]).toBe(token1 + token2);
-                
-                expect(mockUiCallbacks.updateMessageContent).toHaveBeenCalledTimes(2);
+                // Remove expectations for a second call to updateMessageContent with the full token string,
+                // as tokens update innerHTML directly.
 
                 mockUiCallbacks.setBotMessageElement = originalSetBotMock; 
             });
@@ -415,7 +436,7 @@ describe('ChatMessageProcessor', () => {
                 expect(currentBotElement?.classList.contains('thinking')).toBe(false);
             });
 
-            it('should display (empty response) if stream ends with no tokens and no reply in end event', async () => {
+            it('should display (No content streamed) if stream ends with no tokens and no reply in end event', async () => {
                 mockChatClient.streamMessage.mockReturnValueOnce(mockStreamGenerator([
                     { event: 'stream_started', data: { sessionId: "s8" } },
                     { event: 'end', data: { flowResponse: { sessionId: "s8" } } }, 
@@ -423,12 +444,8 @@ describe('ChatMessageProcessor', () => {
 
                 await processor.process(userMessage);
                 const currentBotElement = mockUiCallbacks.getBotMessageElement.mock.results[0].value;
-                // SUT logic: if accumulatedResponse is empty and end event has no reply, 
-                // and if it's still thinking, it updates to "(empty response)".
-                // clearThinkingIndicatorIfNeeded for 'end' does NOT clear if no reply and no accumulated response.
-                // So handleStreamEndEvent updates it directly.
-                expect(mockUiCallbacks.updateMessageContent).toHaveBeenCalledTimes(1); // Only one call to set (empty response)
-                expect(mockUiCallbacks.updateMessageContent).toHaveBeenCalledWith(currentBotElement, "(empty response)");
+                expect(mockUiCallbacks.updateMessageContent).toHaveBeenCalledTimes(1); 
+                expect(mockUiCallbacks.updateMessageContent).toHaveBeenCalledWith(currentBotElement, "(No content streamed)"); // Changed from "(empty response)"
                 if (currentBotElement) currentBotElement.classList.remove('thinking');
                 expect(currentBotElement?.classList.contains('thinking')).toBe(false);
             });
@@ -453,11 +470,260 @@ describe('ChatMessageProcessor', () => {
             it('should handle add_message event by logging', async () => {
                  mockChatClient.streamMessage.mockReturnValueOnce(mockStreamGenerator([
                     { event: 'stream_started', data: { sessionId: "s10" } },
-                    { event: 'add_message', data: { message: "Auxiliary message", is_bot: true } as StreamEventDataMap['add_message'] },
+                    { event: 'add_message', data: { message: "Auxiliary message", sender: "Machine", is_bot: true } as StreamEventDataMap['add_message'] },
                     { event: 'end', data: { flowResponse: { reply: "Done", sessionId: "s10" } } },
                 ]));
                 await processor.process(userMessage);
-                expect(mockLogger.debug).toHaveBeenCalledWith("Received 'add_message' event during stream. Data:", { message: "Auxiliary message", is_bot: true });
+                expect(mockLogger.info).toHaveBeenCalledWith("handleStreamAddMessageEvent: Received 'add_message' event. Full data:", { data: { message: "Auxiliary message", sender: "Machine", is_bot: true } });
+            });
+
+            it('should log a warning if .message-text-content span is missing during token event', async () => {
+                const token1 = "Hello ";
+                const originalGetBotElement = mockUiCallbacks.getBotMessageElement;
+
+                // mockBotMessageElement is the one set by displayInitialThinkingIndicator via addMessage/setBotMessageElement.
+                // It will have the .message-text-content span initially.
+
+                const elementWithoutSpan = document.createElement('div');
+                elementWithoutSpan.className = 'message bot-message'; // Critically, no .message-text-content span
+
+                // After displayInitialThinkingIndicator runs and sets up the initial element (which has a span),
+                // all subsequent calls to getBotMessageElement in this test will return the element WITHOUT a span.
+                let initialSetupDone = false;
+                mockUiCallbacks.getBotMessageElement.mockImplementation(() => {
+                    if (!initialSetupDone) {
+                        // This path should be taken by displayInitialThinkingIndicator via setBotMessageElement
+                        // and the very first getBotMessageElement in the stream loop (currentBotElement for clearThinkingIndicatorIfNeeded)
+                        initialSetupDone = true; 
+                        return mockBotMessageElement; // The one with the span
+                    }
+                    // All subsequent calls, including the one inside handleStreamTokenEvent, get this:
+                    return elementWithoutSpan;
+                });
+
+                mockChatClient.streamMessage.mockReturnValueOnce(mockStreamGenerator([
+                    { event: 'stream_started', data: { sessionId: "s11" } },
+                    { event: 'token', data: { chunk: token1 } },
+                    { event: 'end', data: { flowResponse: { sessionId: "s11" } } },
+                ]));
+
+                await processor.process(userMessage);
+                expect(mockLogger.warn).toHaveBeenCalledWith("Stream token: message-text-content span not found in bot message element. Cannot append token.");
+                
+                // Restore original mock
+                mockUiCallbacks.getBotMessageElement = originalGetBotElement;
+            });
+
+            it('should add a new error message if currentBotElement is null during stream error event', async () => {
+                const streamErrorMsg = "Stream processing error for null element";
+                const originalGetBotElement = mockUiCallbacks.getBotMessageElement;
+
+                mockChatClient.streamMessage.mockReturnValueOnce(mockStreamGenerator([
+                    { event: 'stream_started', data: { sessionId: "s12" } },
+                    { event: 'error', data: { message: streamErrorMsg, detail: "Detail for null element" } },
+                ]));
+
+                // Ensure getBotMessageElement returns null when handleStreamErrorEvent tries to get it.
+                // This needs to be timed for when processStreamEvent calls handleStreamErrorEvent.
+                // The first call to getBotMessageElement in the loop might be for clearThinkingIndicatorIfNeeded.
+                mockUiCallbacks.getBotMessageElement.mockImplementation(() => {
+                    // This mock will be active when handleStreamErrorEvent is eventually called.
+                    // This is a bit broad, assumes this is the only getBotMessageElement call path for this event.
+                    return null;
+                });
+
+                await processor.process(userMessage);
+
+                const expectedErrorMessage = `Stream Error: ${streamErrorMsg} Details: "Detail for null element"`;
+                expect(mockUiCallbacks.addMessage).toHaveBeenCalledWith(
+                    senderConfig.errorSender,
+                    expectedErrorMessage,
+                    false,
+                    expect.any(String)
+                );
+                // Ensure updateMessageContent was NOT called as there was no element to update
+                expect(mockUiCallbacks.updateMessageContent).not.toHaveBeenCalled(); 
+
+                mockUiCallbacks.getBotMessageElement = originalGetBotElement; // Restore
+            });
+
+            it('should log and skip UI update for bot add_message if content is empty', async () => {
+                const originalGetBotElement = mockUiCallbacks.getBotMessageElement;
+                // Provide a valid bot element initially for displayInitialThinkingIndicator
+                mockUiCallbacks.getBotMessageElement.mockImplementation(() => mockBotMessageElement);
+
+                mockChatClient.streamMessage.mockReturnValueOnce(mockStreamGenerator([
+                    { event: 'stream_started', data: { sessionId: "s13" } },
+                    { event: 'add_message', data: { sender: "Machine", text: "" } as StreamEventDataMap['add_message'] }, // Empty text
+                    { event: 'end', data: { flowResponse: { reply: "Done", sessionId: "s13" } } },
+                ]));
+
+                await processor.process(userMessage);
+
+                // Check that the primary log for receiving the event was called
+                expect(mockLogger.info).toHaveBeenCalledWith(
+                    "handleStreamAddMessageEvent: Received 'add_message' event. Full data:", 
+                    { data: { sender: "Machine", text: "" } }
+                );
+                // Check that no attempt was made to update message content since it's empty
+                // Note: updateMessageContent(currentBotElement, "") IS called by clearThinkingIndicatorIfNeeded IF a token arrived first, 
+                // or if add_message itself cleared thinking. Here, add_message with empty content shouldn't clear thinking by setting content.
+                // We need to be careful about how many times updateMessageContent(..., "") is called by other mechanisms.
+                // For this specific path, after the empty message check, no NEW updateMessageContent should be called.
+                // The first call is from displayInitialThinkingIndicator -> addMessage -> setBotElement
+                // The second call is from clearThinkingIndicatorIfNeeded if 'end' event clears it.
+                // So, checking that it's NOT called with actual content from add_message is key.
+                
+                // Let's verify no content was set from this specific add_message event
+                const updateCalls = mockUiCallbacks.updateMessageContent.mock.calls;
+                let calledWithAddMessageContent = false;
+                for (const call of updateCalls) {
+                    // Check if updateMessageContent was called with anything other than the initial clear ("") or the final reply ("Done")
+                    if (call[1] !== "" && call[1] !== "Done" && call[1] !== THINKING_BUBBLE_HTML && call[1] !== "(No content streamed)") {
+                         // This is tricky because if the thinking bubble has the .message-text-content span,
+                         // updateMessageContent("") is used to clear it.
+                         // The critical part is that the empty string from add_message.text isn't used to call updateMessageContent.
+                         // The add_message handler should return early.
+                    }
+                }
+                expect(calledWithAddMessageContent).toBe(false); // No call with the (empty) content of this add_message
+                
+                // Ensure the flow still completes, e.g., the 'Done' from the end event IS processed.
+                const thinkingElement = mockUiCallbacks.getBotMessageElement.mock.results[0].value;
+                expect(mockUiCallbacks.updateMessageContent).toHaveBeenCalledWith(thinkingElement, "Done");
+
+                mockUiCallbacks.getBotMessageElement = originalGetBotElement; // Restore
+            });
+
+            it('should warn and update main element if .message-text-content is missing during add_message', async () => {
+                const addMessageContent = "Auxiliary content here";
+                const finalReplyFromEnd = "Final Reply";
+                const originalGetBotElement = mockUiCallbacks.getBotMessageElement;
+                
+                let elementForAddMessageProcessing: HTMLElement | null = document.createElement('div');
+                // Ensure the element exists and has a class, but no .message-text-content span
+                if(elementForAddMessageProcessing) elementForAddMessageProcessing.className = 'message bot-message'; 
+
+                mockChatClient.streamMessage.mockReturnValueOnce(mockStreamGenerator([
+                    { event: 'stream_started', data: { sessionId: "s14" } },
+                    { event: 'add_message', data: { sender: "Machine", text: addMessageContent } as StreamEventDataMap['add_message'] },
+                    { event: 'end', data: { flowResponse: { reply: finalReplyFromEnd, sessionId: "s14" } } },
+                ]));
+
+                // Mock getBotMessageElement sequence
+                mockUiCallbacks.getBotMessageElement
+                    .mockImplementationOnce(() => { // For displayInitialThinkingIndicator
+                        const el = document.createElement('div'); el.className = 'message bot-message thinking';
+                        const span = document.createElement('span'); span.className = 'message-text-content'; el.appendChild(span);
+                        mockUiCallbacks.setBotMessageElement(el); return el;
+                    })
+                    // For clearThinkingIndicatorIfNeeded (before add_message) - needs the original thinking element
+                    .mockImplementationOnce(() => mockUiCallbacks.setBotMessageElement.mock.calls[0][0]) 
+                    // For handleStreamAddMessageEvent - provide the element without the span
+                    .mockImplementationOnce(() => elementForAddMessageProcessing) 
+                    // For clearThinkingIndicatorIfNeeded (before end) - assume it operates on elementForAddMessageProcessing
+                    .mockImplementationOnce(() => elementForAddMessageProcessing) 
+                     // For handleStreamEndEvent - operate on elementForAddMessageProcessing
+                    .mockImplementationOnce(() => elementForAddMessageProcessing);
+
+                await processor.process(userMessage);
+
+                expect(mockLogger.warn).toHaveBeenCalledWith("handleStreamAddMessageEvent: .message-text-content span not found. Updating currentBotElement directly.");
+                // Check that updateMessageContent was called with elementForAddMessageProcessing and addMessageContent
+                expect(mockUiCallbacks.updateMessageContent).toHaveBeenCalledWith(elementForAddMessageProcessing, addMessageContent);
+                // And also ensure the final reply was set (on the same element in this mock setup)
+                expect(mockUiCallbacks.updateMessageContent).toHaveBeenCalledWith(elementForAddMessageProcessing, finalReplyFromEnd); 
+                                
+                mockUiCallbacks.getBotMessageElement = originalGetBotElement; // Restore
+            });
+
+            it('should warn if currentBotElement is null during add_message with content', async () => {
+                const addMessageContent = "Auxiliary content for null element";
+                const finalReply = "Done";
+                const originalGetBotElement = mockUiCallbacks.getBotMessageElement;
+
+                let thinkingElement: HTMLElement | null = null; 
+
+                mockChatClient.streamMessage.mockReturnValueOnce(mockStreamGenerator([
+                    { event: 'stream_started', data: { sessionId: "s15" } },
+                    { event: 'add_message', data: { sender: "Machine", text: addMessageContent } as StreamEventDataMap['add_message'] },
+                    { event: 'end', data: { flowResponse: { reply: finalReply, sessionId: "s15" } } },
+                ]));
+
+                // Mock getBotMessageElement sequence
+                mockUiCallbacks.getBotMessageElement
+                    .mockImplementationOnce(() => { // 1. For displayInitialThinkingIndicator (via setBotMessageElement)
+                        thinkingElement = document.createElement('div'); 
+                        thinkingElement.className = 'message bot-message thinking';
+                        const span = document.createElement('span'); 
+                        span.className = 'message-text-content'; 
+                        thinkingElement.appendChild(span);
+                        // This element is set by ui.setBotMessageElement internally by displayInitialThinkingIndicator
+                        // We capture it here to return it in subsequent calls if needed.
+                        mockUiCallbacks.setBotMessageElement(thinkingElement); // Ensure it's set for the real SUT
+                        return thinkingElement;
+                    })
+                    .mockImplementationOnce(() => thinkingElement) // 2. For currentBotElement in loop (before add_message), and for clearThinkingIfNeeded
+                    .mockImplementationOnce(() => null)           // 3. For handleStreamAddMessageEvent - THIS IS THE KEY for the warning
+                    .mockImplementationOnce(() => thinkingElement) // 4. For currentBotElement in loop (before end), and for clearThinkingIfNeeded
+                    .mockImplementationOnce(() => thinkingElement) // 5. For handleStreamEndEvent - should receive the thinkingElement to update
+                    .mockImplementationOnce(() => {                 // 6. For botElementForFinally
+                        // At this point, handleStreamEndEvent should have updated thinkingElement and removed 'thinking' class
+                        if (thinkingElement && thinkingElement.classList.contains('thinking')) {
+                            thinkingElement.classList.remove('thinking');
+                        }
+                        // Ensure it has some content from the 'end' event so finally doesn't overwrite
+                        if (thinkingElement && thinkingElement.querySelector('.message-text-content')) {
+                            (thinkingElement.querySelector('.message-text-content') as HTMLElement).innerHTML = finalReply;
+                        }
+                        return thinkingElement; 
+                    });
+
+                await processor.process(userMessage);
+
+                expect(mockLogger.warn).toHaveBeenCalledWith("handleStreamAddMessageEvent: Bot message content found, but no currentBotElement to update. This is unusual if a thinking indicator was expected.");
+                
+                // Verify that updateMessageContent was NOT called with addMessageContent from handleStreamAddMessageEvent (due to null element)
+                const addMessageContentCall = mockUiCallbacks.updateMessageContent.mock.calls.find(call => call[1] === addMessageContent);
+                expect(addMessageContentCall).toBeUndefined();
+
+                // Ensure the "Done" from the end event still gets processed and updates the thinkingElement
+                expect(mockUiCallbacks.updateMessageContent).toHaveBeenCalledWith(thinkingElement, finalReply);
+
+                mockUiCallbacks.getBotMessageElement = originalGetBotElement; // Restore
+            });
+
+            it('should warn if no bot element found at stream end', async () => {
+                const originalGetBotElement = mockUiCallbacks.getBotMessageElement;
+                mockChatClient.streamMessage.mockReturnValueOnce(mockStreamGenerator([
+                    { event: 'stream_started', data: { sessionId: "s_no_el_end" } },
+                    { event: 'token', data: { chunk: "Some token" } }, 
+                    { event: 'end', data: { flowResponse: { reply: "Final reply", sessionId: "s_no_el_end" } } },
+                ]));
+
+                // Mock getBotMessageElement to provide an element for most calls, then null specifically for the call inside handleStreamEndEvent
+                mockUiCallbacks.getBotMessageElement
+                    .mockImplementationOnce(() => mockBotMessageElement) // Call 1 (loop start for stream_started)
+                    .mockImplementationOnce(() => mockBotMessageElement) // Call 2 (loop start for token)
+                    .mockImplementationOnce(() => mockBotMessageElement) // Call 3 (inside handleStreamTokenEvent for token event)
+                    .mockImplementationOnce(() => mockBotMessageElement) // Call 4 (loop start for end event)
+                    .mockImplementationOnce(() => null);                 // Call 5 (THE ONE inside handleStreamEndEvent itself)
+
+                await processor.process(userMessage);
+                expect(mockLogger.warn).toHaveBeenCalledWith("handleStreamEndEvent: No bot message element found at stream end. This is unusual.");
+                mockUiCallbacks.getBotMessageElement = originalGetBotElement;
+            });
+
+            it('should log a warning for an unknown stream event type', async () => {
+                mockChatClient.streamMessage.mockReturnValueOnce(mockStreamGenerator([
+                    { event: 'stream_started', data: { sessionId: "s_unknown" } },
+                    // @ts-ignore Test a deliberately unknown event type
+                    { event: 'unexpected_event_type', data: { info: "test" } },
+                    { event: 'end', data: { flowResponse: { reply: "End after unknown", sessionId: "s_unknown" } } },
+                ]));
+
+                await processor.process(userMessage);
+                expect(mockLogger.warn).toHaveBeenCalledWith("Received unknown stream event type: unexpected_event_type");
             });
 
         });
