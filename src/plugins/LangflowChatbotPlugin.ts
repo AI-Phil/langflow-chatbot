@@ -145,20 +145,20 @@ export class LangflowChatbotInstance {
           this.chatClient,
           effectiveEnableStream,
           {
+            widgetTitle: mergedConfig.widgetTitle,
             chatWidgetConfig: {
               userSender: mergedConfig.userSender,
               botSender: mergedConfig.botSender,
               messageTemplate: mergedConfig.messageTemplate,
               mainContainerTemplate: mergedConfig.mainContainerTemplate,
               inputAreaTemplate: mergedConfig.inputAreaTemplate,
-              widgetTitle: mergedConfig.widgetTitle,
-              datetimeFormat: mergedConfig.datetimeFormat // Pass to FloatingChatWidget's config
+              datetimeFormat: mergedConfig.datetimeFormat
             },
             position: mergedConfig.floatPosition,
             initialSessionId: this.initialConfig.sessionId,
             onSessionIdUpdate: onSessionIdUpdateCallback
           },
-          this.logger || new Logger('info', 'LangflowChatbot')
+          this.logger
         );
       } else { // Embedded widget
         if (!this.initialConfig.containerId) {

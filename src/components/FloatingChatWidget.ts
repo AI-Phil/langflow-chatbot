@@ -59,7 +59,7 @@ const SPEECH_BUBBLE_ICON = `
 
 /** SVG string for the minus icon used on the minimize button in the chat panel header. */
 const MINUS_ICON = `
-<svg viewBox="0 0 24 24" stroke="white" stroke-width="2">
+<svg viewBox="0 0 24 24" stroke-width="2">
   <line x1="5" y1="12" x2="19" y2="12" />
 </svg>
 `;
@@ -91,6 +91,11 @@ export class FloatingChatWidget {
     private enableStream: boolean;
     private logger: Logger;
 
+    private static validatePosition(pos: any): 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' {
+        const allowedPositions = ['bottom-right', 'bottom-left', 'top-right', 'top-left'];
+        return allowedPositions.includes(pos) ? pos : 'bottom-right';
+    }
+
     /**
      * Constructs a FloatingChatWidget instance.
      * @param {LangflowChatClient} chatClient - The client for API interactions.
@@ -106,40 +111,38 @@ export class FloatingChatWidget {
     ) {
         this.chatClient = chatClient;
         this.enableStream = enableStream;
+        // Validate position before merging config
+        const validatedPosition = FloatingChatWidget.validatePosition(userConfig.position ?? DEFAULT_FLOATING_CONFIG.position);
         // Initialize logger: use provided one or create a new one with log level from userConfig or default to 'info'.
         this.logger = logger || new Logger(userConfig.logLevel || 'info', 'FloatingChatWidget');
 
         // Merge user-provided configuration with defaults.
         const mergedFloatingConfig: FloatingWidgetInternalConfig = {
             isOpen: userConfig.isOpen ?? DEFAULT_FLOATING_CONFIG.isOpen,
-            position: userConfig.position ?? DEFAULT_FLOATING_CONFIG.position,
+            position: validatedPosition, // Use the validated position
             showCloseButton: userConfig.showCloseButton ?? DEFAULT_FLOATING_CONFIG.showCloseButton,
             showToggleButton: userConfig.showToggleButton ?? DEFAULT_FLOATING_CONFIG.showToggleButton,
             toggleButtonText: userConfig.toggleButtonText ?? DEFAULT_FLOATING_CONFIG.toggleButtonText,
             widgetTitle: userConfig.widgetTitle ?? DEFAULT_FLOATING_CONFIG.widgetTitle,
-            // These properties are passed through or handled by the logger directly.
             logLevel: userConfig.logLevel,
             initialSessionId: userConfig.initialSessionId,
             onSessionIdUpdate: userConfig.onSessionIdUpdate,
             datetimeFormat: userConfig.datetimeFormat,
-            
-            // Prepare chatWidgetConfig to be passed to the inner ChatWidget.
-            // If specific templates (mainContainerTemplate, inputAreaTemplate, messageTemplate)
-            // are not provided in userConfig.chatWidgetConfig, they will be undefined.
-            // ChatWidget, via ChatTemplateManager, will then use its own defaults for those templates.
             chatWidgetConfig: {
-                ...(userConfig.chatWidgetConfig || {}), // Spread any existing user chat config
-                // Explicitly pass template options; they will be undefined if not set by the user, allowing ChatTemplateManager to apply defaults.
+                ...(userConfig.chatWidgetConfig || {}),
                 mainContainerTemplate: userConfig.chatWidgetConfig?.mainContainerTemplate,
                 inputAreaTemplate: userConfig.chatWidgetConfig?.inputAreaTemplate,
                 messageTemplate: userConfig.chatWidgetConfig?.messageTemplate,
-                // Ensure floating widget's own title doesn't unintentionally override ChatWidget's internal title field if it were used.
                 widgetTitle: undefined, 
-                // Pass datetimeFormat to ChatWidgetConfig, preferring the floating widget's direct config if available, then ChatWidget's config.
                 datetimeFormat: userConfig.datetimeFormat || userConfig.chatWidgetConfig?.datetimeFormat,
             }
         };
         this.config = mergedFloatingConfig;
+
+        // Log the merged config if a logger is available (useful for tests)
+        if (this.logger && typeof this.logger.info === 'function') {
+            this.logger.info('FloatingChatWidget initialized with config:', this.config);
+        }
 
         this._createElements();
         this._setupEventListeners();
@@ -163,10 +166,48 @@ export class FloatingChatWidget {
      * It then instantiates the inner ChatWidget within the host div.
      */
     private _createElements(): void {
+        // Inject CSS for header layout if not already present
+        if (!document.getElementById('floating-chat-widget-header-style')) {
+            const style = document.createElement('style');
+            style.id = 'floating-chat-widget-header-style';
+            style.textContent = `
+                .floating-chat-panel .chat-widget-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 0.5em 1em;
+                    border-bottom: 1px solid #eee;
+                    /* background: #f0f0f0; */ /* Removed to use CSS var --langflow-chatbot-header-background */
+                }
+                .floating-chat-panel .chat-widget-title-text {
+                    font-weight: bold;
+                    font-size: 1em;
+                    flex: 1 1 auto;
+                    text-align: left;
+                    margin-right: 1em;
+                    /* color: #333; */ /* Removed to use CSS var --langflow-chatbot-header-text-color */
+                }
+                .floating-chat-panel .minimize-button {
+                    background: none;
+                    border: none;
+                    cursor: pointer;
+                    padding: 0.25em;
+                    margin-left: 0.5em;
+                    display: flex;
+                    align-items: center;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
         // Create floating toggle button
         this.floatingButton = document.createElement('div');
         this.floatingButton.className = `floating-chat-button ${this.config.position}`;
         this.floatingButton.innerHTML = SPEECH_BUBBLE_ICON; // Uses SVG icon
+        // Respect showToggleButton: if false, always hide
+        if (!this.config.showToggleButton) {
+            this.floatingButton.style.display = 'none';
+        }
 
         // Create chat panel container
         this.chatContainer = document.createElement('div');
@@ -185,10 +226,11 @@ export class FloatingChatWidget {
         minimizeButton.innerHTML = MINUS_ICON; // Uses SVG icon
         minimizeButton.onclick = () => this.toggleChatVisibility();
         
+        // Append title first, then minimize button (button right)
+        header.appendChild(titleSpan);
         if (this.config.showCloseButton) {
             header.appendChild(minimizeButton);
         }
-        header.appendChild(titleSpan);
         this.chatContainer.appendChild(header);
 
         // Create host div for the inner ChatWidget
@@ -234,10 +276,14 @@ export class FloatingChatWidget {
         if (this.chatContainer && this.floatingButton) {
             if (this.isChatVisible) {
                 this.chatContainer.style.display = 'flex';
-                this.floatingButton.style.display = 'none';
+                this.floatingButton.style.display = 'none'; // Always hide button when chat is open
             } else {
                 this.chatContainer.style.display = 'none';
-                this.floatingButton.style.display = 'flex';
+                if (this.config.showToggleButton) {
+                    this.floatingButton.style.display = 'flex'; // Show button if allowed
+                } else {
+                    this.floatingButton.style.display = 'none'; // Keep button hidden if not allowed
+                }
             }
         }
     }
@@ -251,7 +297,9 @@ export class FloatingChatWidget {
             if (!initial) this.toggleChatVisibility(); // Toggle only if not initial setup and currently hidden
             else { // For initial setup, just set styles if meant to be open
                 if (this.chatContainer) this.chatContainer.style.display = 'flex';
-                if (this.floatingButton) this.floatingButton.style.display = 'none';
+                if (this.floatingButton) {
+                    this.floatingButton.style.display = 'none'; // Always hide button when chat is open
+                }
                 this.isChatVisible = true; // Ensure state is correct for initial direct show
             }
         }
@@ -266,7 +314,13 @@ export class FloatingChatWidget {
             if (!initial) this.toggleChatVisibility(); // Toggle only if not initial setup and currently visible
             else { // For initial setup, just set styles if meant to be closed
                 if (this.chatContainer) this.chatContainer.style.display = 'none';
-                if (this.floatingButton) this.floatingButton.style.display = 'flex';
+                if (this.floatingButton) {
+                    if (this.config.showToggleButton) {
+                        this.floatingButton.style.display = 'flex'; // Show button if allowed
+                    } else {
+                        this.floatingButton.style.display = 'none'; // Keep button hidden if not allowed
+                    }
+                }
                 this.isChatVisible = false; // Ensure state is correct for initial direct hide
             }
         }

@@ -58,13 +58,16 @@ export class ChatTemplateManager {
 
     private validateTemplates(): void {
         // Validation for Main Container Template
-        if (!this._mainContainerTemplate.includes('id="chat-input-area-container"')) {
-            this.logger.error('Provided mainContainerTemplate is missing id="chat-input-area-container". This is critical for input area placement.');
-            throw new Error('Invalid mainContainerTemplate: Missing id="chat-input-area-container".');
+        const tempMainDiv = document.createElement('div');
+        tempMainDiv.innerHTML = this._mainContainerTemplate;
+
+        if (!tempMainDiv.querySelector('#chat-input-area-container')) {
+            this.logger.error('Provided mainContainerTemplate is missing element with id="chat-input-area-container". This is critical for input area placement.');
+            throw new Error('Invalid mainContainerTemplate: Missing element with id="chat-input-area-container".');
         }
-        if (!this._mainContainerTemplate.includes('<div class="chat-messages">')) {
-            this.logger.error('Provided mainContainerTemplate is missing <div class="chat-messages">. This is critical for message display.');
-            throw new Error('Invalid mainContainerTemplate: Missing <div class="chat-messages">.');
+        if (!tempMainDiv.querySelector('.chat-messages')) {
+            this.logger.error('Provided mainContainerTemplate is missing an element with class="chat-messages". This is critical for message display.');
+            throw new Error('Invalid mainContainerTemplate: Missing an element with class="chat-messages".');
         }
 
 

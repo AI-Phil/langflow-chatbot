@@ -199,95 +199,95 @@ export class ChatMessageProcessor {
                 this.handleStreamEndEvent(event.data as StreamEventDataMap['end'], accumulatedResponse);
                 break;
             default:
-                this.logger.warn("Received unknown stream event type: " + (event as StreamEvent<StreamEventType>).event);
+                this.logger.warn(`Received unknown stream event type: ${(event as StreamEvent<StreamEventType>).event}`);
         }
         return accumulatedResponse;
     }
 
     /**
-     * Handles a 'token' stream event: appends the token to the UI and the accumulated response.
-     * @param data The data from the 'token' event.
-     * @param accumulatedResponse The current accumulated response string.
-     * @returns The updated accumulated response string.
+     * Handles a 'token' event from the stream.
+     * Appends the token to the accumulated response and updates the UI.
+     * @param data The data associated with the token event.
+     * @param accumulatedResponse The response accumulated so far.
+     * @returns The new accumulated response.
      */
     private handleStreamTokenEvent(data: StreamEventDataMap['token'], accumulatedResponse: string): string {
-        accumulatedResponse += data.chunk;
-        const botElementForToken = this.ui.getBotMessageElement();
-        if (botElementForToken) {
-            const textContentSpan = botElementForToken.querySelector('.message-text-content');
-            if (textContentSpan) {
-                textContentSpan.innerHTML += data.chunk;
+        const botMessageElement = this.ui.getBotMessageElement();
+        if (botMessageElement) {
+            const textSpan = botMessageElement.querySelector<HTMLElement>('.message-text-content');
+            if (textSpan) {
+                textSpan.innerHTML += data.chunk; // Append new chunk to existing content
                 this.ui.scrollChatToBottom();
             } else {
-                this.ui.updateMessageContent(botElementForToken, accumulatedResponse);
+                // This case should ideally not happen if the message template is correct and thinking indicator was cleared properly
+                this.logger.warn("Stream token: message-text-content span not found in bot message element. Cannot append token.");
             }
         }
-        return accumulatedResponse;
+        return accumulatedResponse + data.chunk;
     }
+    
 
     /**
-     * Handles an 'error' stream event: logs the error and updates the UI to show the error message.
-     * @param data The data from the 'error' event.
+     * Handles an 'error' event from the stream.
+     * Updates the UI to display the error.
+     * @param data The data associated with the error event.
      */
     private handleStreamErrorEvent(data: StreamEventDataMap['error']): void {
-        this.logger.error("Streaming Error:", data.message, data.detail);
-        const botElementForError = this.ui.getBotMessageElement();
-        if (botElementForError && !botElementForError.classList.contains('error-message')) {
-            this.ui.updateMessageContent(botElementForError, `Error: ${data.message}`);
-            botElementForError.classList.remove('bot-message', 'thinking');
-            botElementForError.classList.add('error-message');
-        } else if (!botElementForError) {
-            this.ui.addMessage(this.config.errorSender, `Error: ${data.message}${data.detail ? " Details: " + JSON.stringify(data.detail) : ""}`, false, new Date().toISOString());
+        const currentBotElement = this.ui.getBotMessageElement();
+        if (currentBotElement) {
+            const displayMessage = data.detail ? `${data.message}: ${data.detail}` : data.message;
+            this.ui.updateMessageContent(currentBotElement, displayMessage);
+            currentBotElement.classList.remove('thinking', 'bot-message');
+            currentBotElement.classList.add('error-message');
+        } else {
+            // If no current bot element, add a new error message
+            this.ui.addMessage(this.config.errorSender, `Stream Error: ${data.message}${data.detail ? " Details: " + JSON.stringify(data.detail) : ""}`, false, new Date().toISOString());
         }
     }
 
     /**
-     * Handles an 'add_message' stream event (currently logs it).
-     * This could be used for auxiliary messages sent during a stream.
-     * @param data The data from the 'add_message' event.
+     * Handles an 'add_message' event from the stream (e.g. for auxiliary messages).
+     * Currently, it only logs the event.
+     * @param data The data associated with the add_message event.
      */
     private handleStreamAddMessageEvent(data: StreamEventDataMap['add_message']): void {
         this.logger.debug("Received 'add_message' event during stream. Data:", data);
+        // Depending on requirements, one might want to use this.ui.addMessage here
+        // to display these auxiliary messages in the chat.
+        // For now, it's just logged.
     }
 
     /**
-     * Handles an 'end' stream event: updates session ID if provided, and finalizes the bot message display,
-     * potentially showing "(empty response)" if no content was streamed.
-     * @param data The data from the 'end' event.
-     * @param accumulatedResponse The total accumulated response string from tokens.
+     * Handles an 'end' event from the stream.
+     * Finalizes the message content in the UI and updates the session ID.
+     * @param data The data associated with the end event.
+     * @param accumulatedResponse The total response accumulated from tokens.
      */
     private handleStreamEndEvent(data: StreamEventDataMap['end'], accumulatedResponse: string): void {
-        const sessionIdFromEndEvent: string | undefined = (data.flowResponse?.sessionId) || (data as any).sessionId;
+        const currentBotElement = this.ui.getBotMessageElement();
 
-        if (sessionIdFromEndEvent) {
-            this.ui.updateSessionId(sessionIdFromEndEvent);
+        if (currentBotElement) {
+            if (data.flowResponse?.reply) {
+                this.ui.updateMessageContent(currentBotElement, data.flowResponse.reply);
+            } else if (accumulatedResponse) {
+                // If no explicit reply in 'end' event, but we accumulated tokens, ensure that's the final content.
+                this.ui.updateMessageContent(currentBotElement, accumulatedResponse);
+            } else {
+                // No reply in end event, and no accumulated tokens from 'token' events
+                this.ui.updateMessageContent(currentBotElement, "(empty response)");
+            }
+            currentBotElement.classList.remove('thinking'); // Ensure thinking class is removed
         }
-        const botElementForEnd = this.ui.getBotMessageElement();
-        if (accumulatedResponse.trim() === "" && data.flowResponse && data.flowResponse.reply) {
-            if (botElementForEnd) {
-                this.ui.updateMessageContent(botElementForEnd, data.flowResponse.reply);
-            }
-        } else if (accumulatedResponse.trim() === "") {
-            if (botElementForEnd) {
-                if(botElementForEnd.classList.contains('thinking')) {
-                    this.ui.updateMessageContent(botElementForEnd, "(empty response)");
-                    botElementForEnd.classList.remove('thinking');
-                } else if (botElementForEnd.querySelector('.message-text-content')?.innerHTML.trim() === "") {
-                    this.ui.updateMessageContent(botElementForEnd, "(empty response)");
-                }
-            }
-        }
-        if (botElementForEnd && botElementForEnd.classList.contains('thinking')) {
-            botElementForEnd.classList.remove('thinking');
-            if (botElementForEnd.querySelector('.message-text-content')?.innerHTML.trim() === "") {
-                this.ui.updateMessageContent(botElementForEnd, "(empty response)");
-            }
+
+        if (data.flowResponse?.sessionId) {
+            this.ui.updateSessionId(data.flowResponse.sessionId);
         }
     }
+
 
     /**
      * Handles the message processing logic when streaming is disabled.
-     * Displays a thinking indicator, sends the message, and then updates the UI with the response or error.
+     * Sends the message, waits for a full response, and updates the UI.
      * @param messageText The user's message text.
      * @param sessionIdToSend The session ID to use for the request.
      */
@@ -295,44 +295,37 @@ export class ChatMessageProcessor {
         this.displayInitialThinkingIndicator();
 
         try {
-            const botResponse: BotResponse = await this.chatClient.sendMessage(messageText, sessionIdToSend);
-            
-            const currentBotMsg = this.ui.getBotMessageElement(); 
+            const result: BotResponse = await this.chatClient.sendMessage(messageText, sessionIdToSend);
+            const botElement = this.ui.getBotMessageElement();
 
-            if (botResponse.sessionId) {
-                this.ui.updateSessionId(botResponse.sessionId);
+            if (botElement && botElement.classList.contains('thinking')) {
+                if (result.reply) {
+                    this.ui.updateMessageContent(botElement, result.reply);
+                } else if (result.error) {
+                    const errorMessage = result.detail ? `${result.error}: ${result.detail}` : result.error;
+                    this.ui.updateMessageContent(botElement, errorMessage);
+                    botElement.classList.remove('bot-message'); // It's an error, not a regular bot message
+                    botElement.classList.add('error-message');
+                } else {
+                    this.logger.warn("handleNonStreamingResponse: No reply content or error from bot.");
+                    this.ui.updateMessageContent(botElement, "Sorry, I couldn't get a valid response.");
+                }
+                botElement.classList.remove('thinking');
+            } else {
+                // Fallback if the thinking bubble was somehow lost or not set correctly
+                this.logger.warn("handleNonStreamingResponse: Thinking message element was not found or not in expected state. Adding new message.");
+                this.ui.addMessage(this.config.botSender, result.reply || "Sorry, I couldn't get a valid response.", false, new Date().toISOString());
             }
 
-            if (currentBotMsg && currentBotMsg.classList.contains('thinking')) {
-                if (botResponse.error) {
-                    this.ui.updateMessageContent(currentBotMsg, `${botResponse.error}${botResponse.detail ? ": " + botResponse.detail : ""}`);
-                    currentBotMsg.classList.remove('thinking', 'bot-message');
-                    currentBotMsg.classList.add('error-message');
-                } else if (botResponse.reply) {
-                    this.ui.updateMessageContent(currentBotMsg, botResponse.reply);
-                    currentBotMsg.classList.remove('thinking');
-                } else {
-                    this.ui.updateMessageContent(currentBotMsg, "Sorry, I couldn't get a valid response.");
-                    currentBotMsg.classList.remove('thinking');
-                }
-            } else {
-                // If currentBotMsg is null or not a thinking bubble (e.g. cleared by another process, unlikely here),
-                // we fall back to adding a new message. This covers the case where the thinking bubble was lost.
-                this.logger.warn("handleNonStreamingResponse: Thinking message element was not found or not in expected state. Adding new message.");
-                if (botResponse.error) {
-                    this.ui.addMessage(this.config.errorSender, `${botResponse.error}${botResponse.detail ? ": " + botResponse.detail : ""}`, false, new Date().toISOString());
-                } else if (botResponse.reply) {
-                    this.ui.addMessage(this.config.botSender, botResponse.reply, false, new Date().toISOString());
-                } else {
-                    this.ui.addMessage(this.config.botSender, "Sorry, I couldn't get a valid response.", false, new Date().toISOString());
-                }
+            if (result.sessionId) {
+                this.ui.updateSessionId(result.sessionId);
             }
 
         } catch (error: any) {
-            this.logger.error("Failed to send non-stream message via ChatClient:", error);
-            const displayMessage = error.message || "Unknown communication error.";
-            if (!this.tryUpdateThinkingToError("Communication Error", displayMessage)) {
-                this.ui.addMessage(this.config.errorSender, `Communication Error: ${displayMessage}`, false, new Date().toISOString());
+            this.logger.error("Failed to send message via ChatClient:", error);
+            const exceptionMessage = error.message || "Failed to send message.";
+            if (!this.tryUpdateThinkingToError("Error sending message", exceptionMessage)) {
+                this.ui.addMessage(this.config.errorSender, `Error: ${exceptionMessage}`, false, new Date().toISOString());
             }
         } finally {
             this.ui.setBotMessageElement(null);
