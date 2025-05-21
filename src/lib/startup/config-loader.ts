@@ -11,6 +11,12 @@ import path from 'path';
 import yaml from 'js-yaml';
 import { ChatbotProfile } from '../../types'; // Updated import path
 
+// New private helper function to retrieve environment variables
+function getEnvVariable(variableName: string): string | undefined {
+    // Removed temporary debug log
+    return process.env[variableName];
+}
+
 interface BaseConfigFile {
     langflow_connection: {
         endpoint_url: string;
@@ -35,11 +41,30 @@ export function loadBaseConfig(baseConfigPath: string): {
     const fileContents = fs.readFileSync(absolutePath, 'utf-8');
     const parsedConfig = yaml.load(fileContents) as BaseConfigFile;
 
-    if (!parsedConfig.langflow_connection || !parsedConfig.langflow_connection.endpoint_url) {
-        throw new Error(`Base YAML config missing required 'langflow_connection.endpoint_url'. Path: ${absolutePath}`);
+    const envEndpointUrl = getEnvVariable('LANGFLOW_ENDPOINT_URL');
+    const envApiKey = getEnvVariable('LANGFLOW_API_KEY');
+
+    let endpoint_url: string;
+    if (envEndpointUrl) {
+        console.log(`ConfigLoader: Using LANGFLOW_ENDPOINT_URL from environment: ${envEndpointUrl}`);
+        endpoint_url = envEndpointUrl;
+    } else if (parsedConfig.langflow_connection && parsedConfig.langflow_connection.endpoint_url) {
+        endpoint_url = parsedConfig.langflow_connection.endpoint_url;
+    } else {
+        throw new Error(`Langflow endpoint URL is not defined in environment variables (LANGFLOW_ENDPOINT_URL) or in the base YAML config. Path: ${absolutePath}`);
     }
+
+    let api_key: string | undefined;
+    if (envApiKey) {
+        console.log("ConfigLoader: Using LANGFLOW_API_KEY from environment.");
+        api_key = envApiKey;
+    } else if (parsedConfig.langflow_connection && parsedConfig.langflow_connection.api_key) {
+        api_key = parsedConfig.langflow_connection.api_key;
+    }
+    // If api_key is still undefined here, it means it wasn't in env or config, which is acceptable as it's optional.
+
     return {
-        langflowConnection: parsedConfig.langflow_connection,
+        langflowConnection: { endpoint_url, api_key },
         chatbotDefaults: parsedConfig.chatbot_defaults || {},
     };
 }

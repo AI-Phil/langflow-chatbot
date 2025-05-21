@@ -1,4 +1,5 @@
-import { loadBaseConfig, loadInstanceConfig } from '@src/lib/startup/config-loader';
+import { loadBaseConfig, loadInstanceConfig } from '../../../src/lib/startup/config-loader';
+
 import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
@@ -130,7 +131,7 @@ describe('loadBaseConfig', () => {
         });
 
         expect(() => loadBaseConfig(mockFilePath)).toThrow(
-            `Base YAML config missing required 'langflow_connection.endpoint_url'. Path: ${resolvedMockPath}`
+            `Langflow endpoint URL is not defined in environment variables (LANGFLOW_ENDPOINT_URL) or in the base YAML config. Path: ${resolvedMockPath}`
         );
         expect(mockPathResolve).toHaveBeenCalledWith(mockFilePath);
         expect(mockedFs.existsSync).toHaveBeenCalledWith(resolvedMockPath);
@@ -160,6 +161,243 @@ describe('loadBaseConfig', () => {
         expect(mockedFs.existsSync).toHaveBeenCalledWith(resolvedMockPath);
         expect(mockedFs.readFileSync).toHaveBeenCalledWith(resolvedMockPath, 'utf-8');
     });
+});
+
+// New describe block for environment variable override tests
+describe('loadBaseConfig with environment variable overrides', () => {
+    let originalEnvSnapshot: NodeJS.ProcessEnv;
+    const mockFilePath = 'test-base-config.yaml';
+    const resolvedMockPath = originalPathResolve(mockFilePath);
+
+    beforeEach(() => {
+        originalEnvSnapshot = { ...process.env }; // Store a copy of current env properties
+        jest.resetModules(); // Reset modules. This might give a "clean" process.env to newly loaded modules.
+
+        // Clear out keys that might be set by other tests or previous runs within this suite
+        // This ensures that modifications within a test are applied to the actual global process.env
+        // that the newly required module will see.
+        delete process.env.LANGFLOW_ENDPOINT_URL;
+        delete process.env.LANGFLOW_API_KEY;
+        // Add any other ENV VARS that are manipulated in this test suite if necessary
+
+        if (global.console.log && (global.console.log as jest.Mock).mockClear) {
+            (global.console.log as jest.Mock).mockClear();
+        }
+        
+        if (mockPathResolve && mockPathResolve.mockRestore) {
+            mockPathResolve.mockRestore();
+        }
+        mockPathResolve = jest.spyOn(path, 'resolve').mockImplementation((inputPath) => {
+            if (inputPath === mockFilePath) return resolvedMockPath;
+            return originalPathResolve(inputPath); 
+        });
+    });
+
+    afterEach(() => {
+        // Restore process.env to its state before this test suite's beforeEach
+        // First, delete any keys added during the test that weren't in the original snapshot
+        Object.keys(process.env).forEach(key => {
+            if (!originalEnvSnapshot.hasOwnProperty(key)) {
+                delete process.env[key];
+            }
+        });
+        // Then, restore original values for keys that were present or modified
+        for (const key in originalEnvSnapshot) {
+            process.env[key] = originalEnvSnapshot[key];
+        }
+
+        if (mockPathResolve && mockPathResolve.mockRestore) {
+            mockPathResolve.mockRestore();
+        }
+        jest.restoreAllMocks(); // This should also unmock fs if jest.unmock was used in tests.
+    });
+
+    test('should use LANGFLOW_ENDPOINT_URL and LANGFLOW_API_KEY from environment variables, overriding file config', () => {
+        process.env.LANGFLOW_ENDPOINT_URL = 'http://env-url.com';
+        process.env.LANGFLOW_API_KEY = 'env-api-key';
+
+        const mockFileContentWithBotName = yaml.dump({
+            langflow_connection: {
+                endpoint_url: 'http://should-be-overridden.com',
+                api_key: 'should-be-overridden-key'
+            },
+            chatbot_defaults: { bot_name: 'FileBot' } // This should be picked up
+        });
+
+        jest.doMock('fs', () => ({
+            existsSync: jest.fn().mockReturnValue(true),
+            readFileSync: jest.fn().mockReturnValue(mockFileContentWithBotName)
+        }));
+        (global.console.log as jest.Mock).mockClear();
+        const { loadBaseConfig } = require('../../../src/lib/startup/config-loader');
+
+        const result = loadBaseConfig(mockFilePath);
+
+        expect(result.langflowConnection.endpoint_url).toBe('http://env-url.com');
+        expect(result.langflowConnection.api_key).toBe('env-api-key');
+        expect(result.chatbotDefaults).toEqual({ bot_name: 'FileBot' });
+        expect((global.console.log as jest.Mock).mock.calls).toContainEqual(['ConfigLoader: Using LANGFLOW_ENDPOINT_URL from environment: http://env-url.com']);
+        expect((global.console.log as jest.Mock).mock.calls).toContainEqual(['ConfigLoader: Using LANGFLOW_API_KEY from environment.']);
+        jest.unmock('fs');
+    });
+
+    test('should use file config when environment variables are not set', () => {
+        delete process.env.LANGFLOW_ENDPOINT_URL;
+        delete process.env.LANGFLOW_API_KEY;
+
+        const mockFileContent = yaml.dump({
+            langflow_connection: {
+                endpoint_url: 'http://file-url.com',
+                api_key: 'file-api-key'
+            },
+            chatbot_defaults: { bot_name: 'FileBotFromFile' }
+        });
+        jest.doMock('fs', () => ({
+            existsSync: jest.fn().mockReturnValue(true),
+            readFileSync: jest.fn().mockReturnValue(mockFileContent)
+        }));
+        (global.console.log as jest.Mock).mockClear();
+        const { loadBaseConfig } = require('../../../src/lib/startup/config-loader');
+
+        const result = loadBaseConfig(mockFilePath);
+        expect(result.langflowConnection.endpoint_url).toBe('http://file-url.com');
+        expect(result.langflowConnection.api_key).toBe('file-api-key');
+        expect(result.chatbotDefaults).toEqual({ bot_name: 'FileBotFromFile' });
+        jest.unmock('fs');
+    });
+
+    test('should use LANGFLOW_ENDPOINT_URL from env and api_key from file if LANGFLOW_API_KEY is not set in env', () => {
+        process.env.LANGFLOW_ENDPOINT_URL = 'http://env-url.com';
+        delete process.env.LANGFLOW_API_KEY;
+
+        const mockFileContent = yaml.dump({
+            langflow_connection: {
+                endpoint_url: 'http://should-be-overridden-by-env.com',
+                api_key: 'file-api-key-to-use'
+            },
+            chatbot_defaults: { bot_name: 'FileBot' }
+        });
+        jest.doMock('fs', () => ({
+            existsSync: jest.fn().mockReturnValue(true),
+            readFileSync: jest.fn().mockReturnValue(mockFileContent)
+        }));
+        (global.console.log as jest.Mock).mockClear();
+        const { loadBaseConfig } = require('../../../src/lib/startup/config-loader');
+
+        const result = loadBaseConfig(mockFilePath);
+        expect(result.langflowConnection.endpoint_url).toBe('http://env-url.com');
+        expect(result.langflowConnection.api_key).toBe('file-api-key-to-use');
+        expect((global.console.log as jest.Mock).mock.calls).toContainEqual(['ConfigLoader: Using LANGFLOW_ENDPOINT_URL from environment: http://env-url.com']);
+        expect((global.console.log as jest.Mock).mock.calls).not.toContainEqual(['ConfigLoader: Using LANGFLOW_API_KEY from environment.']);
+        jest.unmock('fs');
+    });
+
+    test('should use api_key from env and LANGFLOW_ENDPOINT_URL from file if LANGFLOW_ENDPOINT_URL is not set in env', () => {
+        delete process.env.LANGFLOW_ENDPOINT_URL;
+        process.env.LANGFLOW_API_KEY = 'env-api-key-to-use';
+
+        const mockFileContent = yaml.dump({
+            langflow_connection: {
+                endpoint_url: 'http://file-url-to-use.com',
+                api_key: 'should-be-overridden-by-env-key'
+            },
+            chatbot_defaults: { bot_name: 'FileBot' }
+        });
+        jest.doMock('fs', () => ({
+            existsSync: jest.fn().mockReturnValue(true),
+            readFileSync: jest.fn().mockReturnValue(mockFileContent)
+        }));
+        (global.console.log as jest.Mock).mockClear();
+        const { loadBaseConfig } = require('../../../src/lib/startup/config-loader');
+
+        const result = loadBaseConfig(mockFilePath);
+        expect(result.langflowConnection.endpoint_url).toBe('http://file-url-to-use.com');
+        expect(result.langflowConnection.api_key).toBe('env-api-key-to-use');
+        expect((global.console.log as jest.Mock).mock.calls).not.toContainEqual(['ConfigLoader: Using LANGFLOW_ENDPOINT_URL from environment: http://env-url.com']);
+        expect((global.console.log as jest.Mock).mock.calls).toContainEqual(['ConfigLoader: Using LANGFLOW_API_KEY from environment.']);
+        jest.unmock('fs');
+    });
+    
+    test('should allow LANGFLOW_API_KEY to be optional (not in env or file)', () => {
+        delete process.env.LANGFLOW_API_KEY;
+        const mockFileContentNoApiKey = yaml.dump({
+            langflow_connection: { endpoint_url: 'http://file-url.com' }
+        });
+        mockedFs.readFileSync.mockReturnValue(mockFileContentNoApiKey);
+
+        const result = loadBaseConfig(mockFilePath);
+        expect(result.langflowConnection.endpoint_url).toBe('http://file-url.com');
+        expect(result.langflowConnection.api_key).toBeUndefined();
+    });
+
+    test('should correctly use only LANGFLOW_ENDPOINT_URL from env if LANGFLOW_API_KEY is not in env and not in file', () => {
+        process.env.LANGFLOW_ENDPOINT_URL = 'http://env-url.com';
+        delete process.env.LANGFLOW_API_KEY;
+        const mockFileContentNoApiKey = yaml.dump({
+            langflow_connection: { endpoint_url: 'http://another-file-url.com' } // endpoint in file to ensure env is used
+        });
+        mockedFs.readFileSync.mockReturnValue(mockFileContentNoApiKey);
+    
+        const result = loadBaseConfig(mockFilePath);
+        expect(result.langflowConnection.endpoint_url).toBe('http://env-url.com');
+        expect(result.langflowConnection.api_key).toBeUndefined();
+        expect(global.console.log).toHaveBeenCalledWith('ConfigLoader: Using LANGFLOW_ENDPOINT_URL from environment: http://env-url.com');
+    });
+
+    test('should correctly use only LANGFLOW_API_KEY from env if LANGFLOW_ENDPOINT_URL is not in env and not in file (should throw for missing endpoint)', () => {
+        jest.isolateModules(() => {
+            const apiKeyForTest = 'env-api-key-for-this-specific-test';
+            
+            const mockFileContentNoEndpointOrKey = yaml.dump({
+                langflow_connection: {} 
+            });
+
+            // Mock 'process' to control 'process.env' for the dynamic require
+            jest.doMock('process', () => {
+                const actualProcess = jest.requireActual('process');
+                return {
+                    ...actualProcess,
+                    env: {
+                        ...actualProcess.env, 
+                        LANGFLOW_API_KEY: apiKeyForTest, 
+                        LANGFLOW_ENDPOINT_URL: undefined,
+                    },
+                };
+            });
+
+            // Mock 'fs' for file operations
+            jest.doMock('fs', () => ({
+                existsSync: jest.fn().mockReturnValue(true),
+                readFileSync: jest.fn().mockReturnValue(mockFileContentNoEndpointOrKey)
+            }));
+            
+            (global.console.log as jest.Mock).mockClear(); 
+
+            const { loadBaseConfig } = require('../../../src/lib/startup/config-loader');
+
+            let thrownError: Error | undefined;
+            try {
+                loadBaseConfig(mockFilePath);
+            } catch (e: any) {
+                thrownError = e;
+            }
+
+            expect(thrownError).toBeInstanceOf(Error);
+            expect(thrownError!.message).toBe(
+                `Langflow endpoint URL is not defined in environment variables (LANGFLOW_ENDPOINT_URL) or in the base YAML config. Path: ${resolvedMockPath}`
+            );
+            
+            const consoleCalls = (global.console.log as jest.Mock).mock.calls;
+
+            expect(consoleCalls).toContainEqual([
+                `ConfigLoader: Loading base configuration from: ${resolvedMockPath}`
+            ]);
+            
+            jest.unmock('fs'); 
+            jest.unmock('process'); 
+        }); // End of jest.isolateModules
+    });
+
 });
 
 describe('loadInstanceConfig', () => {
