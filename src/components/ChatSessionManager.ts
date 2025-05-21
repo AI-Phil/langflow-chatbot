@@ -1,5 +1,5 @@
 import { LangflowChatClient, ChatMessageData } from '../clients/LangflowChatClient';
-import { Logger } from './logger';
+import { Logger } from '../utils/logger';
 import { normalizeLangflowTimestamp } from '../utils/datetimeUtils';
 import { SenderConfig } from '../types';
 

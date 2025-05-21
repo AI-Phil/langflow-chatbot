@@ -2,7 +2,7 @@
 
 import { ChatMessageProcessor, MessageProcessorUICallbacks } from '../src/components/ChatMessageProcessor';
 import { LangflowChatClient, BotResponse, StreamEvent, StreamEventType, StreamEventDataMap } from '../src/clients/LangflowChatClient';
-import { Logger } from '../src/components/logger';
+import { Logger } from '../src/utils/logger';
 import { SenderConfig } from '../src/types';
 
 // Mocks

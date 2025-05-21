@@ -1,6 +1,6 @@
 import { LangflowChatClient } from '../clients/LangflowChatClient';
 import { ChatWidget, ChatWidgetConfigOptions } from './ChatWidget';
-import { Logger, LogLevel } from './logger';
+import { Logger, LogLevel } from '../utils/logger';
 
 /**
  * Configuration options for the FloatingChatWidget.

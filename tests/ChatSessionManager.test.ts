@@ -2,7 +2,7 @@
 
 import { ChatSessionManager, SessionManagerDisplayCallbacks } from '../src/components/ChatSessionManager';
 import { LangflowChatClient, ChatMessageData } from '../src/clients/LangflowChatClient';
-import { Logger } from '../src/components/logger';
+import { Logger } from '../src/utils/logger';
 import { SenderConfig } from '../src/types';
 import * as datetimeUtils from '../src/utils/datetimeUtils';
 

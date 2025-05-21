@@ -1,4 +1,4 @@
-import { Logger } from './logger';
+import { Logger } from '../utils/logger';
 import { DatetimeHandler, createDefaultDatetimeHandler, isValidDatetimeHandler } from '../utils/datetimeUtils';
 import { SenderConfig } from '../types';
 

@@ -1,4 +1,4 @@
-import { Logger } from '../components/logger';
+import { Logger } from '../utils/logger';
 
 export interface BotResponse {
     reply?: string;

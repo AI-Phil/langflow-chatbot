@@ -2,7 +2,7 @@
 import { LangflowChatClient } from '../clients/LangflowChatClient';
 import { PROXY_BASE_API_PATH, PROXY_CONFIG_ENDPOINT_PREFIX } from '../config/apiPaths';
 import { ChatWidget, FloatingChatWidget } from '../components';
-import { Logger, LogLevel } from '../components/logger';
+import { Logger, LogLevel } from '../utils/logger';
 
 // Interface for the initial configuration passed to the plugin's init function
 export interface LangflowChatbotInitConfig {

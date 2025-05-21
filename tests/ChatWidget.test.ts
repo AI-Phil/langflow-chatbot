@@ -2,7 +2,7 @@
 
 import { ChatWidget, ChatWidgetConfigOptions } from '../src/components/ChatWidget';
 import { LangflowChatClient } from '../src/clients/LangflowChatClient';
-import { Logger } from '../src/components/logger';
+import { Logger } from '../src/utils/logger';
 import { ChatMessageProcessor, MessageProcessorUICallbacks } from '../src/components/ChatMessageProcessor';
 import { ChatDisplayManager, ChatDisplayManagerConfig } from '../src/components/ChatDisplayManager';
 import { ChatTemplateManager, TemplateManagerConfig } from '../src/components/ChatTemplateManager';

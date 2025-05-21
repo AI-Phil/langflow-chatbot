@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 
 import { ChatTemplateManager, TemplateManagerConfig } from '../src/components/ChatTemplateManager';
-import { Logger } from '../src/components/logger';
+import { Logger } from '../src/utils/logger';
 
 // Mock Logger
 const mockLogger: jest.Mocked<Logger> = {

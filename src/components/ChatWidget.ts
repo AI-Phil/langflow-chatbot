@@ -1,5 +1,5 @@
 import { LangflowChatClient } from '../clients/LangflowChatClient';
-import { Logger } from './logger';
+import { Logger } from '../utils/logger';
 import { ChatMessageProcessor, MessageProcessorUICallbacks } from './ChatMessageProcessor';
 import { ChatDisplayManager, ChatDisplayManagerConfig } from './ChatDisplayManager';
 import { ChatTemplateManager, TemplateManagerConfig } from './ChatTemplateManager';

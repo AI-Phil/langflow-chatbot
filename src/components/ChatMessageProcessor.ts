@@ -15,7 +15,7 @@
  * - Encapsulating the logic for both successful message exchanges and error handling during communication.
  */
 import { LangflowChatClient, BotResponse, StreamEvent, StreamEventType, StreamEventDataMap } from '../clients/LangflowChatClient';
-import { Logger } from './logger';
+import { Logger } from '../utils/logger';
 import { SenderConfig } from '../types';
 
 export interface MessageProcessorUICallbacks {
