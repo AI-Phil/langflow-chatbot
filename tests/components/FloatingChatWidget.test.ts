@@ -130,10 +130,15 @@ describe('FloatingChatWidget', () => {
             expect(chatWidgetHostElement.className).toBe('chat-widget-inner-host');
 
             const expectedChatWidgetConfig: Partial<ChatWidgetConfigOptions> = {
-                mainContainerTemplate: undefined,
-                inputAreaTemplate: undefined,
-                messageTemplate: undefined,
-                widgetTitle: undefined, // Floating widget title is separate
+                labels: { 
+                    widgetTitle: undefined, 
+                    // userSender, botSender, etc., will be ChatWidget defaults
+                },
+                template: { 
+                    mainContainerTemplate: undefined,
+                    inputAreaTemplate: undefined,
+                    messageTemplate: undefined,
+                },
                 datetimeFormat: undefined,
             };
 
@@ -160,9 +165,18 @@ describe('FloatingChatWidget', () => {
                 onSessionIdUpdate: onSessionIdUpdateMock,
                 datetimeFormat: 'HH:mm',
                 chatWidgetConfig: {
-                    userSender: 'TestUser',
-                    messageTemplate: '<p>{{message}}</p>',
-                    widgetTitle: 'Inner Widget Title Should Be Ignored'
+                    labels: {
+                        userSender: 'TestUser',
+                        botSender: 'TestBot',
+                        widgetTitle: 'Inner Widget Title',
+                        welcomeMessage: 'Inner Welcome'
+                    },
+                    template: {
+                        messageTemplate: '<p>Custom Message</p>',
+                        mainContainerTemplate: '<div id="custom-main"></div>',
+                        inputAreaTemplate: '<input id="custom-input"/>'
+                    },
+                    datetimeFormat: 'HH:mm:ss'
                 }
             };
             
@@ -200,12 +214,18 @@ describe('FloatingChatWidget', () => {
             expect(chatWidgetHostElement).toBe(actualHostInDOM);
             
             const expectedChatWidgetConfig: Partial<ChatWidgetConfigOptions> = {
-                userSender: 'TestUser',
-                messageTemplate: '<p>{{message}}</p>',
-                mainContainerTemplate: undefined, 
-                inputAreaTemplate: undefined,   
-                widgetTitle: undefined, // FloatingWidget ensures ChatWidget's title is not set from its own config
-                datetimeFormat: 'HH:mm', 
+                labels: {
+                    userSender: 'TestUser',
+                    botSender: 'TestBot',
+                    widgetTitle: 'Inner Widget Title',
+                    welcomeMessage: 'Inner Welcome'
+                },
+                template: {
+                    messageTemplate: '<p>Custom Message</p>',
+                    mainContainerTemplate: '<div id="custom-main"></div>',
+                    inputAreaTemplate: '<input id="custom-input"/>'
+                },
+                datetimeFormat: 'HH:mm:ss'
             };
 
             expect(constructorArgs[1]).toBe(mockChatClientInstance);

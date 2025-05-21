@@ -5,25 +5,16 @@ import { ChatDisplayManager, ChatDisplayManagerConfig } from './ChatDisplayManag
 import { ChatTemplateManager, TemplateManagerConfig } from './ChatTemplateManager';
 import { ChatSessionManager } from './ChatSessionManager';
 import { DatetimeHandler } from '../utils/datetimeUtils';
-import { SenderConfig } from '../types';
+import { SenderConfig, Labels, Template } from '../types';
 
 /**
  * Configuration options for the ChatWidget.
- * Extends Partial<SenderConfig> for optional sender name overrides.
  */
-export interface ChatWidgetConfigOptions extends Partial<SenderConfig> {
-    /** Optional HTML template for the main chat container. */
-    mainContainerTemplate?: string;
-    /** Optional HTML template for the chat input area. */
-    inputAreaTemplate?: string;
-    /** Optional HTML template for a single chat message. */
-    messageTemplate?: string;
-    /** Optional title for the chat widget. */
-    widgetTitle?: string;
+export interface ChatWidgetConfigOptions {
+    labels?: Partial<Labels>;
+    template?: Partial<Template>;
     /** Optional datetime format string (e.g., 'HH:mm') for displaying message timestamps. */
     datetimeFormat?: string;
-    /** Optional welcome message to display when chat history is empty. */
-    welcomeMessage?: string;
 }
 
 /**
@@ -47,12 +38,12 @@ export class ChatWidget {
         botSender: string;
         errorSender: string;
         systemSender: string;
+        welcomeMessage?: string;
+        widgetTitle?: string;
         mainContainerTemplate?: string;
         inputAreaTemplate?: string;
         messageTemplate?: string;
-        widgetTitle?: string;
         datetimeFormat?: string;
-        welcomeMessage?: string;
     };
     
     private sendButtonClickListener?: () => void;
@@ -96,22 +87,32 @@ export class ChatWidget {
         this.logger = logger;
         this.onSessionIdUpdateCallback = onSessionIdUpdate;
 
-        // Captured for use in the MessageProcessorUICallbacks.updateSessionId closure.
-        // This ensures that the external onSessionIdUpdate callback is only triggered for genuinely new session IDs,
-        // or when a session ID is first established if no initialSessionId was provided.
         const capturedInitialSessionId = initialSessionId; 
 
+        // Resolve configurations: incoming partial labels/template override defaults
+        const defaultLabels: Labels = {
+            widgetTitle: "Chat Assistant",
+            userSender: "You",
+            botSender: "Bot",
+            errorSender: "Error",
+            systemSender: "System",
+            welcomeMessage: undefined, // Default to no welcome message
+        };
+        const effectiveLabels = { ...defaultLabels, ...configOptions.labels }; 
+        // Templates default to undefined, letting ChatTemplateManager handle internal defaults
+        const effectiveTemplate = { ...configOptions.template }; 
+
         this.config = {
-            userSender: configOptions.userSender || "You",
-            botSender: configOptions.botSender || "Bot",
-            errorSender: configOptions.errorSender || "Error",
-            systemSender: configOptions.systemSender || "System",
-            mainContainerTemplate: configOptions.mainContainerTemplate,
-            inputAreaTemplate: configOptions.inputAreaTemplate,
-            messageTemplate: configOptions.messageTemplate,
-            widgetTitle: configOptions.widgetTitle, 
+            userSender: effectiveLabels.userSender!,
+            botSender: effectiveLabels.botSender!,
+            errorSender: effectiveLabels.errorSender!,
+            systemSender: effectiveLabels.systemSender!,
+            welcomeMessage: effectiveLabels.welcomeMessage,
+            widgetTitle: effectiveLabels.widgetTitle,
+            mainContainerTemplate: effectiveTemplate.mainContainerTemplate,
+            inputAreaTemplate: effectiveTemplate.inputAreaTemplate,
+            messageTemplate: effectiveTemplate.messageTemplate,
             datetimeFormat: configOptions.datetimeFormat,
-            welcomeMessage: configOptions.welcomeMessage,
         };
         
         const templateMgrConfig: TemplateManagerConfig = {

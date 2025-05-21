@@ -112,7 +112,9 @@ describe('ChatWidget', () => {
         document.body.appendChild(containerElement);
 
         minimalConfig = {
-            // No custom templates, use defaults
+            labels: {},
+            template: {},
+            // datetimeFormat can still be top-level as per ChatWidgetConfigOptions
         };
     });
 
@@ -177,15 +179,20 @@ describe('ChatWidget', () => {
 
         it('should use provided config options to override defaults for managers', () => {
             const customConfig: ChatWidgetConfigOptions = {
-                userSender: "TestUser",
-                botSender: "TestBot",
-                errorSender: "TestError",
-                systemSender: "TestSystem",
-                mainContainerTemplate: "<main></main>",
-                inputAreaTemplate: "<input />",
-                messageTemplate: "<msg></msg>",
+                labels: {
+                    userSender: "TestUser",
+                    botSender: "TestBot",
+                    errorSender: "TestError",
+                    systemSender: "TestSystem",
+                    widgetTitle: "Test Widget Title",
+                    welcomeMessage: "Test Welcome",
+                },
+                template: {
+                    mainContainerTemplate: "<main></main>",
+                    inputAreaTemplate: "<input />",
+                    messageTemplate: "<msg></msg>",
+                },
                 datetimeFormat: "HH:mm",
-                welcomeMessage: "Hello there!",
             };
 
             // Reset and define specific mock behavior for getMessageTemplate for this test
@@ -195,9 +202,9 @@ describe('ChatWidget', () => {
 
             expect(MockChatTemplateManager).toHaveBeenCalledWith(
                 { 
-                    mainContainerTemplate: "<main></main>", 
-                    inputAreaTemplate: "<input />", 
-                    messageTemplate: "<msg></msg>" // Config for TemplateManager
+                    mainContainerTemplate: customConfig.template?.mainContainerTemplate, 
+                    inputAreaTemplate: customConfig.template?.inputAreaTemplate, 
+                    messageTemplate: customConfig.template?.messageTemplate 
                 }, 
                 mockLogger
             );
@@ -205,35 +212,35 @@ describe('ChatWidget', () => {
             expect(MockChatDisplayManager).toHaveBeenCalledWith(
                 containerElement,
                 {
-                    messageTemplate: "<msg></msg>", // Should now match
-                    userSender: "TestUser",
-                    botSender: "TestBot",
-                    errorSender: "TestError",
-                    systemSender: "TestSystem",
-                    datetimeFormat: "HH:mm",
+                    messageTemplate: "<msg></msg>", 
+                    userSender: customConfig.labels?.userSender,
+                    botSender: customConfig.labels?.botSender,
+                    errorSender: customConfig.labels?.errorSender,
+                    systemSender: customConfig.labels?.systemSender,
+                    datetimeFormat: customConfig.datetimeFormat,
                 },
                 mockLogger
             );
             expect(MockChatSessionManager).toHaveBeenCalledWith(
                 mockChatClientInstance,
                 { 
-                    userSender: "TestUser", 
-                    botSender: "TestBot", 
-                    errorSender: "TestError", 
-                    systemSender: "TestSystem" 
+                    userSender: customConfig.labels?.userSender, 
+                    botSender: customConfig.labels?.botSender, 
+                    errorSender: customConfig.labels?.errorSender, 
+                    systemSender: customConfig.labels?.systemSender 
                 },
                 expect.any(Object),
                 mockLogger,
                 'custom-session-id',
-                customConfig.welcomeMessage // welcomeMessage from customConfig
+                customConfig.labels?.welcomeMessage 
             );
             expect(MockChatMessageProcessor).toHaveBeenCalledWith(
                 mockChatClientInstance,
                 { 
-                    userSender: "TestUser", 
-                    botSender: "TestBot", 
-                    errorSender: "TestError", 
-                    systemSender: "TestSystem" 
+                    userSender: customConfig.labels?.userSender, 
+                    botSender: customConfig.labels?.botSender, 
+                    errorSender: customConfig.labels?.errorSender, 
+                    systemSender: customConfig.labels?.systemSender 
                 },
                 mockLogger,
                 expect.any(Object),
@@ -310,7 +317,10 @@ describe('ChatWidget', () => {
 
         it('should set widget title if provided and header elements exist', () => {
             const title = "Test Widget Title";
-            const configWithTitle: ChatWidgetConfigOptions = { ...minimalConfig, widgetTitle: title };
+            const configWithTitle: ChatWidgetConfigOptions = { 
+                labels: { widgetTitle: title },
+                template: {}
+            };
             
             const mockHeader = document.createElement('div');
             const mockTitleText = document.createElement('span');
@@ -337,7 +347,10 @@ describe('ChatWidget', () => {
 
         it('should log a warning if widgetTitle is set but header elements are missing', () => {
             const title = "Test Widget Title";
-            const configWithTitle: ChatWidgetConfigOptions = { ...minimalConfig, widgetTitle: title };
+            const configWithTitle: ChatWidgetConfigOptions = { 
+                labels: { widgetTitle: title },
+                template: {}
+            };
 
             containerElement.querySelector = jest.fn().mockImplementation(selector => {
                 if (selector === '.chat-widget-header') return null; // Simulate missing header
@@ -457,7 +470,7 @@ describe('ChatWidget', () => {
             mockSendButton.click();
 
             expect(mockDisplayManagerInstance.addMessageToDisplay).toHaveBeenCalledWith(
-                minimalConfig.userSender || "You", // Default user sender
+                "You", // Default user sender from internal config resolution
                 testMessage,
                 false,       // isThinking
                 expect.any(String) // datetime (toLocaleString)
@@ -476,7 +489,7 @@ describe('ChatWidget', () => {
             mockChatInput.dispatchEvent(enterEvent);
 
             expect(mockDisplayManagerInstance.addMessageToDisplay).toHaveBeenCalledWith(
-                minimalConfig.userSender || "You",
+                "You", // Default user sender
                 testMessage,
                 false,
                 expect.any(String)
@@ -572,9 +585,12 @@ describe('ChatWidget', () => {
 
         it('getInternalConfig should return the resolved internal config including welcome message', () => {
             const customConfigWithWelcome: ChatWidgetConfigOptions = {
-                userSender: "CustomUser",
-                widgetTitle: "Custom Title",
-                welcomeMessage: "Welcome to the test!"
+                labels: {
+                    userSender: "CustomUser",
+                    widgetTitle: "Custom Title",
+                    welcomeMessage: "Welcome to the test!"
+                },
+                template: {},
             };
             const widget = new ChatWidget(containerElement, mockChatClientInstance, true, customConfigWithWelcome, mockLogger);
             const internalConfig = widget.getInternalConfig();

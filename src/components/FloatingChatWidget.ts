@@ -116,12 +116,20 @@ export class FloatingChatWidget {
             onSessionIdUpdate: userConfig.onSessionIdUpdate,
             datetimeFormat: userConfig.datetimeFormat,
             chatWidgetConfig: {
-                ...(userConfig.chatWidgetConfig || {}),
-                mainContainerTemplate: userConfig.chatWidgetConfig?.mainContainerTemplate,
-                inputAreaTemplate: userConfig.chatWidgetConfig?.inputAreaTemplate,
-                messageTemplate: userConfig.chatWidgetConfig?.messageTemplate,
-                widgetTitle: undefined, 
-                datetimeFormat: userConfig.datetimeFormat || userConfig.chatWidgetConfig?.datetimeFormat,
+                labels: {
+                    widgetTitle: userConfig.chatWidgetConfig?.labels?.widgetTitle,
+                    userSender: userConfig.chatWidgetConfig?.labels?.userSender,
+                    botSender: userConfig.chatWidgetConfig?.labels?.botSender,
+                    errorSender: userConfig.chatWidgetConfig?.labels?.errorSender,
+                    systemSender: userConfig.chatWidgetConfig?.labels?.systemSender,
+                    welcomeMessage: userConfig.chatWidgetConfig?.labels?.welcomeMessage,
+                },
+                template: {
+                    mainContainerTemplate: userConfig.chatWidgetConfig?.template?.mainContainerTemplate,
+                    inputAreaTemplate: userConfig.chatWidgetConfig?.template?.inputAreaTemplate,
+                    messageTemplate: userConfig.chatWidgetConfig?.template?.messageTemplate,
+                },
+                datetimeFormat: userConfig.chatWidgetConfig?.datetimeFormat,
             }
         };
         this.config = mergedFloatingConfig;
@@ -231,11 +239,15 @@ export class FloatingChatWidget {
         // Instantiate the inner ChatWidget
         try {
             this.chatWidgetInstance = new ChatWidget(
-                chatWidgetDiv, // Pass the created div element directly
+                chatWidgetDiv,
                 this.chatClient,
                 this.enableStream,
-                this.config.chatWidgetConfig, // Pass the prepared config for ChatWidget
-                this.logger, 
+                {
+                    labels: this.config.chatWidgetConfig.labels,
+                    template: this.config.chatWidgetConfig.template,
+                    datetimeFormat: this.config.chatWidgetConfig.datetimeFormat,
+                },
+                this.logger,
                 this.config.initialSessionId,
                 this.config.onSessionIdUpdate
             );

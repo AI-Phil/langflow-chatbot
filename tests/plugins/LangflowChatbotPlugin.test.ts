@@ -3,7 +3,7 @@
 import { TextDecoder, TextEncoder } from 'util';
 import { LangflowChatbotInstance, init as initPlugin, LangflowChatbotInitConfig } from '../../src/plugins/LangflowChatbotPlugin';
 import { LangflowChatClient } from '../../src/clients/LangflowChatClient';
-import { ChatWidget } from '../../src/components/ChatWidget';
+import { ChatWidget, ChatWidgetConfigOptions } from '../../src/components/ChatWidget';
 import { FloatingChatWidget } from '../../src/components/FloatingChatWidget';
 import { Logger, LogLevel } from '../../src/utils/logger';
 import { PROXY_BASE_API_PATH, PROXY_CONFIG_ENDPOINT_PREFIX } from '../../src/config/apiPaths';
@@ -188,14 +188,9 @@ describe('LangflowChatbotInstance', () => {
                 expect(chatWidgetArgs[1]).toBeInstanceOf(LangflowChatClient);
                 expect(chatWidgetArgs[2]).toBe(mockServerProfile.enableStream);
                 expect(chatWidgetArgs[3]).toEqual(expect.objectContaining({
-                    userSender: mockServerProfile.labels.userSender,
-                    botSender: mockServerProfile.labels.botSender,
-                    widgetTitle: mockServerProfile.labels.widgetTitle,
-                    messageTemplate: mockServerProfile.template.messageTemplate,
-                    mainContainerTemplate: mockServerProfile.template.mainContainerTemplate,
-                    inputAreaTemplate: mockServerProfile.template.inputAreaTemplate,
-                    datetimeFormat: mockServerProfile.datetimeFormat,
-                    welcomeMessage: mockServerProfile.labels.welcomeMessage,
+                    labels: mockServerProfile.labels,
+                    template: mockServerProfile.template,
+                    datetimeFormat: mockServerProfile.datetimeFormat
                 }));
                 expect(chatWidgetArgs[5]).toBeUndefined(); 
                 expect(typeof chatWidgetArgs[6]).toBe('function');
@@ -222,16 +217,17 @@ describe('LangflowChatbotInstance', () => {
 
             if (MockedChatWidget.mock.calls.length > 0) {
                 const chatWidgetArgsForFallback = MockedChatWidget.mock.calls[0];
-                expect(chatWidgetArgsForFallback[3]).toEqual(expect.objectContaining({
-                    userSender: initialConfWithFallbacks.userSender, 
-                    botSender: initialConfWithFallbacks.botSender,   
-                    widgetTitle: partialServerProfile.labels.widgetTitle, 
-                    messageTemplate: undefined, // As per merging logic if not in server or initial
-                    mainContainerTemplate: undefined,
-                    inputAreaTemplate: undefined,
-                    welcomeMessage: undefined, // Expect undefined as not in partial server or initial
-                    // datetimeFormat would also be undefined if not provided by server/initial
-                }));
+                const expectedConfigPassedToChatWidget: ChatWidgetConfigOptions = {
+                    labels: {
+                        userSender: initialConfWithFallbacks.userSender,
+                        botSender: initialConfWithFallbacks.botSender,
+                        widgetTitle: partialServerProfile.labels.widgetTitle,
+                    },
+                    template: {
+                    },
+                    datetimeFormat: undefined
+                };
+                expect(chatWidgetArgsForFallback[3]).toEqual(expectedConfigPassedToChatWidget);
             } else {
                 throw new Error('MockedChatWidget was not called when testing initialConfig fallback.');
             }
@@ -248,12 +244,23 @@ describe('LangflowChatbotInstance', () => {
 
             if (MockedChatWidget.mock.calls.length > 0) {
                 const chatWidgetArgsForDefault = MockedChatWidget.mock.calls[0];
-                expect(chatWidgetArgsForDefault[3]).toEqual(expect.objectContaining({
-                    userSender: 'Me',
-                    botSender: 'Assistant',
-                    widgetTitle: 'Chat Assistant',
-                    welcomeMessage: undefined, // Expect undefined by default
-                }));
+                const expectedConfigPassedToChatWidget: ChatWidgetConfigOptions = {
+                    labels: {
+                        userSender: 'Me',
+                        botSender: 'Assistant',
+                        widgetTitle: 'Chat Assistant',
+                        errorSender: undefined,
+                        systemSender: undefined,
+                        welcomeMessage: undefined
+                    },
+                    template: {
+                        messageTemplate: undefined,
+                        mainContainerTemplate: undefined,
+                        inputAreaTemplate: undefined
+                    },
+                    datetimeFormat: undefined
+                };
+                expect(chatWidgetArgsForDefault[3]).toEqual(expectedConfigPassedToChatWidget);
             } else {
                 throw new Error('MockedChatWidget was not called when testing default value fallback.');
             }
@@ -290,13 +297,12 @@ describe('LangflowChatbotInstance', () => {
                         widgetTitle: mockServerProfile.labels.widgetTitle,
                         position: mockServerProfile.floatingWidget.floatPosition,
                         chatWidgetConfig: expect.objectContaining({
-                            userSender: mockServerProfile.labels.userSender,
-                            botSender: mockServerProfile.labels.botSender,
-                            messageTemplate: mockServerProfile.template.messageTemplate,
-                            mainContainerTemplate: mockServerProfile.template.mainContainerTemplate,
-                            inputAreaTemplate: mockServerProfile.template.inputAreaTemplate,
-                            datetimeFormat: mockServerProfile.datetimeFormat,
-                            welcomeMessage: mockServerProfile.labels.welcomeMessage,
+                            labels: {
+                                ...mockServerProfile.labels,
+                                widgetTitle: undefined,
+                            },
+                            template: mockServerProfile.template,
+                            datetimeFormat: mockServerProfile.datetimeFormat
                         })
                     }));
                 } else {
