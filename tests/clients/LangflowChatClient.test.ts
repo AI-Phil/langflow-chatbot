@@ -3,7 +3,7 @@
 import { TextDecoder, TextEncoder } from 'util';
 import { LangflowChatClient, BotResponse, StreamEvent, ChatMessageData } from '../../src/clients/LangflowChatClient';
 import { Logger } from '../../src/utils/logger';
-import { PROXY_BASE_API_PATH, PROFILE_CHAT_ENDPOINT_PREFIX } from '../../src/config/apiPaths';
+import { PROFILE_CHAT_ENDPOINT_PREFIX } from '../../src/config/apiPaths';
 
 // Polyfill TextDecoder/TextEncoder if not present in JSDOM
 if (typeof global.TextDecoder === 'undefined') {
@@ -41,33 +41,40 @@ jest.mock('../../src/utils/logger', () => {
 
 describe('LangflowChatClient', () => {
     const profileId = 'test-flow';
+    const mockBaseApiUrl = 'http://test-chat-client.com/api';
     const customBaseApiUrl = 'http://custom.api';
     let client: LangflowChatClient;
 
     beforeEach(() => {
         // Reset mocks before each test
         jest.clearAllMocks();
-        // (fetch as jest.Mock).mockClear(); // Redundant due to jest.clearAllMocks()
-        // randomUUIDMock.mockClear(); // Redundant due to jest.clearAllMocks()
         
         // Re-initialize client for each test to ensure clean state
-        client = new LangflowChatClient(profileId);
+        client = new LangflowChatClient(profileId, mockBaseApiUrl);
     });
 
     describe('constructor', () => {
         it('should throw an error if profileId is empty', () => {
-            expect(() => new LangflowChatClient('')).toThrow("profileId is required and cannot be empty.");
+            expect(() => new LangflowChatClient('', mockBaseApiUrl)).toThrow("profileId is required and cannot be empty.");
         });
 
         it('should throw an error if profileId is whitespace', () => {
-            expect(() => new LangflowChatClient('   ')).toThrow("profileId is required and cannot be empty.");
+            expect(() => new LangflowChatClient('   ', mockBaseApiUrl)).toThrow("profileId is required and cannot be empty.");
         });
 
-        it('should initialize with default baseApiUrl and new Logger if not provided', () => {
-            const newClient = new LangflowChatClient(profileId);
-            expect(newClient['baseApiUrl']).toBe(PROXY_BASE_API_PATH);
-            expect(newClient['chatEndpoint']).toBe(`${PROXY_BASE_API_PATH}${PROFILE_CHAT_ENDPOINT_PREFIX}/${profileId}`);
-            expect(newClient['historyEndpoint']).toBe(`${PROXY_BASE_API_PATH}${PROFILE_CHAT_ENDPOINT_PREFIX}/${profileId}/history`);
+        it('should throw an error if baseApiUrl is empty', () => {
+            expect(() => new LangflowChatClient(profileId, '')).toThrow("baseApiUrl is required and cannot be empty.");
+        });
+
+        it('should throw an error if baseApiUrl is whitespace', () => {
+            expect(() => new LangflowChatClient(profileId, '   ')).toThrow("baseApiUrl is required and cannot be empty.");
+        });
+
+        it('should initialize with provided baseApiUrl and new Logger if logger not provided', () => {
+            const newClient = new LangflowChatClient(profileId, mockBaseApiUrl);
+            expect(newClient['baseApiUrl']).toBe(mockBaseApiUrl);
+            expect(newClient['chatEndpoint']).toBe(`${mockBaseApiUrl}${PROFILE_CHAT_ENDPOINT_PREFIX}/${profileId}`);
+            expect(newClient['historyEndpoint']).toBe(`${mockBaseApiUrl}${PROFILE_CHAT_ENDPOINT_PREFIX}/${profileId}/history`);
             expect(Logger).toHaveBeenCalledWith('info', 'LangflowChatClient');
             expect(newClient['logger']).toBe(mockLoggerInstance);
         });
@@ -81,7 +88,7 @@ describe('LangflowChatClient', () => {
 
         it('should initialize with provided logger', () => {
             const customLogger = new Logger('debug');
-            const newClient = new LangflowChatClient(profileId, undefined, customLogger);
+            const newClient = new LangflowChatClient(profileId, mockBaseApiUrl, customLogger);
             expect(newClient['logger']).toBe(customLogger);
         });
     });

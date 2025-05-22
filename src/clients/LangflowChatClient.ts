@@ -61,7 +61,6 @@ export interface ChatMessageData {
 }
 
 import { 
-    PROXY_BASE_API_PATH,
     PROFILE_CHAT_ENDPOINT_PREFIX
 } from '../config/apiPaths'; 
 
@@ -75,12 +74,15 @@ export class LangflowChatClient {
     /**
      * Creates an instance of LangflowChatClient.
      * @param {string} profileId - The unique identifier for the chatbot profile.
-     * @param {string} [baseApiUrl] - Optional base API URL.
+     * @param {string} baseApiUrl - The base API URL for the Langflow proxy.
      * @param {Logger} [logger] - Optional logger instance.
      */
-    constructor(profileId: string, baseApiUrl: string = PROXY_BASE_API_PATH, logger?: Logger) {
+    constructor(profileId: string, baseApiUrl: string, logger?: Logger) {
         if (!profileId || profileId.trim() === '') {
             throw new Error("profileId is required and cannot be empty.");
+        }
+        if (!baseApiUrl || baseApiUrl.trim() === '') {
+            throw new Error("baseApiUrl is required and cannot be empty.");
         }
         this.profileId = profileId;
         this.baseApiUrl = baseApiUrl.endsWith('/') ? baseApiUrl.slice(0, -1) : baseApiUrl;

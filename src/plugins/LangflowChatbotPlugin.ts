@@ -1,6 +1,6 @@
 // LangflowChatbotPlugin.ts
 import { LangflowChatClient } from '../clients/LangflowChatClient';
-import { PROXY_BASE_API_PATH, PROFILE_CONFIG_ENDPOINT_PREFIX } from '../config/apiPaths';
+import { PROFILE_CONFIG_ENDPOINT_PREFIX } from '../config/apiPaths';
 import { ChatWidget, FloatingChatWidget } from '../components';
 import { Logger, LogLevel } from '../utils/logger';
 import { ERROR_MESSAGE_TEMPLATE } from '../config/uiConstants';
@@ -10,6 +10,7 @@ import { ChatbotProfile as ServerChatbotUIData, ServerProfile as ServerBehaviorD
 export interface LangflowChatbotInitConfig {
   containerId?: string; // Required if useFloating is false or undefined
   profileId: string; // The ID of the chatbot profile to load
+  proxyApiBasePath: string; // base API path for the proxy server
   sessionId?: string; // Optional: Resume a specific session
   useFloating?: boolean;
   enableStream?: boolean; // User can still suggest this for the client
@@ -81,8 +82,14 @@ export class LangflowChatbotInstance {
       this.destroy();
     }
 
+    if (!this.initialConfig.proxyApiBasePath) {
+      const errorMsg = "proxyApiBasePath is required in LangflowChatbotInitConfig.";
+      this.logger.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+
     try {
-      const configUrl = `${PROXY_BASE_API_PATH}${PROFILE_CONFIG_ENDPOINT_PREFIX}/${this.initialConfig.profileId}`;
+      const configUrl = `${this.initialConfig.proxyApiBasePath}/${PROFILE_CONFIG_ENDPOINT_PREFIX}/${this.initialConfig.profileId}`;
       this.logger.info(`Fetching chatbot UI configuration from: ${configUrl}`);
       const response = await fetch(configUrl);
       if (!response.ok) {
@@ -92,7 +99,12 @@ export class LangflowChatbotInstance {
       this.serverProfile = await response.json() as FullServerProfile; // Corrected type assertion
       this.logger.debug("Received server profile:", this.serverProfile);
 
-      this.chatClient = new LangflowChatClient(this.initialConfig.profileId, undefined, this.logger);
+      const effectiveProxyBasePathForClient = this.serverProfile.proxyBasePath || this.initialConfig.proxyApiBasePath;
+      this.chatClient = new LangflowChatClient(
+        this.initialConfig.profileId, 
+        effectiveProxyBasePathForClient,
+        this.logger
+      );
       
       // Ensure serverProfile parts are at least empty objects before merging
       // serverProfile is ChatbotProfile, so it directly has labels, template, floatingWidget
