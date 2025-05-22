@@ -1,11 +1,11 @@
 import http from 'http';
 import { LangflowClient } from '@datastax/langflow-client';
-import { handleChatMessageRequest } from '@src/lib/langflow/chatHandlers';
-import * as requestUtils from '@src/lib/request-utils';
+import { handleChatMessageRequest } from '../../../src/lib/langflow/chatHandlers';
+import * as requestUtils from '../../../src/lib/request-utils';
 
 // Mocks
 jest.mock('@datastax/langflow-client');
-jest.mock('@src/lib/request-utils', () => ({
+jest.mock('../../../src/lib/request-utils', () => ({
     parseJsonBody: jest.fn(),
     sendJsonError: jest.fn(),
 }));
@@ -19,6 +19,8 @@ describe('handleChatMessageRequest', () => {
     let res: http.ServerResponse;
     let mockFlow: any;
     let mockLangflowInstance: any;
+    let defaultPreParsedBody: any | undefined; // For new params
+    let defaultIsBodyPreParsed: boolean;    // For new params
 
     const flowId = 'test-flow-id';
     const userMessage = 'hello';
@@ -36,46 +38,19 @@ describe('handleChatMessageRequest', () => {
                     {
                         results: {
                             message: {
-                                text_key: "text",
-                                data: { /* ... */ },
-                                default_value: "",
                                 text: "Hello! How can I assist you today?", // Primary extraction path
-                                sender: "Machine",
-                                sender_name: "AI",
-                                files: [],
-                                session_id: "70d372b0-8822-434b-9d98-29c89aa1fc7d",
-                                timestamp: "2025-05-20T07:53:30+00:00",
-                                flow_id: "70d372b0-8822-434b-9d98-29c89aa1fc7d",
-                                error: false,
-                                edit: false,
-                                properties: { /* ... */ },
-                                category: "message",
-                                content_blocks: [],
-                                duration: null
                             }
                         },
                         artifacts: { // Fallback path
                             message: "Hello from artifacts!",
-                            sender: "Machine",
-                            sender_name: "AI",
-                            files: [],
-                            type: "object"
                         },
                         outputs: { // Fallback path
                             message: { // Another fallback path (nested)
                                 message: "Hello from outputs.message.message!",
-                                type: "text"
                             },
                             text: "Hello from outputs.text!", // Fallback path
                             chat: "Hello from outputs.chat!" // Fallback path
                         },
-                        logs: { message: [] },
-                        messages: [ /* ... */ ],
-                        timedelta: null,
-                        duration: null,
-                        component_display_name: "Chat Output",
-                        component_id: "ChatOutput-DK7Hh",
-                        used_frozen_result: false
                     }
                 ]
             }
@@ -114,37 +89,110 @@ describe('handleChatMessageRequest', () => {
         };
         (mockLangflowClient as any).mockImplementation(() => mockLangflowInstance);
 
+        // Default body if parseJsonBody is called
         mockParseJsonBody.mockResolvedValue({ message: userMessage, sessionId: clientSessionId, stream: false });
-        mockFlow.run.mockResolvedValue(JSON.parse(JSON.stringify(mockLangflowRunResponse))); // Deep copy
+        mockFlow.run.mockResolvedValue(JSON.parse(JSON.stringify(mockLangflowRunResponse)));
+
+        // Defaults for new parameters
+        defaultPreParsedBody = undefined;
+        defaultIsBodyPreParsed = false;
+    });
+
+    // New tests for body parsing logic
+    describe('Body Parsing Logic', () => {
+        it('should use preParsedBody and not call parseJsonBody if isBodyPreParsed is true', async () => {
+            const preParsed = { message: 'from pre-parsed', sessionId: 'pre-session-789', stream: false };
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), preParsed, true);
+            
+            expect(mockParseJsonBody).not.toHaveBeenCalled();
+            expect(mockLangflowInstance.flow).toHaveBeenCalledWith(flowId);
+            expect(mockFlow.run).toHaveBeenCalledWith(preParsed.message, {
+                input_type: 'chat',
+                output_type: 'chat',
+                session_id: preParsed.sessionId,
+            });
+            expect(res.statusCode).toBe(200);
+        });
+
+        it('should call parseJsonBody if isBodyPreParsed is false', async () => {
+            // defaultIsBodyPreParsed is false, defaultPreParsedBody is undefined
+            const parsedBodyByFunc = { message: 'from parseJsonBody func', sessionId: 'session-from-func' };
+            mockParseJsonBody.mockResolvedValueOnce(parsedBodyByFunc); // Override default for this test
+
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
+            
+            expect(mockParseJsonBody).toHaveBeenCalledTimes(1);
+            expect(mockParseJsonBody).toHaveBeenCalledWith(req);
+            expect(mockLangflowInstance.flow).toHaveBeenCalledWith(flowId);
+            expect(mockFlow.run).toHaveBeenCalledWith(parsedBodyByFunc.message, {
+                input_type: 'chat',
+                output_type: 'chat',
+                session_id: parsedBodyByFunc.sessionId,
+            });
+            expect(res.statusCode).toBe(200);
+        });
+
+        it('should use parseJsonBody if isBodyPreParsed is true BUT preParsedBody is null/undefined (edge case, defensive)', async () => {
+            const parsedBodyByFunc = { message: 'from parseJsonBody func for edge case', sessionId: 'session-from-func-edge' };
+            mockParseJsonBody.mockResolvedValueOnce(parsedBodyByFunc); 
+
+            // isBodyPreParsed is true, but preParsedBody is undefined
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), undefined, true);
+            
+            expect(mockParseJsonBody).toHaveBeenCalledTimes(1);
+            expect(mockParseJsonBody).toHaveBeenCalledWith(req);
+            expect(mockFlow.run).toHaveBeenCalledWith(parsedBodyByFunc.message, {
+                input_type: 'chat',
+                output_type: 'chat',
+                session_id: parsedBodyByFunc.sessionId,
+            });
+        });
     });
 
     describe('Non-streaming requests', () => {
         it('should return 503 if LangflowClient is not available', async () => {
-            await handleChatMessageRequest(req, res, flowId, false, undefined);
+            await handleChatMessageRequest(req, res, flowId, false, undefined, defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(mockSendJsonError).toHaveBeenCalledWith(res, 503, expect.stringContaining("LangflowClient not available"));
         });
 
-        it('should return 400 if message is not provided in body', async () => {
+        it('should return 400 if message is not provided in body (via parseJsonBody)', async () => {
             mockParseJsonBody.mockResolvedValueOnce({ sessionId: clientSessionId }); // No message
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(mockSendJsonError).toHaveBeenCalledWith(res, 400, "Message is required and must be a string.");
         });
 
-        it('should return 400 if message is not a string', async () => {
-            mockParseJsonBody.mockResolvedValueOnce({ message: 123, sessionId: clientSessionId }); // Message is number
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+        it('should return 400 if message is not provided in body (via preParsedBody)', async () => {
+            const preParsedMissingMessage = { sessionId: clientSessionId }; // No message
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), preParsedMissingMessage, true);
+            expect(mockParseJsonBody).not.toHaveBeenCalled(); // Ensure parseJsonBody not called
+            expect(mockSendJsonError).toHaveBeenCalledWith(res, 400, "Message is required and must be a string.");
+        });
+
+        it('should return 400 if message is not a string (via parseJsonBody)', async () => {
+            mockParseJsonBody.mockResolvedValueOnce({ message: 123, sessionId: clientSessionId });
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
+            expect(mockSendJsonError).toHaveBeenCalledWith(res, 400, "Message is required and must be a string.");
+        });
+
+        it('should return 400 if message is not a string (via preParsedBody)', async () => {
+            const preParsedNonStringMessage = { message: 123, sessionId: clientSessionId };
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), preParsedNonStringMessage, true);
+            expect(mockParseJsonBody).not.toHaveBeenCalled();
             expect(mockSendJsonError).toHaveBeenCalledWith(res, 400, "Message is required and must be a string.");
         });
         
-        it('should return 400 for invalid JSON body', async () => {
+        it('should return 400 for invalid JSON body (when parseJsonBody is used)', async () => {
             const error = new Error("Invalid JSON body");
             mockParseJsonBody.mockRejectedValueOnce(error);
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            // defaultIsBodyPreParsed is false, so parseJsonBody will be attempted
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(mockSendJsonError).toHaveBeenCalledWith(res, 400, "Invalid JSON body provided.", error.message);
         });
 
-        it('should call Langflow flow.run with correct parameters for non-streaming request', async () => {
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+        it('should call Langflow flow.run with correct parameters for non-streaming request (using parseJsonBody path)', async () => {
+            // Relies on default mockParseJsonBody value: { message: userMessage, sessionId: clientSessionId, stream: false }
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
+            expect(mockParseJsonBody).toHaveBeenCalledTimes(1);
             expect(mockLangflowInstance.flow).toHaveBeenCalledWith(flowId);
             expect(mockFlow.run).toHaveBeenCalledWith(userMessage, {
                 input_type: 'chat',
@@ -155,90 +203,42 @@ describe('handleChatMessageRequest', () => {
             expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/json');
         });
 
-        it('should call Langflow flow.run without session_id if not provided', async () => {
+        it('should call Langflow flow.run without session_id if not provided (parseJsonBody path)', async () => {
             mockParseJsonBody.mockResolvedValueOnce({ message: userMessage, stream: false }); // No sessionId
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
+            expect(mockParseJsonBody).toHaveBeenCalledTimes(1);
             expect(mockFlow.run).toHaveBeenCalledWith(userMessage, {
                 input_type: 'chat',
                 output_type: 'chat',
-                // session_id should be undefined and thus removed by the handler
             });
             expect(mockFlow.run.mock.calls[0][1].session_id).toBeUndefined();
         });
         
-        it('should extract reply from primary path (results.message.text)', async () => {
+        it('should extract reply from primary path (results.message.text) (parseJsonBody path)', async () => {
             const specificResponse = JSON.parse(JSON.stringify(mockLangflowRunResponse));
-            // The default mock already has this structure
             mockFlow.run.mockResolvedValueOnce(specificResponse);
-
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
-            
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             const expectedReply = specificResponse.outputs[0].outputs[0].results.message.text;
             expect(res.end).toHaveBeenCalledWith(JSON.stringify({ reply: expectedReply, sessionId: specificResponse.sessionId }));
         });
 
-        it('should extract reply from fallback path (outputs.message.message)', async () => {
+        it('should extract reply from fallback path (outputs.message.message) (parseJsonBody path)', async () => {
             const specificResponse = JSON.parse(JSON.stringify(mockLangflowRunResponse));
-            specificResponse.outputs[0].outputs[0].results.message = null; // Remove primary
-            // Ensure the fallback path is present
+            specificResponse.outputs[0].outputs[0].results.message = null;
             specificResponse.outputs[0].outputs[0].outputs.message.message = "Custom reply from outputs.message.message";
             mockFlow.run.mockResolvedValueOnce(specificResponse);
-
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
-            
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             const expectedReply = specificResponse.outputs[0].outputs[0].outputs.message.message;
             expect(res.end).toHaveBeenCalledWith(JSON.stringify({ reply: expectedReply, sessionId: specificResponse.sessionId }));
         });
-        
-        it('should extract reply from fallback path (outputs.text)', async () => {
-            const specificResponse = JSON.parse(JSON.stringify(mockLangflowRunResponse));
-            specificResponse.outputs[0].outputs[0].results.message = null; // Remove primary
-            specificResponse.outputs[0].outputs[0].outputs.message = null; // Remove secondary
-             specificResponse.outputs[0].outputs[0].outputs.text = "Custom reply from outputs.text";
-            mockFlow.run.mockResolvedValueOnce(specificResponse);
 
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
-            
-            const expectedReply = specificResponse.outputs[0].outputs[0].outputs.text;
-            expect(res.end).toHaveBeenCalledWith(JSON.stringify({ reply: expectedReply, sessionId: specificResponse.sessionId }));
-        });
-
-        it('should extract reply from fallback path (outputs.chat)', async () => {
-            const specificResponse = JSON.parse(JSON.stringify(mockLangflowRunResponse));
-            specificResponse.outputs[0].outputs[0].results.message = null; // Remove primary
-            specificResponse.outputs[0].outputs[0].outputs.message = null; // Remove secondary
-            specificResponse.outputs[0].outputs[0].outputs.text = null; // Remove tertiary
-            specificResponse.outputs[0].outputs[0].outputs.chat = "Custom reply from outputs.chat";
-
-            mockFlow.run.mockResolvedValueOnce(specificResponse);
-        
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
-            
-            const expectedReply = specificResponse.outputs[0].outputs[0].outputs.chat;
-            expect(res.end).toHaveBeenCalledWith(JSON.stringify({ reply: expectedReply, sessionId: specificResponse.sessionId }));
-        });
-        
-        it('should extract reply from fallback path (artifacts.message)', async () => {
-            const specificResponse = JSON.parse(JSON.stringify(mockLangflowRunResponse));
-            specificResponse.outputs[0].outputs[0].results.message = null; // Remove primary
-            specificResponse.outputs[0].outputs[0].outputs = null; // Remove all 'outputs' based fallbacks
-            specificResponse.outputs[0].outputs[0].artifacts.message = "Custom reply from artifacts";
-            mockFlow.run.mockResolvedValueOnce(specificResponse);
-
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
-            
-            const expectedReply = specificResponse.outputs[0].outputs[0].artifacts.message;
-            expect(res.end).toHaveBeenCalledWith(JSON.stringify({ reply: expectedReply, sessionId: specificResponse.sessionId }));
-        });
-
-
-        it('should return "Sorry, I could not process that." if no reply found', async () => {
+        it('should return "Sorry, I could not process that." if no reply found (parseJsonBody path)', async () => {
             const emptyResponse = { sessionId: 'empty-session', outputs: [{ outputs: [{ results: {}, outputs: {}, artifacts: {} }] }] }; 
             mockFlow.run.mockResolvedValueOnce(emptyResponse);
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(res.end).toHaveBeenCalledWith(JSON.stringify({ reply: "Sorry, I could not process that.", sessionId: 'empty-session' }));
         });
-        
+
         it('should return whitespace string as-is if reply is only whitespace', async () => {
             const responseWithWhitespaceText = JSON.parse(JSON.stringify(mockLangflowRunResponse));
             // Clear other potential reply paths to ensure this is the one picked up
@@ -247,7 +247,7 @@ describe('handleChatMessageRequest', () => {
             responseWithWhitespaceText.outputs[0].outputs[0].results.message.text = "   "; // Whitespace string
             mockFlow.run.mockResolvedValueOnce(responseWithWhitespaceText);
         
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             // expect(res.end).toHaveBeenCalledWith(JSON.stringify({ reply: "Received an empty message from Bot.", sessionId: responseWithWhitespaceText.sessionId }));
             expect(res.end).toHaveBeenCalledWith(JSON.stringify({ reply: "   ", sessionId: responseWithWhitespaceText.sessionId }));
         });
@@ -260,7 +260,7 @@ describe('handleChatMessageRequest', () => {
             responseWithActualEmptyText.outputs[0].outputs[0].results.message.text = ""; // Actual empty string
             mockFlow.run.mockResolvedValueOnce(responseWithActualEmptyText);
 
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(res.end).toHaveBeenCalledWith(JSON.stringify({ reply: "Received an empty message from Bot.", sessionId: responseWithActualEmptyText.sessionId }));
         });
 
@@ -294,7 +294,7 @@ describe('handleChatMessageRequest', () => {
                 ]
             };
             mockFlow.run.mockResolvedValueOnce(deepFallbackResponse);
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(res.end).toHaveBeenCalledWith(JSON.stringify({ reply: "  Deep chat reply  ", sessionId: "deep-fallback-session" }));
         });
 
@@ -307,7 +307,7 @@ describe('handleChatMessageRequest', () => {
                 ]
             };
             mockFlow.run.mockResolvedValueOnce(deepFallbackResponse);
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(res.end).toHaveBeenCalledWith(JSON.stringify({ reply: "Deep text only", sessionId: "deep-fallback-session-text" }));
         });
 
@@ -320,7 +320,7 @@ describe('handleChatMessageRequest', () => {
                 ]
             };
             mockFlow.run.mockResolvedValueOnce(deepFallbackResponse);
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(res.end).toHaveBeenCalledWith(JSON.stringify({ reply: "Deep results text", sessionId: "deep-fallback-session-results" }));
         });
 
@@ -333,7 +333,7 @@ describe('handleChatMessageRequest', () => {
                 ]
             };
             mockFlow.run.mockResolvedValueOnce(deepFallbackResponse);
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(res.end).toHaveBeenCalledWith(JSON.stringify({ reply: "Deep artifacts message", sessionId: "deep-fallback-session-artifacts" }));
         });
 
@@ -357,7 +357,7 @@ describe('handleChatMessageRequest', () => {
                 ]
             };
             mockFlow.run.mockResolvedValueOnce(responseWithEmptyPrimary);
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(res.end).toHaveBeenCalledWith(JSON.stringify({ reply: "Received an empty message from Bot.", sessionId: "empty-primary-message" }));
         });
 
@@ -381,7 +381,7 @@ describe('handleChatMessageRequest', () => {
                 ]
             };
             mockFlow.run.mockResolvedValueOnce(responseWithEmptyPrimary);
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(res.end).toHaveBeenCalledWith(JSON.stringify({ reply: "Received an empty message from Bot.", sessionId: "empty-primary-text" }));
         });
 
@@ -394,7 +394,7 @@ describe('handleChatMessageRequest', () => {
                 ]
             };
             mockFlow.run.mockResolvedValueOnce(deepFallbackEmptyChat);
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(res.end).toHaveBeenCalledWith(JSON.stringify({ reply: "Received an empty message from Bot.", sessionId: "deep-empty-chat" }));
         });
 
@@ -407,7 +407,7 @@ describe('handleChatMessageRequest', () => {
                 ]
             };
             mockFlow.run.mockResolvedValueOnce(deepFallbackEmptyArtifact);
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(res.end).toHaveBeenCalledWith(JSON.stringify({ reply: "Received an empty message from Bot.", sessionId: "deep-empty-artifact" }));
         });
 
@@ -420,7 +420,7 @@ describe('handleChatMessageRequest', () => {
                 ]
             };
             mockFlow.run.mockResolvedValueOnce(deepFallbackEmptyMsg);
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(res.end).toHaveBeenCalledWith(JSON.stringify({ reply: "Received an empty message from Bot.", sessionId: "deep-empty-msg-msg" }));
         });
 
@@ -429,7 +429,7 @@ describe('handleChatMessageRequest', () => {
             delete responseWithoutSessionId.sessionId;
             mockFlow.run.mockResolvedValueOnce(responseWithoutSessionId);
 
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             const expectedReply = responseWithoutSessionId.outputs[0].outputs[0].results.message.text;
             expect(res.end).toHaveBeenCalledWith(JSON.stringify({ reply: expectedReply, sessionId: clientSessionId }));
         });
@@ -439,7 +439,7 @@ describe('handleChatMessageRequest', () => {
             mockFlow.run.mockRejectedValueOnce(error);
             // Ensure headersSent is false for this test, so sendJsonError is called
             Object.defineProperty(res, 'headersSent', { value: false, configurable: true }); 
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(mockSendJsonError).toHaveBeenCalledWith(res, 500, "Failed to process chat message.", error.message);
         });
 
@@ -447,14 +447,14 @@ describe('handleChatMessageRequest', () => {
             const error = new Error("Langflow run failed");
             mockFlow.run.mockRejectedValueOnce(error);
             Object.defineProperty(res, 'headersSent', { value: true, configurable: true });
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(mockSendJsonError).not.toHaveBeenCalled();
             expect(res.end).toHaveBeenCalled(); // Should still try to end the response
         });
          it('should correctly log non-streaming request without session ID', async () => {
             const consoleSpy = jest.spyOn(console, 'log');
             mockParseJsonBody.mockResolvedValueOnce({ message: userMessage, stream: false }); // No sessionId
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(consoleSpy).toHaveBeenCalledWith(
                 expect.stringContaining(`RequestHandler: Non-streaming request for Flow '${flowId}'`)
             );
@@ -467,7 +467,7 @@ describe('handleChatMessageRequest', () => {
 
         it('should correctly log non-streaming request with session ID', async () => {
             const consoleSpy = jest.spyOn(console, 'log');
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(consoleSpy).toHaveBeenCalledWith(
                 expect.stringContaining(`RequestHandler: Non-streaming request for Flow '${flowId}', session: ${clientSessionId}`)
             );
@@ -498,13 +498,13 @@ describe('handleChatMessageRequest', () => {
         });
 
         it('should set correct headers for streaming response', async () => {
-            await handleChatMessageRequest(req, res, flowId, true, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, true, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/x-ndjson');
             expect(res.setHeader).toHaveBeenCalledWith('Transfer-Encoding', 'chunked');
         });
 
         it('should call Langflow flow.stream with correct parameters', async () => {
-            await handleChatMessageRequest(req, res, flowId, true, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, true, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(mockLangflowInstance.flow).toHaveBeenCalledWith(flowId);
             expect(mockFlow.stream).toHaveBeenCalledWith(userMessage, {
                 input_type: 'chat',
@@ -514,7 +514,7 @@ describe('handleChatMessageRequest', () => {
         });
 
         it('should write each event from the stream to the response', async () => {
-            await handleChatMessageRequest(req, res, flowId, true, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, true, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             for (const event of mockStreamEvents) {
                 expect(res.write).toHaveBeenCalledWith(JSON.stringify(event) + '\n');
             }
@@ -523,7 +523,7 @@ describe('handleChatMessageRequest', () => {
         
         it('should correctly log streaming request with session ID', async () => {
             const consoleSpy = jest.spyOn(console, 'log');
-            await handleChatMessageRequest(req, res, flowId, true, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, true, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(consoleSpy).toHaveBeenCalledWith(
                 `RequestHandler: Streaming request for Flow '${flowId}', session: ${clientSessionId}, message: "${userMessage.substring(0, 50)}..."`
             );
@@ -533,7 +533,7 @@ describe('handleChatMessageRequest', () => {
         it('should correctly log streaming request without session ID', async () => {
             const consoleSpy = jest.spyOn(console, 'log');
             mockParseJsonBody.mockResolvedValueOnce({ message: userMessage, stream: true }); // No sessionId
-            await handleChatMessageRequest(req, res, flowId, true, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, true, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(consoleSpy).toHaveBeenCalledWith(
                 `RequestHandler: Streaming request for Flow '${flowId}', session: new, message: "${userMessage.substring(0, 50)}..."`
             );
@@ -544,7 +544,7 @@ describe('handleChatMessageRequest', () => {
             mockParseJsonBody.mockResolvedValue({ message: userMessage, sessionId: clientSessionId, stream: true });
             mockFlow.run.mockResolvedValue(JSON.parse(JSON.stringify(mockLangflowRunResponse)));
             
-            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({})); // enableStream is false
+            await handleChatMessageRequest(req, res, flowId, false, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed); // enableStream is false
 
             expect(mockFlow.stream).not.toHaveBeenCalled();
             expect(mockFlow.run).toHaveBeenCalled(); // Should fall back to non-streaming
@@ -558,7 +558,7 @@ describe('handleChatMessageRequest', () => {
             mockFlow.stream.mockRejectedValueOnce(streamError);
             Object.defineProperty(res, 'headersSent', { value: false, configurable: true });
 
-            await handleChatMessageRequest(req, res, flowId, true, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, true, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
 
             expect(mockSendJsonError).toHaveBeenCalledWith(res, 500, "Failed to process stream.", streamError.message);
             expect(res.write).not.toHaveBeenCalled();
@@ -574,7 +574,7 @@ describe('handleChatMessageRequest', () => {
             mockFlow.stream.mockImplementationOnce(() => errorStreamGenerator());
             Object.defineProperty(res, 'headersSent', { value: true, configurable: true }); // Simulate headers are sent after first write
 
-            await handleChatMessageRequest(req, res, flowId, true, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, true, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
 
             expect(mockSendJsonError).not.toHaveBeenCalled(); // Should not call sendJsonError if headers are sent
             expect(res.write).toHaveBeenCalledWith(JSON.stringify(mockStreamEvents[0]) + '\n');
@@ -592,7 +592,7 @@ describe('handleChatMessageRequest', () => {
             mockFlow.stream.mockImplementationOnce(() => errorStreamGenerator());
             Object.defineProperty(res, 'headersSent', { value: true, configurable: true });
 
-            await handleChatMessageRequest(req, res, flowId, true, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, true, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
             expect(res.write).toHaveBeenCalledWith(JSON.stringify({ event: 'error', data: { message: "Error during streaming.", detail: 'Unknown error on stream' } }) + '\n');
             expect(res.end).toHaveBeenCalled();
         });
@@ -602,7 +602,7 @@ describe('handleChatMessageRequest', () => {
             mockFlow.stream.mockRejectedValueOnce(streamError);
             Object.defineProperty(res, 'headersSent', { value: false, configurable: true });
 
-            await handleChatMessageRequest(req, res, flowId, true, new LangflowClient({}));
+            await handleChatMessageRequest(req, res, flowId, true, new LangflowClient({}), defaultPreParsedBody, defaultIsBodyPreParsed);
 
             expect(mockSendJsonError).toHaveBeenCalledWith(res, 500, "Failed to process stream.", 'Unknown stream error');
         });

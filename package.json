@@ -28,7 +28,6 @@
   "dependencies": {
     "@datastax/langflow-client": "^0.2.1",
     "date-fns": "^4.1.0",
-    "ejs": "^3.1.10",
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {
@@ -36,17 +35,28 @@
     "@babel/preset-env": "^7.27.2",
     "@types/dotenv": "^8.2.0",
     "@types/ejs": "^3.1.5",
+    "@types/express": "^4.17.21",
     "@types/jest": "^29.5.14",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.15.18",
     "babel-jest": "^29.7.0",
     "dotenv": "^16.4.5",
+    "ejs": "^3.1.10",
     "esbuild": "^0.25.4",
+    "express": "^4.19.2",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "jest-util": "^29.7.0",
     "ts-jest": "^29.3.4",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
+  },
+  "peerDependencies": {
+    "express": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "express": {
+        "optional": true
+    }
   }
 }

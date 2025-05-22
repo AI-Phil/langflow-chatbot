@@ -31,7 +31,9 @@ export async function handleRequest(
         method: 'GET',
         queryParams?: URLSearchParams
     ) => Promise<Response | null>,
-    proxyApiBasePath: string
+    proxyApiBasePath: string,
+    preParsedBody: any | undefined,
+    isBodyPreParsed: boolean
 ): Promise<void> {
     const { method, url: rawUrl } = req;
     if (!rawUrl) {
@@ -69,7 +71,15 @@ export async function handleRequest(
 
         if (method === 'POST' && parts.length === 1) {
             const serverAllowsStream = profile.server.enableStream !== false; // Access enableStream from profile.server, default to true
-            await handleChatMessageRequest(req, res, flowIdToUse, serverAllowsStream, langflowClient);
+            await handleChatMessageRequest(
+                req, 
+                res, 
+                flowIdToUse, 
+                serverAllowsStream, 
+                langflowClient,
+                preParsedBody,
+                isBodyPreParsed
+            );
         } else if (method === 'GET' && parts.length === 2 && parts[1] === 'history') {
             const sessionId = parsedUrl.searchParams.get('session_id');
             await handleGetChatHistoryRequest(res, flowIdToUse, sessionId, makeDirectLangflowApiRequest);

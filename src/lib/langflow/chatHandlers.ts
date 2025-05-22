@@ -87,7 +87,9 @@ export async function handleChatMessageRequest(
     res: http.ServerResponse,
     flowId: string,
     enableStream: boolean,
-    langflowClient: LangflowClient | undefined
+    langflowClient: LangflowClient | undefined,
+    preParsedBody: any | undefined,
+    isBodyPreParsed: boolean
 ): Promise<void> {
     if (!langflowClient) {
         sendJsonError(res, 503, "RequestHandler: LangflowClient not available. Check server logs.");
@@ -95,10 +97,19 @@ export async function handleChatMessageRequest(
     }
 
     try {
-        const body = await parseJsonBody(req);
-        const userMessage = body.message;
-        const clientSessionId = body.sessionId;
-        const clientWantsStream = body.stream === true;
+        let actualBody: any;
+        if (isBodyPreParsed && preParsedBody) {
+            console.log("[Debug ChatHandler] Using pre-parsed body provided by adapter:", preParsedBody);
+            actualBody = preParsedBody;
+        } else {
+            console.log("[Debug ChatHandler] Pre-parsed body not available or not indicated. Attempting to parse JSON body via parseJsonBody.");
+            actualBody = await parseJsonBody(req);
+            console.log("[Debug ChatHandler] JSON body parsed successfully via parseJsonBody:", actualBody);
+        }
+
+        const userMessage = actualBody.message;
+        const clientSessionId = actualBody.sessionId;
+        const clientWantsStream = actualBody.stream === true;
         const useStream = enableStream && clientWantsStream;
 
         if (!userMessage || typeof userMessage !== 'string') {

@@ -118,34 +118,64 @@ export class LangflowProxyService {
     }
 
     public async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-        const originalUrl = req.url || '';
+        const entryReqUrl = req.url || ''; // Store URL at method entry
+        let effectiveFullPath: string;
 
-        if (originalUrl.startsWith(this.proxyApiBasePath)) {
-            let strippedUrl = originalUrl.substring(this.proxyApiBasePath.length);
-            if (!strippedUrl.startsWith('/')) {
-                strippedUrl = '/' + strippedUrl;
-            }
-            req.url = strippedUrl; 
+        // 1. Determine effective full path
+        if ((req as any).originalUrl) {
+            effectiveFullPath = (req as any).originalUrl;
+            // console.log(`[LangflowProxyService] Using req.originalUrl: ${effectiveFullPath}`);
         } else {
-            // If the path doesn't start with the proxy base path, reject immediately.
-            sendJsonError(res, 404, "Endpoint not found.");
-            return; // Do not proceed further
+            effectiveFullPath = entryReqUrl;
+            // console.log(`[LangflowProxyService] Using req.url (fallback): ${effectiveFullPath}`);
+        }
+
+        let internalRoutePath: string;
+
+        // 2. Strip proxyApiBasePath to get internalRoutePath
+        if (effectiveFullPath.startsWith(this.proxyApiBasePath)) {
+            internalRoutePath = effectiveFullPath.substring(this.proxyApiBasePath.length);
+            if (!internalRoutePath.startsWith('/')) {
+                internalRoutePath = '/' + internalRoutePath;
+            }
+            // console.log(`[LangflowProxyService] Stripped internalRoutePath: ${internalRoutePath}`);
+        } else {
+            // console.warn(`[LangflowProxyService] Request path "${effectiveFullPath}" does not start with proxyApiBasePath "${this.proxyApiBasePath}". Rejecting.`);
+            sendJsonError(res, 404, "Endpoint not found. Path mismatch with proxy base.");
+            return;
+        }
+
+        // 3. Temporarily set req.url for handleRequestFromModule
+        req.url = internalRoutePath;
+        // console.log(`[LangflowProxyService] Temporarily setting req.url to: ${req.url}`);
+
+        // 4. Body Handling Preparation
+        const preParsedBody: any | undefined = (req as any).body;
+        const isBodyPreParsed: boolean = preParsedBody !== undefined;
+
+        if (isBodyPreParsed) {
+            // console.log("[LangflowProxyService] Pre-parsed body detected:", preParsedBody);
+        } else {
+            // console.log("[LangflowProxyService] Pre-parsed body not detected. Downstream handlers will parse if needed.");
         }
 
         try {
             await handleRequestFromModule(
-                req, 
+                req,
                 res,
                 this.flowConfigs,
                 this.langflowClient,
                 this.langflowConnectionDetails.endpoint_url,
                 this.langflowConnectionDetails.api_key,
                 this._makeDirectLangflowApiRequest.bind(this),
-                this.proxyApiBasePath
+                this.proxyApiBasePath,
+                preParsedBody, // New argument
+                isBodyPreParsed // New argument
             );
         } finally {
-            // Restore the original URL in case the req object is used elsewhere or in subsequent middleware
-            req.url = originalUrl;
+            // 5. Restore original req.url
+            req.url = entryReqUrl;
+            // console.log(`[LangflowProxyService] Restored req.url to: ${req.url}`);
         }
     }
 
