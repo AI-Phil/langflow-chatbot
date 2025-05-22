@@ -5,12 +5,12 @@ import ejs from 'ejs';
 import dotenv from 'dotenv';
 import { LangflowProxyService } from '../../src/langflow-proxy';
 import { LangflowProxyConfig } from '../../src/types';
-import { PROXY_BASE_API_PATH } from '../../src/config/apiPaths';
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 const hostname = '127.0.0.1';
 const port = 3001;
+const langflowApiPath = "/api/langflow";
 
 // Configuration for Langflow Proxy Service now comes primarily from chatbot-config.yaml
 let langflowProxy: LangflowProxyService;
@@ -19,7 +19,8 @@ let langflowProxy: LangflowProxyService;
 // Base configuration (Langflow connection) is sourced from environment variables.
 // Default chatbot behaviors are sourced from uiConstants.ts.
 const proxyConfig: LangflowProxyConfig = {
-    instanceConfigPath: path.join(__dirname, 'app-chatbots.yaml')
+    instanceConfigPath: path.join(__dirname, 'app-chatbots.yaml'),
+    proxyApiBasePath: langflowApiPath
 };
 
 try {
@@ -83,7 +84,7 @@ const server = http.createServer(async (req, res) => {
             res.end('Example App Logic JS file not found');
             console.error(`Error reading ${exampleLogicPath}:`, err);
         }
-    } else if (req.url?.startsWith(PROXY_BASE_API_PATH)) {
+    } else if (req.url?.startsWith(langflowApiPath)) { // Used the new constant here
         if (!langflowProxy) {
             res.statusCode = 503; // Service Unavailable
             res.setHeader('Content-Type', 'application/json');

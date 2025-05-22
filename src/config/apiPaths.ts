@@ -1,5 +1,3 @@
-export const PROXY_BASE_API_PATH = '/api/langflow';
-
 // Standalone, static paths (no dynamic parameters)
 export const PROXY_PROFILES_SUFFIX = '/profiles'; // Path for listing available chatbot profiles
 export const PROXY_FLOWS_SUFFIX = '/flows-config'; // Path for listing available langflow flows
