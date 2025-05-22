@@ -62,7 +62,7 @@ export interface ChatMessageData {
 
 import { 
     PROXY_BASE_API_PATH,
-    PROFILE_CHAT_ENDPOINT_PREFIX // Updated import
+    PROFILE_CHAT_ENDPOINT_PREFIX
 } from '../config/apiPaths'; 
 
 export class LangflowChatClient {

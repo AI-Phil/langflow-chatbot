@@ -4,6 +4,7 @@ import { loadBaseConfig, loadInstanceConfig } from './lib/startup/config-loader'
 import { initializeFlowMappings } from './lib/startup/flow-mapper';
 import { handleRequest as handleRequestFromModule } from './lib/request-handler';
 import { Profile, LangflowProxyConfig } from './types';
+import { sendJsonError } from './lib/request-utils';
 
 export class LangflowProxyService {
     private langflowClient!: LangflowClient;
@@ -117,15 +118,34 @@ export class LangflowProxyService {
     }
 
     public async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-        await handleRequestFromModule(
-            req,
-            res,
-            this.flowConfigs,
-            this.langflowClient,
-            this.langflowConnectionDetails.endpoint_url,
-            this.langflowConnectionDetails.api_key,
-            this._makeDirectLangflowApiRequest.bind(this)
-        );
+        const originalUrl = req.url || '';
+
+        if (originalUrl.startsWith(this.proxyApiBasePath)) {
+            let strippedUrl = originalUrl.substring(this.proxyApiBasePath.length);
+            if (!strippedUrl.startsWith('/')) {
+                strippedUrl = '/' + strippedUrl;
+            }
+            req.url = strippedUrl; 
+        } else {
+            // If the path doesn't start with the proxy base path, reject immediately.
+            sendJsonError(res, 404, "Endpoint not found.");
+            return; // Do not proceed further
+        }
+
+        try {
+            await handleRequestFromModule(
+                req, 
+                res,
+                this.flowConfigs,
+                this.langflowClient,
+                this.langflowConnectionDetails.endpoint_url,
+                this.langflowConnectionDetails.api_key,
+                this._makeDirectLangflowApiRequest.bind(this)
+            );
+        } finally {
+            // Restore the original URL in case the req object is used elsewhere or in subsequent middleware
+            req.url = originalUrl;
+        }
     }
 
     public getChatbotProfile(profileId: string): Profile | undefined {

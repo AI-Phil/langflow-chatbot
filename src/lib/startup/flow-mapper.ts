@@ -7,10 +7,9 @@
  * correctly point to the intended Langflow flows. This process typically runs once
  * at startup to prepare the configurations for runtime use.
  */
-import { Profile } from '../../types'; // Updated import path
+import { Profile } from '../../types';
 import {
     LANGFLOW_API_BASE_PATH_V1,
-    PROXY_BASE_API_PATH,
     LANGFLOW_FLOWS_ENDPOINT_SUFFIX
 } from '../../config/apiPaths';
 

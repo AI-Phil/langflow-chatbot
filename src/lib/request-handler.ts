@@ -3,11 +3,10 @@ import { URL } from 'url';
 import { LangflowClient } from '@datastax/langflow-client';
 import { Profile } from '../types';
 import {
-    PROXY_BASE_API_PATH,
     PROFILE_CONFIG_ENDPOINT_PREFIX,
     PROFILE_CHAT_ENDPOINT_PREFIX,
-    PROXY_FLOWS_PATH,
-    PROXY_PROFILES_PATH,
+    PROXY_FLOWS_SUFFIX,
+    PROXY_PROFILES_SUFFIX,
     LANGFLOW_API_BASE_PATH_V1
 } from '../config/apiPaths';
 import { sendJsonError, proxyLangflowApiRequest, parseJsonBody } from './request-utils';
@@ -43,8 +42,9 @@ export async function handleRequest(
     const parsedUrl = new URL(rawUrl, base);
     const pathname = parsedUrl.pathname;
 
-    const configRequestPathPrefix = PROXY_BASE_API_PATH + PROFILE_CONFIG_ENDPOINT_PREFIX + '/';
-    const chatRequestPathPrefix = PROXY_BASE_API_PATH + PROFILE_CHAT_ENDPOINT_PREFIX + '/';
+    // Path prefixes are now direct matches as base path is stripped by caller
+    const configRequestPathPrefix = PROFILE_CONFIG_ENDPOINT_PREFIX + '/';
+    const chatRequestPathPrefix = PROFILE_CHAT_ENDPOINT_PREFIX + '/';
 
     if (method === 'GET' && pathname.startsWith(configRequestPathPrefix)) {
         const profileId = pathname.substring(configRequestPathPrefix.length);
@@ -75,9 +75,9 @@ export async function handleRequest(
         } else {
             sendJsonError(res, 404, "Chat endpoint not found or method not supported for the path.");
         }
-    } else if (method === 'GET' && pathname === PROXY_FLOWS_PATH) {
+    } else if (method === 'GET' && pathname === PROXY_FLOWS_SUFFIX) {
         await handleGetFlowsRequest(req, res, makeDirectLangflowApiRequest);
-    } else if (method === 'GET' && pathname === PROXY_PROFILES_PATH) {
+    } else if (method === 'GET' && pathname === PROXY_PROFILES_SUFFIX) {
         await handleListChatbotProfilesRequest(req, res, chatbotConfigurations);
     } else {
         sendJsonError(res, 404, "Endpoint not found or method not supported.");

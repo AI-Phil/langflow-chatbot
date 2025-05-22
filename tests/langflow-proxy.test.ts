@@ -4,12 +4,18 @@ import { loadBaseConfig, loadInstanceConfig } from '../src/lib/startup/config-lo
 import { initializeFlowMappings } from '../src/lib/startup/flow-mapper';
 import { handleRequest as handleRequestFromModule } from '../src/lib/request-handler';
 import http from 'http'; // Import for IncomingMessage and ServerResponse
+import { sendJsonError } from '../src/lib/request-utils'; // Import the mock
 
 // Mock dependencies
 jest.mock('../src/lib/startup/config-loader');
 jest.mock('../src/lib/startup/flow-mapper'); // Mock flow-mapper
 jest.mock('../src/lib/request-handler'); // Mock request-handler
 jest.mock('@datastax/langflow-client');
+// Add sendJsonError to the mocks from request-utils
+jest.mock('../src/lib/request-utils', () => ({
+    ...jest.requireActual('../src/lib/request-utils'), // Keep other exports if any
+    sendJsonError: jest.fn(),
+}));
 
 const mockLoadBaseConfig = loadBaseConfig as jest.Mock;
 const mockLoadInstanceConfig = loadInstanceConfig as jest.Mock;
@@ -47,6 +53,8 @@ describe('LangflowProxyService', () => {
         // Mock global.fetch
         mockFetch = jest.fn();
         global.fetch = mockFetch;
+
+        (sendJsonError as jest.Mock).mockClear(); // Clear sendJsonError mock for all tests
     });
 
     afterEach(() => {
@@ -329,29 +337,57 @@ describe('LangflowProxyService', () => {
     });
 
     describe('handleRequest Method', () => {
-        it('should call handleRequestFromModule with correct parameters', async () => {
+        let mockReq: http.IncomingMessage;
+        let mockRes: http.ServerResponse;
+
+        beforeEach(() => {
+            mockReq = { 
+                method: 'GET', 
+                url: `${validProxyApiBasePath}/test`, 
+                headers: {} 
+            } as http.IncomingMessage;
+            mockRes = { setHeader: jest.fn(), end: jest.fn(), writeHead: jest.fn() } as unknown as http.ServerResponse;
+            mockHandleRequestFromModule.mockClear(); 
+            (sendJsonError as jest.Mock).mockClear(); // Ensure it's cleared here too for this specific context
+        });
+
+        it('should call handleRequestFromModule with stripped url when base path matches', async () => {
+            const config: LangflowProxyConfig = {
+                instanceConfigPath: validInstanceConfigPath,
+                proxyApiBasePath: validProxyApiBasePath, 
+            };
+            const service = new LangflowProxyService(config);
+            const originalRequestUrl = mockReq.url; // e.g., /api/proxy/test
+
+            // Mock implementation for this specific test
+            mockHandleRequestFromModule.mockImplementationOnce((receivedReq, _res, _configs, _client, _url, _key, _makeDirect) => {
+                expect(receivedReq.url).toBe('/test'); // Assert stripped URL inside the mock
+                return Promise.resolve();
+            });
+
+            await service.handleRequest(mockReq, mockRes);
+
+            expect(mockHandleRequestFromModule).toHaveBeenCalledTimes(1);
+            // Check that the original req.url on the object in the test scope is restored
+            expect(mockReq.url).toBe(originalRequestUrl);
+        });
+
+        it('should call sendJsonError and not call handleRequestFromModule if base path does not match', async () => {
             const config: LangflowProxyConfig = {
                 instanceConfigPath: validInstanceConfigPath,
                 proxyApiBasePath: validProxyApiBasePath,
             };
             const service = new LangflowProxyService(config);
-            const mockReq = {} as http.IncomingMessage;
-            const mockRes = {} as http.ServerResponse;
+            const nonMatchingUrl = '/some/other/path';
+            mockReq.url = nonMatchingUrl; 
 
             await service.handleRequest(mockReq, mockRes);
 
-            expect(mockHandleRequestFromModule).toHaveBeenCalledTimes(1);
-            expect(mockHandleRequestFromModule).toHaveBeenCalledWith(
-                mockReq,
-                mockRes,
-                // @ts-expect-error Accessing private member for test purposes
-                service.flowConfigs,
-                // @ts-expect-error Accessing private member for test purposes
-                service.langflowClient,
-                baseConfigDefaults.langflowConnection.endpoint_url,
-                baseConfigDefaults.langflowConnection.api_key,
-                expect.any(Function) // For _makeDirectLangflowApiRequest.bind(this)
-            );
+            expect(sendJsonError).toHaveBeenCalledTimes(1);
+            expect(sendJsonError).toHaveBeenCalledWith(mockRes, 404, "Endpoint not found.");
+            expect(mockHandleRequestFromModule).not.toHaveBeenCalled();
+            // req.url should still be restored
+            expect(mockReq.url).toBe(nonMatchingUrl); 
         });
     });
 
