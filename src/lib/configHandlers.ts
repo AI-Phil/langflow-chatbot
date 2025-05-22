@@ -2,12 +2,15 @@ import http from 'http';
 import { Profile, ChatbotProfile } from '../types';
 import { sendJsonError } from './request-utils';
 
-export async function handleGetChatbotConfigRequest(profileId: string, res: http.ServerResponse, chatbotConfigurations: Map<string, Profile>): Promise<void> {
+export async function handleGetChatbotConfigRequest(profileId: string, res: http.ServerResponse, chatbotConfigurations: Map<string, Profile>, proxyApiBasePath: string): Promise<void> {
     console.log(`RequestHandler: Received GET request for chatbot configuration: '${profileId}'`);
     const profile = chatbotConfigurations.get(profileId);
 
     if (profile) {
-        const clientSafeProfile: ChatbotProfile = profile.chatbot;
+        const clientSafeProfile: ChatbotProfile = {
+            ...profile.chatbot,
+            proxyBasePath: proxyApiBasePath
+        };
         res.statusCode = 200;
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify(clientSafeProfile));

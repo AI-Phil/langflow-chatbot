@@ -30,7 +30,8 @@ export async function handleRequest(
         path: string,
         method: 'GET',
         queryParams?: URLSearchParams
-    ) => Promise<Response | null>
+    ) => Promise<Response | null>,
+    proxyApiBasePath: string
 ): Promise<void> {
     const { method, url: rawUrl } = req;
     if (!rawUrl) {
@@ -48,7 +49,7 @@ export async function handleRequest(
 
     if (method === 'GET' && pathname.startsWith(configRequestPathPrefix)) {
         const profileId = pathname.substring(configRequestPathPrefix.length);
-        await handleGetChatbotConfigRequest(profileId, res, chatbotConfigurations);
+        await handleGetChatbotConfigRequest(profileId, res, chatbotConfigurations, proxyApiBasePath);
     } else if (pathname.startsWith(chatRequestPathPrefix)) {
         const remainingPath = pathname.substring(chatRequestPathPrefix.length);
         const parts = remainingPath.split('/').filter(p => p.length > 0);

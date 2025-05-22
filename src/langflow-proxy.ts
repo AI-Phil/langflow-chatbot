@@ -140,7 +140,8 @@ export class LangflowProxyService {
                 this.langflowClient,
                 this.langflowConnectionDetails.endpoint_url,
                 this.langflowConnectionDetails.api_key,
-                this._makeDirectLangflowApiRequest.bind(this)
+                this._makeDirectLangflowApiRequest.bind(this),
+                this.proxyApiBasePath
             );
         } finally {
             // Restore the original URL in case the req object is used elsewhere or in subsequent middleware

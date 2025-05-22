@@ -14,6 +14,7 @@ export interface ChatbotProfile {
     labels?: Labels;
     template?: Template;
     floatingWidget?: FloatingWidget;
+    proxyBasePath?: string;
 }
 
 export interface Labels {

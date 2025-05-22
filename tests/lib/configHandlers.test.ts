@@ -33,6 +33,7 @@ const createMockResponse = () => {
 describe('configHandlers', () => {
     let mockConfigurations: Map<string, Profile>;
     let mockRes: http.ServerResponse;
+    const mockProxyApiBasePath = '/api/test-proxy'; // Add a mock base path
 
     beforeEach(() => {
         // Reset mocks
@@ -69,24 +70,27 @@ describe('configHandlers', () => {
     });
 
     describe('handleGetChatbotConfigRequest', () => {
-        test('should return 200 and the client-safe profile (chatbot section) if profileId exists', async () => {
+        test('should return 200 and the client-safe profile (chatbot section) including proxyBasePath if profileId exists', async () => {
             const targetProfileId = 'profile1';
-            await handleGetChatbotConfigRequest(targetProfileId, mockRes, mockConfigurations);
+            await handleGetChatbotConfigRequest(targetProfileId, mockRes, mockConfigurations, mockProxyApiBasePath);
 
             expect(mockRes.statusCode).toBe(200);
             expect(mockRes.setHeader).toHaveBeenCalledWith('Content-Type', 'application/json');
             
-            // The handler should return the chatbot part of the profile
-            const expectedChatbotProfile = mockConfigurations.get(targetProfileId)!.chatbot;
+            const originalChatbotProfile = mockConfigurations.get(targetProfileId)!.chatbot;
+            const expectedChatbotProfileWithBasePath: ChatbotProfile = {
+                ...originalChatbotProfile,
+                proxyBasePath: mockProxyApiBasePath
+            };
 
-            expect(mockRes.end).toHaveBeenCalledWith(JSON.stringify(expectedChatbotProfile));
+            expect(mockRes.end).toHaveBeenCalledWith(JSON.stringify(expectedChatbotProfileWithBasePath));
             expect(sendJsonError).not.toHaveBeenCalled();
             expect(mockConsoleLog).toHaveBeenCalledWith(`RequestHandler: Received GET request for chatbot configuration: '${targetProfileId}'`);
         });
 
         test('should call sendJsonError with 404 if profileId does not exist', async () => {
             const targetProfileId = 'non-existent-profile';
-            await handleGetChatbotConfigRequest(targetProfileId, mockRes, mockConfigurations);
+            await handleGetChatbotConfigRequest(targetProfileId, mockRes, mockConfigurations, mockProxyApiBasePath);
 
             expect(sendJsonError).toHaveBeenCalledWith(mockRes, 404, `Chatbot configuration with profileId '${targetProfileId}' not found.`);
             expect(mockRes.end).not.toHaveBeenCalled(); // sendJsonError should handle sending the response

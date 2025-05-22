@@ -87,6 +87,7 @@ describe('handleRequest', () => {
     let mockLangflowEndpointUrl: string | undefined;
     let mockLangflowApiKey: string | undefined;
     let mockMakeDirectLangflowApiRequest: jest.Mock;
+    const mockProxyApiBasePath = '/api/test-proxy'; // Add a mock base path
 
     beforeEach(() => {
         // Reset mocks for each test
@@ -109,7 +110,8 @@ describe('handleRequest', () => {
             mockLangflowClient,
             mockLangflowEndpointUrl,
             mockLangflowApiKey,
-            mockMakeDirectLangflowApiRequest
+            mockMakeDirectLangflowApiRequest,
+            mockProxyApiBasePath
         );
         expect(sendJsonError).toHaveBeenCalledWith(mockRes, 400, "URL is required.");
     });
@@ -130,7 +132,8 @@ describe('handleRequest', () => {
             mockLangflowClient,
             mockLangflowEndpointUrl,
             mockLangflowApiKey,
-            mockMakeDirectLangflowApiRequest
+            mockMakeDirectLangflowApiRequest,
+            mockProxyApiBasePath
         );
         // Check that a known handler was called, implying successful parsing with fallback host
         expect(handleListChatbotProfilesRequest).toHaveBeenCalled();
@@ -146,13 +149,13 @@ describe('handleRequest', () => {
 
         test('GET should call handleGetChatbotConfigRequest for valid path', async () => {
             mockReq = createMockReq('GET', configPath);
-            await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest /*, mockProxyApiBasePath */); // No longer passed
-            expect(handleGetChatbotConfigRequest).toHaveBeenCalledWith(profileId, mockRes, mockChatbotConfigurations);
+            await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest, mockProxyApiBasePath);
+            expect(handleGetChatbotConfigRequest).toHaveBeenCalledWith(profileId, mockRes, mockChatbotConfigurations, mockProxyApiBasePath);
         });
 
         test('Non-GET method should result in 404', async () => {
             mockReq = createMockReq('POST', configPath);
-            await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest /*, mockProxyApiBasePath */); // No longer passed
+            await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest, mockProxyApiBasePath);
             expect(sendJsonError).toHaveBeenCalledWith(mockRes, 404, "Endpoint not found or method not supported.");
         });
     });
@@ -163,13 +166,13 @@ describe('handleRequest', () => {
 
         test('GET should call handleListChatbotProfilesRequest', async () => {
             mockReq = createMockReq('GET', profilesPath);
-            await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest /*, mockProxyApiBasePath */); // No longer passed
+            await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest, mockProxyApiBasePath);
             expect(handleListChatbotProfilesRequest).toHaveBeenCalledWith(mockReq, mockRes, mockChatbotConfigurations);
         });
 
         test('Non-GET method should result in 404', async () => {
             mockReq = createMockReq('POST', profilesPath);
-            await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest /*, mockProxyApiBasePath */); // No longer passed
+            await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest, mockProxyApiBasePath);
             expect(sendJsonError).toHaveBeenCalledWith(mockRes, 404, "Endpoint not found or method not supported.");
         });
     });
@@ -180,13 +183,13 @@ describe('handleRequest', () => {
 
         test('GET should call handleGetFlowsRequest', async () => {
             mockReq = createMockReq('GET', flowsPath);
-            await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest /*, mockProxyApiBasePath */); // No longer passed
+            await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest, mockProxyApiBasePath);
             expect(handleGetFlowsRequest).toHaveBeenCalledWith(mockReq, mockRes, mockMakeDirectLangflowApiRequest);
         });
 
         test('Non-GET method should result in 404', async () => {
             mockReq = createMockReq('POST', flowsPath);
-            await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest /*, mockProxyApiBasePath */); // No longer passed
+            await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest, mockProxyApiBasePath);
             expect(sendJsonError).toHaveBeenCalledWith(mockRes, 404, "Endpoint not found or method not supported.");
         });
     });
@@ -211,19 +214,19 @@ describe('handleRequest', () => {
 
         test('should send 400 if profileId is missing', async () => {
             mockReq = createMockReq('POST', `${chatBasePath}/`); // Missing profileId
-            await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest /*, mockProxyApiBasePath */); // No longer passed
+            await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest, mockProxyApiBasePath);
             expect(sendJsonError).toHaveBeenCalledWith(mockRes, 400, "profileId missing in chat URL.");
         });
 
         test('should send 404 if profile not found for POST message', async () => {
             mockReq = createMockReq('POST', messagesPath);
-            await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest /*, mockProxyApiBasePath */); // No longer passed
+            await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest, mockProxyApiBasePath);
             expect(sendJsonError).toHaveBeenCalledWith(mockRes, 404, `Chatbot profile with profileId '${profileId}' not found.`);
         });
 
         test('should send 404 if profile not found for GET history', async () => {
             mockReq = createMockReq('GET', historyPath);
-            await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest /*, mockProxyApiBasePath */); // No longer passed
+            await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest, mockProxyApiBasePath);
             expect(sendJsonError).toHaveBeenCalledWith(mockRes, 404, `Chatbot profile with profileId '${profileId}' not found.`);
         });
 
@@ -234,7 +237,7 @@ describe('handleRequest', () => {
 
             test('POST to messagesPath should call handleChatMessageRequest', async () => {
                 mockReq = createMockReq('POST', messagesPath, { message: 'Hello' });
-                await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest /*, mockProxyApiBasePath */); // No longer passed
+                await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest, mockProxyApiBasePath);
                 expect(handleChatMessageRequest).toHaveBeenCalledWith(mockReq, mockRes, validProfile.server.flowId, validProfile.server.enableStream, mockLangflowClient);
             });
 
@@ -250,7 +253,7 @@ describe('handleRequest', () => {
                 };
                 mockChatbotConfigurations.set(profileId, noStreamProfile);
                 mockReq = createMockReq('POST', messagesPath, { message: 'Hello' });
-                await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest /*, mockProxyApiBasePath */); // No longer passed
+                await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest, mockProxyApiBasePath);
                 expect(handleChatMessageRequest).toHaveBeenCalledWith(mockReq, mockRes, noStreamProfile.server.flowId, false, mockLangflowClient);
             });
 
@@ -265,32 +268,32 @@ describe('handleRequest', () => {
                 };
                 mockChatbotConfigurations.set(profileId, streamProfile);
                 mockReq = createMockReq('POST', messagesPath, { message: 'Hello Stream' });
-                await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest /*, mockProxyApiBasePath */); // No longer passed
+                await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest, mockProxyApiBasePath);
                 expect(handleChatMessageRequest).toHaveBeenCalledWith(mockReq, mockRes, streamProfile.server.flowId, true, mockLangflowClient);
             });
 
             test('GET to historyPath should call handleGetChatHistoryRequest with session_id', async () => {
                 const sessionId = 'session-xyz';
                 mockReq = createMockReq('GET', `${historyPath}?session_id=${sessionId}`);
-                await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest /*, mockProxyApiBasePath */); // No longer passed
+                await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest, mockProxyApiBasePath);
                 expect(handleGetChatHistoryRequest).toHaveBeenCalledWith(mockRes, validProfile.server.flowId, sessionId, mockMakeDirectLangflowApiRequest);
             });
 
             test('GET to historyPath should call handleGetChatHistoryRequest with null session_id if not provided', async () => {
                 mockReq = createMockReq('GET', historyPath);
-                await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest /*, mockProxyApiBasePath */); // No longer passed
+                await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest, mockProxyApiBasePath);
                 expect(handleGetChatHistoryRequest).toHaveBeenCalledWith(mockRes, validProfile.server.flowId, null, mockMakeDirectLangflowApiRequest);
             });
 
             test('Invalid method to messagesPath should result in 404', async () => {
                 mockReq = createMockReq('PUT', messagesPath); // e.g. PUT
-                await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest /*, mockProxyApiBasePath */); // No longer passed
+                await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest, mockProxyApiBasePath);
                 expect(sendJsonError).toHaveBeenCalledWith(mockRes, 404, "Chat endpoint not found or method not supported for the path.");
             });
 
             test('Invalid path suffix after profileId should result in 404', async () => {
                 mockReq = createMockReq('GET', `${messagesPath}/invalid_suffix`);
-                await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest /*, mockProxyApiBasePath */); // No longer passed. Typo: mockMakeDirectLangsflowApiRequest -> mockMakeDirectLangflowApiRequest
+                await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest, mockProxyApiBasePath);
                 expect(sendJsonError).toHaveBeenCalledWith(mockRes, 404, "Chat endpoint not found or method not supported for the path.");
             });
         });
@@ -299,7 +302,7 @@ describe('handleRequest', () => {
     // Test for non-matching paths
     test('should send 404 for non-matching paths', async () => {
         mockReq = createMockReq('GET', '/some/other/path');
-        await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest /*, mockProxyApiBasePath */); // No longer passed
+        await handleRequest(mockReq, mockRes, mockChatbotConfigurations, mockLangflowClient, mockLangflowEndpointUrl, mockLangflowApiKey, mockMakeDirectLangflowApiRequest, mockProxyApiBasePath);
         expect(sendJsonError).toHaveBeenCalledWith(mockRes, 404, "Endpoint not found or method not supported.");
     });
 }); 

@@ -337,57 +337,102 @@ describe('LangflowProxyService', () => {
     });
 
     describe('handleRequest Method', () => {
+        let service: LangflowProxyService;
         let mockReq: http.IncomingMessage;
         let mockRes: http.ServerResponse;
+        const testProxyApiBasePath = '/api/proxy-test';
 
         beforeEach(() => {
-            mockReq = { 
-                method: 'GET', 
-                url: `${validProxyApiBasePath}/test`, 
-                headers: {} 
-            } as http.IncomingMessage;
-            mockRes = { setHeader: jest.fn(), end: jest.fn(), writeHead: jest.fn() } as unknown as http.ServerResponse;
-            mockHandleRequestFromModule.mockClear(); 
-            (sendJsonError as jest.Mock).mockClear(); // Ensure it's cleared here too for this specific context
-        });
-
-        it('should call handleRequestFromModule with stripped url when base path matches', async () => {
             const config: LangflowProxyConfig = {
                 instanceConfigPath: validInstanceConfigPath,
-                proxyApiBasePath: validProxyApiBasePath, 
+                proxyApiBasePath: testProxyApiBasePath,
             };
-            const service = new LangflowProxyService(config);
-            const originalRequestUrl = mockReq.url; // e.g., /api/proxy/test
+            service = new LangflowProxyService(config);
+            mockReq = { url: '' } as http.IncomingMessage;
+            mockRes = { 
+                statusCode: 0, 
+                setHeader: jest.fn(), 
+                end: jest.fn() 
+            } as unknown as http.ServerResponse;
+            mockHandleRequestFromModule.mockReset();
+            (sendJsonError as jest.Mock).mockClear();
+        });
 
-            // Mock implementation for this specific test
-            mockHandleRequestFromModule.mockImplementationOnce((receivedReq, _res, _configs, _client, _url, _key, _makeDirect) => {
-                expect(receivedReq.url).toBe('/test'); // Assert stripped URL inside the mock
-                return Promise.resolve();
+        it('should strip proxyApiBasePath, pass it to handler, and restore original URL', async () => {
+            const originalUrl = `${testProxyApiBasePath}/some/path`;
+            const expectedStrippedUrl = '/some/path';
+            mockReq.url = originalUrl;
+            let urlPassedToHandler: string | undefined;
+
+            mockHandleRequestFromModule.mockImplementationOnce(async (req) => {
+                urlPassedToHandler = req.url;
             });
 
             await service.handleRequest(mockReq, mockRes);
 
             expect(mockHandleRequestFromModule).toHaveBeenCalledTimes(1);
-            // Check that the original req.url on the object in the test scope is restored
-            expect(mockReq.url).toBe(originalRequestUrl);
+            expect(urlPassedToHandler).toBe(expectedStrippedUrl);
+            expect(mockHandleRequestFromModule).toHaveBeenCalledWith(
+                mockReq, // req.url here will be originalUrl, which is fine as we checked stripped via urlPassedToHandler
+                mockRes,
+                expect.any(Map), 
+                expect.any(Object), 
+                baseConfigDefaults.langflowConnection.endpoint_url,
+                baseConfigDefaults.langflowConnection.api_key,
+                expect.any(Function), 
+                testProxyApiBasePath 
+            );
+            expect(mockReq.url).toBe(originalUrl); 
+            expect(sendJsonError).not.toHaveBeenCalled();
         });
 
-        it('should call sendJsonError and not call handleRequestFromModule if base path does not match', async () => {
-            const config: LangflowProxyConfig = {
-                instanceConfigPath: validInstanceConfigPath,
-                proxyApiBasePath: validProxyApiBasePath,
-            };
-            const service = new LangflowProxyService(config);
-            const nonMatchingUrl = '/some/other/path';
-            mockReq.url = nonMatchingUrl; 
+        it('should prepend / if stripped URL lacks it, pass base path, and restore original URL', async () => {
+            const originalUrl = `${testProxyApiBasePath}noSlashPath`;
+            const expectedStrippedUrl = '/noSlashPath';
+            mockReq.url = originalUrl;
+            let urlPassedToHandler: string | undefined;
+
+            mockHandleRequestFromModule.mockImplementationOnce(async (req) => {
+                urlPassedToHandler = req.url;
+            });
 
             await service.handleRequest(mockReq, mockRes);
 
-            expect(sendJsonError).toHaveBeenCalledTimes(1);
+            expect(mockHandleRequestFromModule).toHaveBeenCalledTimes(1);
+            expect(urlPassedToHandler).toBe(expectedStrippedUrl);
+            expect(mockHandleRequestFromModule).toHaveBeenCalledWith(
+                mockReq, // req.url here will be originalUrl
+                mockRes,
+                expect.any(Map),
+                expect.any(Object),
+                baseConfigDefaults.langflowConnection.endpoint_url,
+                baseConfigDefaults.langflowConnection.api_key,
+                expect.any(Function),
+                testProxyApiBasePath
+            );
+            expect(mockReq.url).toBe(originalUrl); 
+            expect(sendJsonError).not.toHaveBeenCalled();
+        });
+
+        it('should call sendJsonError and not handler if URL does not start with proxyApiBasePath', async () => {
+            const originalUrl = '/wrong/base/path';
+            mockReq.url = originalUrl;
+
+            await service.handleRequest(mockReq, mockRes);
+
             expect(sendJsonError).toHaveBeenCalledWith(mockRes, 404, "Endpoint not found.");
             expect(mockHandleRequestFromModule).not.toHaveBeenCalled();
-            // req.url should still be restored
-            expect(mockReq.url).toBe(nonMatchingUrl); 
+            expect(mockReq.url).toBe(originalUrl); // URL remains unchanged
+        });
+
+        it('should restore original URL even if handleRequestFromModule throws', async () => {
+            const originalUrl = `${testProxyApiBasePath}/error/path`;
+            mockReq.url = originalUrl;
+            const testError = new Error('Handler Error');
+            mockHandleRequestFromModule.mockRejectedValueOnce(testError);
+
+            await expect(service.handleRequest(mockReq, mockRes)).rejects.toThrow(testError);
+            expect(mockReq.url).toBe(originalUrl); // Original URL should still be restored
         });
     });
 
