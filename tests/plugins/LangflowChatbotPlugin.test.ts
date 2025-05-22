@@ -22,6 +22,13 @@ jest.mock('../../src/clients/LangflowChatClient');
 jest.mock('../../src/components/ChatWidget');
 jest.mock('../../src/components/FloatingChatWidget');
 
+// Mock apiPaths to control PROFILE_CONFIG_ENDPOINT_PREFIX
+jest.mock('../../src/config/apiPaths', () => ({
+    ...jest.requireActual('../../src/config/apiPaths'), // Import and retain default exports
+    __esModule: true, // Mocks an ES Module
+    PROFILE_CONFIG_ENDPOINT_PREFIX: '/config', // Default mock value, can be overridden per test
+}));
+
 // Mock Logger
 const mockLoggerInstance = {
     info: jest.fn(),
@@ -177,7 +184,7 @@ describe('LangflowChatbotInstance', () => {
             instance = new LangflowChatbotInstance(mockDefaultInitConfig);
             await instance.init();
 
-            const expectedConfigUrl = `${mockDefaultInitConfig.proxyApiBasePath}/${PROFILE_CONFIG_ENDPOINT_PREFIX}/${mockProfileId}`;
+            const expectedConfigUrl = `${mockDefaultInitConfig.proxyApiBasePath}/config/${mockProfileId}`;
             expect(fetch).toHaveBeenCalledWith(expectedConfigUrl);
             expect(LangflowChatClient).toHaveBeenCalledWith(mockProfileId, mockDefaultInitConfig.proxyApiBasePath, mockLoggerInstance);
             expect(MockedChatWidget).toHaveBeenCalledTimes(1);
@@ -410,8 +417,8 @@ describe('LangflowChatbotInstance', () => {
 
             // Ensure mocks were called again for re-initialization
             // Fetch should be called twice (once for each init)
-            const expectedConfigUrl = `${mockDefaultInitConfig.proxyApiBasePath}/${PROFILE_CONFIG_ENDPOINT_PREFIX}/${mockProfileId}`;
-            expect(fetch).toHaveBeenCalledWith(expectedConfigUrl);
+            const expectedConfigUrlReinit = `${mockDefaultInitConfig.proxyApiBasePath}/config/${mockProfileId}`;
+            expect(fetch).toHaveBeenCalledWith(expectedConfigUrlReinit);
             expect(fetch).toHaveBeenCalledTimes(2); 
             // LangflowChatClient should be called with the correct base path on re-init too
             expect(LangflowChatClient).toHaveBeenLastCalledWith(mockDefaultInitConfig.profileId, mockDefaultInitConfig.proxyApiBasePath, mockLoggerInstance);
@@ -512,6 +519,31 @@ describe('LangflowChatbotInstance', () => {
             // Restore LangflowChatClient if it's a constructor we spied on or replaced
             // jest.mock already handles this for top-level mocks, but if we re-assigned:
             // LangflowChatClient = originalLangflowChatClient; // Not strictly needed due to jest.mock
+        });
+
+        // Test cases for URL construction robustness
+        describe('URL construction for config fetching', () => {
+            const testCases = [
+                { basePath: 'http://test.com/api', prefix: '/config', expected: 'http://test.com/api/config/test-profile-id' },
+                { basePath: 'http://test.com/api/', prefix: '/config', expected: 'http://test.com/api/config/test-profile-id' },
+                { basePath: 'http://test.com/api', prefix: 'config', expected: 'http://test.com/api/config/test-profile-id' },
+                { basePath: 'http://test.com/api/', prefix: 'config', expected: 'http://test.com/api/config/test-profile-id' },
+            ];
+
+            testCases.forEach(({ basePath, prefix, expected }) => {
+                it(`should correctly form URL: ${expected} from basePath: ${basePath} and prefix: ${prefix}`, async () => {
+                    jest.mock('../../src/config/apiPaths', () => ({
+                        ...jest.requireActual('../../src/config/apiPaths'),
+                        __esModule: true,
+                        PROFILE_CONFIG_ENDPOINT_PREFIX: prefix,
+                    }));
+                    
+                    const config = { ...mockDefaultInitConfig, proxyApiBasePath: basePath };
+                    instance = new LangflowChatbotInstance(config);
+                    await instance.init();
+                    expect(fetch).toHaveBeenCalledWith(expected);
+                });
+            });
         });
     });
 

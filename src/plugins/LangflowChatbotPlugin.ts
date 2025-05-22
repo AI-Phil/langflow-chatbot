@@ -89,7 +89,16 @@ export class LangflowChatbotInstance {
     }
 
     try {
-      const configUrl = `${this.initialConfig.proxyApiBasePath}/${PROFILE_CONFIG_ENDPOINT_PREFIX}/${this.initialConfig.profileId}`;
+      // Ensure PROFILE_CONFIG_ENDPOINT_PREFIX is joined correctly, avoiding double slashes
+      const safeProfileConfigPrefix = PROFILE_CONFIG_ENDPOINT_PREFIX.startsWith('/')
+        ? PROFILE_CONFIG_ENDPOINT_PREFIX.substring(1)
+        : PROFILE_CONFIG_ENDPOINT_PREFIX;
+      
+      const baseProxyPath = this.initialConfig.proxyApiBasePath.endsWith('/')
+        ? this.initialConfig.proxyApiBasePath.slice(0, -1)
+        : this.initialConfig.proxyApiBasePath;
+
+      const configUrl = `${baseProxyPath}/${safeProfileConfigPrefix}/${this.initialConfig.profileId}`;
       this.logger.info(`Fetching chatbot UI configuration from: ${configUrl}`);
       const response = await fetch(configUrl);
       if (!response.ok) {

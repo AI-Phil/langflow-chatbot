@@ -38,9 +38,10 @@ const mockLogger: jest.Mocked<Logger> = {
 // Default config for most tests
 const mockDefaultContainerId = 'chat-widget-test-container';
 const mockDefaultProfileId = 'test-profile-id';
+const mockBaseApiUrl = 'http://mock-widget-api.com'; // Added for the top-level mock client
 
-// LangflowChatClient constructor: (profileId: string, baseApiUrl?: string, logger?: Logger)
-const mockChatClientInstance = new LangflowChatClient(mockDefaultProfileId, undefined, mockLogger);
+// LangflowChatClient constructor: (profileId: string, baseApiUrl: string, logger?: Logger)
+const mockChatClientInstance = new LangflowChatClient(mockDefaultProfileId, mockBaseApiUrl, mockLogger);
 
 const defaultTestConfig: ChatWidgetConfigOptions = {
     labels: {},

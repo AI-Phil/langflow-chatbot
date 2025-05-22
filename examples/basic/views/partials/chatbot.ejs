@@ -8,12 +8,13 @@
                     <legend style="font-weight: bold; padding: 0 5px;">Chatbot Configuration</legend>
                     <div style="margin-bottom: 16px;">
                         <label for="proxy-endpoint-id-select" style="display: block; margin-bottom: 4px;">Chatbot Profile:</label>
-                        <select id="proxy-endpoint-id-select" style="width: 100%;"></select>
+                        <select id="profile-id-select" style="width: 100%;"></select>
                     </div>
                     <div style="margin-bottom: 16px;">
                         <label for="session-id-input" style="display: block; margin-bottom: 4px;">Session ID (Optional):</label>
                         <input type="text" id="session-id-input" placeholder="Leave blank for new session" style="width: 100%;">
                     </div>
+                    <div id="config-error-display" style="color: red; margin-bottom: 10px; display: none;"></div>
                     <button id="launch-chatbot-button" type="button" style="width: 100%;">Launch / Re-launch Chatbot</button>
                 </fieldset>
 
@@ -69,6 +70,7 @@
   let currentChatbotInstance = null;
 
   async function launchChatbot() {
+    const userConfig = window.ChatbotExampleApp.ui.getUserProvidedConfig();
     console.log("Launch button clicked. User config:", userConfig);
     if (!userConfig.profileId) {
         // Display error to user in the UI
@@ -92,6 +94,7 @@
       containerId: 'chatbot-container', // REQUIRED: The ID of the div where the chatbot will be rendered.
       profileId: userConfig.profileId, // REQUIRED: Identifies the chatbot profile to use.
       sessionId: userConfig.sessionId, // OPTIONAL: Provide a session ID to resume a conversation.
+      proxyApiBasePath: '/api/langflow', // REQUIRED: The base path for the Langflow API proxy.
       logLevel: 'info',
     };
     
