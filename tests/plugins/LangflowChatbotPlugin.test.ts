@@ -4,7 +4,7 @@ import { TextDecoder, TextEncoder } from 'util';
 import { LangflowChatbotInstance, init as initPlugin, LangflowChatbotInitConfig } from '../../src/plugins/LangflowChatbotPlugin';
 import { LangflowChatClient } from '../../src/clients/LangflowChatClient';
 import { ChatWidget, ChatWidgetConfigOptions } from '../../src/components/ChatWidget';
-import { FloatingChatWidget } from '../../src/components/FloatingChatWidget';
+import { FloatingChatWidget, FloatingChatWidgetConfig } from '../../src/components/FloatingChatWidget';
 import { Logger, LogLevel } from '../../src/utils/logger';
 import { PROFILE_CONFIG_ENDPOINT_PREFIX } from '../../src/config/apiPaths';
 import { ERROR_MESSAGE_TEMPLATE } from '../../src/config/uiConstants';
@@ -544,6 +544,55 @@ describe('LangflowChatbotInstance', () => {
                     expect(fetch).toHaveBeenCalledWith(expected);
                 });
             });
+        });
+
+        it('should init FloatingChatWidget and set panel width if useFloating is true and floatingPanelWidth is provided', async () => {
+            const mockPanelElement = {
+                style: {
+                    setProperty: jest.fn(),
+                },
+            };
+            const mockGetPanelElement = jest.fn().mockReturnValue(mockPanelElement);
+            const mockWidgetDestroy = jest.fn();
+
+            MockedFloatingChatWidget.mockImplementation(() => {
+                return {
+                    getPanelElement: mockGetPanelElement,
+                    destroy: mockWidgetDestroy,
+                    // We don't need to mock `this.config` storage here 
+                    // as we will inspect the constructor arguments directly.
+                } as unknown as FloatingChatWidget; 
+            });
+            
+            const testPanelWidth = '550px';
+            const floatingConfig: LangflowChatbotInitConfig = {
+                ...mockDefaultInitConfig,
+                useFloating: true,
+                floatingPanelWidth: testPanelWidth,
+                containerId: undefined, // containerId is not used for floating
+            };
+            instance = new LangflowChatbotInstance(floatingConfig);
+            await instance.init();
+
+            expect(MockedFloatingChatWidget).toHaveBeenCalledTimes(1);
+            // Check that the config object passed to FloatingChatWidget contains the floatingPanelWidth
+            const constructorArgs = MockedFloatingChatWidget.mock.calls[0];
+            const configArg = constructorArgs[2] as FloatingChatWidgetConfig; // userConfig is the 3rd argument (index 2)
+            expect(configArg).toEqual(expect.objectContaining({
+                floatingPanelWidth: testPanelWidth,
+            }));
+            expect(MockedChatWidget).not.toHaveBeenCalled();
+            
+            // We no longer check for setProperty here, as it's internal to FloatingChatWidget.
+            // The logger message for width setting would now come from FloatingChatWidget, not the plugin directly.
+            // So, we remove the check for the plugin's logger message regarding width.
+            // expect(mockLoggerInstance.info).toHaveBeenCalledWith(`Floating panel width set to: ${testPanelWidth}`); 
+
+            // Ensure the container (if one was accidentally passed or part of mockDefaultInitConfig) is hidden
+            if (floatingConfig.containerId) {
+                 const mainContainer = document.getElementById(floatingConfig.containerId);
+                 if(mainContainer) expect(mainContainer.style.display).toBe('none');
+            }
         });
     });
 

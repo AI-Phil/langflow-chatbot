@@ -29,6 +29,8 @@ export interface FloatingChatWidgetConfig {
     widgetTitle?: string;
     /** Desired log level for the widget's logger. */
     logLevel?: LogLevel;
+    /** Optional custom width for the floating panel (e.g., '500px'). Applied as a CSS variable. */
+    floatingPanelWidth?: string;
 }
 
 /** Helper interface defining the structure for default floating widget-specific config values. */
@@ -55,13 +57,14 @@ const DEFAULT_FLOATING_CONFIG: DefaultFloatingConfigValues = {
  * Internal configuration structure for FloatingChatWidget after merging user-provided 
  * config with defaults. Ensures all necessary fields for the floating behavior are present.
  */
-interface FloatingWidgetInternalConfig extends Required<Omit<FloatingChatWidgetConfig, 'chatWidgetConfig' | 'initialSessionId' | 'onSessionIdUpdate' | 'logLevel' | 'datetimeFormat' >> {
+interface FloatingWidgetInternalConfig extends Required<Omit<FloatingChatWidgetConfig, 'chatWidgetConfig' | 'initialSessionId' | 'onSessionIdUpdate' | 'logLevel' | 'datetimeFormat' | 'floatingPanelWidth' >> {
     /** Configuration to be passed to the internal ChatWidget instance. Templates here are optional. */
     chatWidgetConfig: Partial<ChatWidgetConfigOptions>; 
     initialSessionId?: string;
     onSessionIdUpdate?: (sessionId: string) => void;
     logLevel?: LogLevel;
     datetimeFormat?: string;
+    floatingPanelWidth?: string;
 }
 
 /**
@@ -115,6 +118,7 @@ export class FloatingChatWidget {
             initialSessionId: userConfig.initialSessionId,
             onSessionIdUpdate: userConfig.onSessionIdUpdate,
             datetimeFormat: userConfig.datetimeFormat,
+            floatingPanelWidth: userConfig.floatingPanelWidth,
             chatWidgetConfig: {
                 labels: {
                     widgetTitle: userConfig.chatWidgetConfig?.labels?.widgetTitle,
@@ -151,6 +155,12 @@ export class FloatingChatWidget {
         // Append the created elements to the document body.
         document.body.appendChild(this.floatingButton!);
         document.body.appendChild(this.chatContainer!);
+
+        // Apply custom width if provided in config
+        if (this.config.floatingPanelWidth && this.chatContainer) {
+            this.chatContainer.style.setProperty('--langflow-floating-panel-width', this.config.floatingPanelWidth);
+            this.logger.info(`FloatingChatWidget: Panel width set to ${this.config.floatingPanelWidth} via config.`);
+        }
     }
 
     /**
@@ -346,5 +356,13 @@ export class FloatingChatWidget {
             this.chatContainer = null;
         }
         this.logger.info("FloatingChatWidget instance destroyed.");
+    }
+
+    /**
+     * Returns the main DOM element for the chat panel.
+     * @returns {HTMLElement | null} The chat panel element.
+     */
+    public getPanelElement(): HTMLElement | null {
+        return this.chatContainer;
     }
 } 

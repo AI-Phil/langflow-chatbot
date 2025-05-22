@@ -24,6 +24,7 @@ export interface LangflowChatbotInitConfig {
   onSessionIdChanged?: (sessionId: string) => void;
   logLevel?: LogLevel;
   datetimeFormat?: string; // User can still suggest this for the client
+  floatingPanelWidth?: string; 
 }
 
 // This now directly uses the imported ChatbotProfile type from server/types
@@ -182,7 +183,8 @@ export class LangflowChatbotInstance {
             },
             position: mergedUiConfig.floatingWidget.floatPosition,
             initialSessionId: this.initialConfig.sessionId,
-            onSessionIdUpdate: onSessionIdUpdateCallback
+            onSessionIdUpdate: onSessionIdUpdateCallback,
+            floatingPanelWidth: this.initialConfig.floatingPanelWidth,
           },
           this.logger
         );

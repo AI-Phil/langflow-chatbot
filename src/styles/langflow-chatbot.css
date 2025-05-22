@@ -85,6 +85,11 @@
     --langflow-chatbot-floating-panel-shadow: 0 5px 15px var(--langflow-chatbot-palette-shadow-panel);
 
     --langflow-chatbot-message-datetime-font-size: 0.8em;
+
+    /* Customizable Floating Panel Dimensions */
+    --langflow-floating-panel-width: 370px; /* Default width */
+    --langflow-floating-panel-max-width: none; /* Optional: for responsiveness */
+    --langflow-floating-panel-min-width: 300px; /* Optional: for responsiveness */
 }
 
 /* --- Core Chat Widget Structure --- */
@@ -301,7 +306,9 @@
 /* Container for the floating chat window */
 .floating-chat-panel {
     position: fixed;
-    width: 370px; 
+    width: var(--langflow-floating-panel-width); 
+    max-width: var(--langflow-floating-panel-max-width);
+    min-width: var(--langflow-floating-panel-min-width);
     height: auto; 
     max-height: calc(100vh - 100px); /* Avoid full screen height */
     background-color: var(--langflow-chatbot-floating-panel-background);
