@@ -88,6 +88,7 @@ describe('initializeFlowMappings', () => {
 
         const expectedUrl = new URL(`${LANGFLOW_API_BASE_PATH_V1}${LANGFLOW_FLOWS_ENDPOINT_SUFFIX}`, mockLangflowEndpoint);
         expectedUrl.searchParams.append('remove_example_flows', 'true');
+        expectedUrl.searchParams.append('header_flows', 'true');
         expect(global.fetch).toHaveBeenCalledWith(expectedUrl.toString(), {
             method: 'GET',
             headers: { 'Accept': 'application/json', 'Authorization': 'Bearer test-api-key' }
@@ -156,6 +157,7 @@ describe('initializeFlowMappings', () => {
         
         const expectedUrl = new URL(`${LANGFLOW_API_BASE_PATH_V1}${LANGFLOW_FLOWS_ENDPOINT_SUFFIX}`, mockLangflowEndpoint);
         expectedUrl.searchParams.append('remove_example_flows', 'true');
+        expectedUrl.searchParams.append('header_flows', 'true');
         expect(global.fetch).toHaveBeenCalledWith(expectedUrl.toString(), {
             method: 'GET',
             headers: { 'Accept': 'application/json', 'Authorization': 'Bearer another-key' }

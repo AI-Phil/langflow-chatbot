@@ -12,6 +12,11 @@ const hostname = '127.0.0.1';
 const port = 3001;
 const langflowApiPath = "/api/langflow";
 
+// Base data object for all EJS templates
+const baseEJSTemplateData = {
+    langflowProxyBaseApiPath: langflowApiPath,
+};
+
 // Configuration for Langflow Proxy Service now comes primarily from chatbot-config.yaml
 let langflowProxy: LangflowProxyService;
 
@@ -34,7 +39,12 @@ try {
 const server = http.createServer(async (req, res) => {
     if (req.url === '/' || req.url === '/index') {
         const filePath = path.join(__dirname, 'views', 'index.ejs');
-        ejs.renderFile(filePath, {}, {}, (err: Error | null, str?: string) => {
+        ejs.renderFile(filePath, 
+            { 
+                ...baseEJSTemplateData, 
+            }, 
+            {}, 
+            (err: Error | null, str?: string) => {
             if (err) {
                 res.statusCode = 500;
                 res.setHeader('Content-Type', 'text/plain');

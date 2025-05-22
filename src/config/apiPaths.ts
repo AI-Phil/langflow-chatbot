@@ -10,7 +10,7 @@ export const PROFILE_CHAT_ENDPOINT_PREFIX = '/chat'; // e.g., /api/langflow/chat
 export const LANGFLOW_API_BASE_PATH_V1 = '/api/v1';
 
 // Suffix for Langflow flows endpoint (listing, creating, etc.)
-export const LANGFLOW_FLOWS_ENDPOINT_SUFFIX = '/flows';
+export const LANGFLOW_FLOWS_ENDPOINT_SUFFIX = '/flows/';  // Trailing slash is required!
 
 // Suffix for Langflow chat endpoint (within a specific flow)
 export const LANGFLOW_CHAT_ENDPOINT_SUFFIX = '/chat'; // e.g. /api/v1/chat/{flow_id}

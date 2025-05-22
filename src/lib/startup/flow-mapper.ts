@@ -22,6 +22,7 @@ export async function initializeFlowMappings(
     const targetPath = `${LANGFLOW_API_BASE_PATH_V1}${LANGFLOW_FLOWS_ENDPOINT_SUFFIX}`;
     const queryParams = new URLSearchParams();
     queryParams.append('remove_example_flows', 'true');
+    queryParams.append('header_flows', 'true');
 
     try {
         const fetchUrl = new URL(targetPath, langflowEndpointUrl);
