@@ -3,18 +3,24 @@ import { LangflowClient } from '@datastax/langflow-client';
 import { loadBaseConfig, loadInstanceConfig } from './lib/startup/config-loader';
 import { initializeFlowMappings } from './lib/startup/flow-mapper';
 import { handleRequest as handleRequestFromModule } from './lib/request-handler';
-import { Profile, ServerProfile, ChatbotProfile, LangflowProxyConfig } from './types';
+import { Profile, LangflowProxyConfig } from './types';
 
 export class LangflowProxyService {
     private langflowClient!: LangflowClient;
     private flowConfigs: Map<string, Profile> = new Map();
     private langflowConnectionDetails: { endpoint_url: string; api_key?: string };
+    private proxyApiBasePath: string;
 
     constructor(config: LangflowProxyConfig) {
+        if (!config.proxyApiBasePath || typeof config.proxyApiBasePath !== 'string' || config.proxyApiBasePath.trim() === '') {
+            throw new TypeError('LangflowProxyService: proxyApiBasePath is required in config and must be a non-empty string.');
+        }
         try {
             const { langflowConnection, serverDefaults, chatbotDefaults } = loadBaseConfig();
             
             this.langflowConnectionDetails = langflowConnection;
+            this.proxyApiBasePath = config.proxyApiBasePath;
+            console.log(`LangflowProxyService: API Base Path configured to: ${this.proxyApiBasePath}`);
 
             const clientConfig: { baseUrl: string; apiKey?: string } = {
                 baseUrl: langflowConnection.endpoint_url,
@@ -94,10 +100,20 @@ export class LangflowProxyService {
         if (this.langflowConnectionDetails.api_key) {
             headers['Authorization'] = `Bearer ${this.langflowConnectionDetails.api_key}`;
         }
-        return fetch(targetUrl.toString(), {
-            method: method,
-            headers: headers,
-        });
+
+        try {
+            const response = await fetch(targetUrl.toString(), {
+                method: method,
+                headers: headers,
+            });
+            if (!response.ok) { 
+                console.error(`LangflowProxyService: Langflow API request failed: ${response.status} ${response.statusText} for path ${path}`);
+            }
+            return response; 
+        } catch (error: any) {
+            console.error(`LangflowProxyService: Error during Langflow API request to ${path}:`, error);
+            return null; 
+        }
     }
 
     public async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {

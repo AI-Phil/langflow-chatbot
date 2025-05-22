@@ -45,4 +45,5 @@ export interface SenderConfig {
 
 export interface LangflowProxyConfig {
     instanceConfigPath: string;
+    proxyApiBasePath: string;
 } 

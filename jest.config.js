@@ -16,7 +16,6 @@ module.exports = {
     "src/**/*.{ts,tsx}",
     "!src/**/*.d.ts",
     "!src/types/**/*.ts",
-    "!src/index.ts",
-    "!src/langflow-proxy.ts"
+    "!src/index.ts"
   ]
 }; 
