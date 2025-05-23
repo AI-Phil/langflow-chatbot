@@ -2,13 +2,15 @@ import { Logger } from '../utils/logger';
 import {
     DEFAULT_MAIN_CONTAINER_TEMPLATE,
     DEFAULT_INPUT_AREA_TEMPLATE,
-    DEFAULT_MESSAGE_TEMPLATE
+    DEFAULT_MESSAGE_TEMPLATE,
+    DEFAULT_WIDGET_HEADER_TEMPLATE
 } from '../config/uiConstants';
 
 export interface TemplateManagerConfig {
     mainContainerTemplate?: string;
     inputAreaTemplate?: string;
     messageTemplate?: string;
+    widgetHeaderTemplate?: string;
 }
 
 /**
@@ -20,6 +22,7 @@ export class ChatTemplateManager {
     private _mainContainerTemplate: string;
     private _inputAreaTemplate: string;
     private _messageTemplate: string;
+    private _widgetHeaderTemplate: string;
 
     /**
      * Constructs a ChatTemplateManager instance.
@@ -33,6 +36,7 @@ export class ChatTemplateManager {
         this._mainContainerTemplate = config.mainContainerTemplate || DEFAULT_MAIN_CONTAINER_TEMPLATE;
         this._inputAreaTemplate = config.inputAreaTemplate || DEFAULT_INPUT_AREA_TEMPLATE;
         this._messageTemplate = config.messageTemplate || DEFAULT_MESSAGE_TEMPLATE;
+        this._widgetHeaderTemplate = config.widgetHeaderTemplate || DEFAULT_WIDGET_HEADER_TEMPLATE;
 
         this.validateTemplates();
     }
@@ -49,6 +53,10 @@ export class ChatTemplateManager {
         if (!tempMainDiv.querySelector('.chat-messages')) {
             this.logger.error('Provided mainContainerTemplate is missing an element with class="chat-messages". This is critical for message display.');
             throw new Error('Invalid mainContainerTemplate: Missing an element with class="chat-messages".');
+        }
+        if (!tempMainDiv.querySelector('#chat-widget-header-container')) {
+            this.logger.error('Provided mainContainerTemplate is missing an element with id="chat-widget-header-container". This is critical for widget header placement.');
+            throw new Error('Invalid mainContainerTemplate: Missing element with id="chat-widget-header-container".');
         }
 
 
@@ -91,6 +99,16 @@ export class ChatTemplateManager {
             this.logger.error('Provided messageTemplate is missing an element with class "message-text-content". Streaming updates will not work correctly.');
             throw new Error('Invalid messageTemplate: Missing element with class "message-text-content" for streaming updates.');
         }
+
+        // Validation for Widget Header Template
+        if (!this._widgetHeaderTemplate.includes('{{widgetTitle}}')) {
+            this.logger.error('Provided widgetHeaderTemplate is missing the {{widgetTitle}} placeholder. This is critical for displaying the widget title.');
+            throw new Error('Invalid widgetHeaderTemplate: Missing {{widgetTitle}} placeholder.');
+        }
+        if (!this._widgetHeaderTemplate.includes('{{minimizeButton}}')) {
+            this.logger.error('Provided widgetHeaderTemplate is missing the {{minimizeButton}} placeholder. This is critical for the minimize functionality.');
+            throw new Error('Invalid widgetHeaderTemplate: Missing {{minimizeButton}} placeholder.');
+        }
     }
 
     /**
@@ -115,5 +133,13 @@ export class ChatTemplateManager {
      */
     public getMessageTemplate(): string {
         return this._messageTemplate;
+    }
+
+    /**
+     * Gets the resolved widget header HTML template string.
+     * @returns {string} The widget header template.
+     */
+    public getWidgetHeaderTemplate(): string {
+        return this._widgetHeaderTemplate;
     }
 } 

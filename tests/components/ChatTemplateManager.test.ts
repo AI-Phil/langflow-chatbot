@@ -5,7 +5,8 @@ import { Logger } from '../../src/utils/logger';
 import {
     DEFAULT_MAIN_CONTAINER_TEMPLATE,
     DEFAULT_INPUT_AREA_TEMPLATE,
-    DEFAULT_MESSAGE_TEMPLATE
+    DEFAULT_MESSAGE_TEMPLATE,
+    DEFAULT_WIDGET_HEADER_TEMPLATE
 } from '../../src/config/uiConstants'; // Import constants
 
 // Mock Logger
@@ -45,41 +46,52 @@ describe('ChatTemplateManager', () => {
             expect(manager.getMainContainerTemplate()).toBe(DEFAULT_MAIN_CONTAINER_TEMPLATE);
             expect(manager.getInputAreaTemplate()).toBe(DEFAULT_INPUT_AREA_TEMPLATE);
             expect(manager.getMessageTemplate()).toBe(DEFAULT_MESSAGE_TEMPLATE);
-            expect(mockLogger.error).not.toHaveBeenCalled(); // No errors should be logged for defaults
+            expect(manager.getWidgetHeaderTemplate()).toBe(DEFAULT_WIDGET_HEADER_TEMPLATE);
+            expect(mockLogger.error).not.toHaveBeenCalled();
         });
 
         it('should use provided valid custom templates', () => {
             const customConfig: TemplateManagerConfig = {
-                mainContainerTemplate: '<div id="chat-input-area-container"><div class="chat-messages">Custom Main</div></div>',
+                mainContainerTemplate: '<div id="chat-widget-header-container"></div><div id="chat-input-area-container"><div class="chat-messages">Custom Main</div></div>',
                 inputAreaTemplate: '<div class="chat-input">Custom Input</div><button class="send-button">Send</button>',
                 messageTemplate: '<div class="{{messageClasses}}">{{sender}}: <span class="message-text-content">{{message}}</span></div>',
+                widgetHeaderTemplate: '<header>{{widgetTitle}}<button>{{minimizeButton}}</button></header>'
             };
             const manager = new ChatTemplateManager(customConfig, mockLogger);
             expect(manager.getMainContainerTemplate()).toBe(customConfig.mainContainerTemplate);
             expect(manager.getInputAreaTemplate()).toBe(customConfig.inputAreaTemplate);
             expect(manager.getMessageTemplate()).toBe(customConfig.messageTemplate);
+            expect(manager.getWidgetHeaderTemplate()).toBe(customConfig.widgetHeaderTemplate);
             expect(mockLogger.error).not.toHaveBeenCalled();
         });
     });
 
     describe('template validation (via constructor)', () => {
-        const validMainContainer = '<div id="chat-input-area-container"><div class="chat-messages"></div></div>';
+        const validMainContainer = '<div id="chat-widget-header-container"></div><div id="chat-input-area-container"><div class="chat-messages"></div></div>';
         const validInputArea = '<input class="chat-input" /><button class="send-button"></button>';
         const validMessage = '<div class="{{messageClasses}}">{{sender}}<span class="message-text-content">{{message}}</span></div>';
+        const validWidgetHeader = '<div>{{widgetTitle}}{{minimizeButton}}</div>';
 
         // --- Main Container Validation Tests ---
         it('should throw error if mainContainerTemplate is missing id="chat-input-area-container"', () => {
-            const invalidConfig: TemplateManagerConfig = { mainContainerTemplate: '<div><div class="chat-messages"></div></div>' };
+            const invalidConfig: TemplateManagerConfig = { mainContainerTemplate: '<div id="chat-widget-header-container"><div class="chat-messages"></div></div>' };
             expect(() => new ChatTemplateManager(invalidConfig, mockLogger))
                 .toThrow('Invalid mainContainerTemplate: Missing element with id="chat-input-area-container".');
             expect(mockLogger.error).toHaveBeenCalledWith('Provided mainContainerTemplate is missing element with id="chat-input-area-container". This is critical for input area placement.');
         });
 
         it('should throw error if mainContainerTemplate is missing class="chat-messages"', () => {
-            const invalidConfig: TemplateManagerConfig = { mainContainerTemplate: '<div id="chat-input-area-container"></div>' };
+            const invalidConfig: TemplateManagerConfig = { mainContainerTemplate: '<div id="chat-widget-header-container"><div id="chat-input-area-container"></div></div>' };
             expect(() => new ChatTemplateManager(invalidConfig, mockLogger))
                 .toThrow('Invalid mainContainerTemplate: Missing an element with class="chat-messages".');
             expect(mockLogger.error).toHaveBeenCalledWith('Provided mainContainerTemplate is missing an element with class="chat-messages". This is critical for message display.');
+        });
+        
+        it('should throw error if mainContainerTemplate is missing id="chat-widget-header-container"', () => {
+            const invalidConfig: TemplateManagerConfig = { mainContainerTemplate: '<div id="chat-input-area-container"><div class="chat-messages"></div></div>' };
+            expect(() => new ChatTemplateManager(invalidConfig, mockLogger))
+                .toThrow('Invalid mainContainerTemplate: Missing element with id="chat-widget-header-container".');
+            expect(mockLogger.error).toHaveBeenCalledWith('Provided mainContainerTemplate is missing an element with id="chat-widget-header-container". This is critical for widget header placement.');
         });
 
         // --- Input Area Validation Tests ---
@@ -148,11 +160,46 @@ describe('ChatTemplateManager', () => {
             expect(mockLogger.error).toHaveBeenCalledWith('Provided messageTemplate is missing an element with class "message-text-content". Streaming updates will not work correctly.');
         });
 
-        it('should pass validation if all templates are valid (using default message template with other valid ones)', () => {
+        // --- Widget Header Template Validation Tests ---
+        it('should throw error if widgetHeaderTemplate is missing {{widgetTitle}} placeholder', () => {
+            const invalidConfig: TemplateManagerConfig = {
+                mainContainerTemplate: validMainContainer,
+                inputAreaTemplate: validInputArea,
+                messageTemplate: validMessage,
+                widgetHeaderTemplate: '<div>{{minimizeButton}}</div>'
+            };
+            expect(() => new ChatTemplateManager(invalidConfig, mockLogger))
+                .toThrow('Invalid widgetHeaderTemplate: Missing {{widgetTitle}} placeholder.');
+            expect(mockLogger.error).toHaveBeenCalledWith('Provided widgetHeaderTemplate is missing the {{widgetTitle}} placeholder. This is critical for displaying the widget title.');
+        });
+
+        it('should throw error if widgetHeaderTemplate is missing {{minimizeButton}} placeholder', () => {
+            const invalidConfig: TemplateManagerConfig = {
+                mainContainerTemplate: validMainContainer,
+                inputAreaTemplate: validInputArea,
+                messageTemplate: validMessage,
+                widgetHeaderTemplate: '<div>{{widgetTitle}}</div>'
+            };
+            expect(() => new ChatTemplateManager(invalidConfig, mockLogger))
+                .toThrow('Invalid widgetHeaderTemplate: Missing {{minimizeButton}} placeholder.');
+            expect(mockLogger.error).toHaveBeenCalledWith('Provided widgetHeaderTemplate is missing the {{minimizeButton}} placeholder. This is critical for the minimize functionality.');
+        });
+
+        it('should pass validation if all templates are valid (including widget header)', () => {
             const validConfig: TemplateManagerConfig = {
                 mainContainerTemplate: validMainContainer,
                 inputAreaTemplate: validInputArea,
-                // messageTemplate: validMessage, // Implicitly uses default if not provided or uses the one set if valid
+                messageTemplate: validMessage, 
+                widgetHeaderTemplate: validWidgetHeader
+            };
+            expect(() => new ChatTemplateManager(validConfig, mockLogger)).not.toThrow();
+            expect(mockLogger.error).not.toHaveBeenCalled();
+        });
+        
+        it('should pass validation if all templates are valid (relying on defaults for some)', () => {
+            const validConfig: TemplateManagerConfig = {
+                mainContainerTemplate: validMainContainer, // Must be valid if provided
+                // Relies on default for inputArea, message, and widgetHeader
             };
             expect(() => new ChatTemplateManager(validConfig, mockLogger)).not.toThrow();
             expect(mockLogger.error).not.toHaveBeenCalled();
@@ -175,6 +222,11 @@ describe('ChatTemplateManager', () => {
         it('getMessageTemplate should return the message template', () => {
             const manager = new ChatTemplateManager({}, mockLogger);
             expect(manager.getMessageTemplate()).toBe(DEFAULT_MESSAGE_TEMPLATE);
+        });
+
+        it('getWidgetHeaderTemplate should return the widget header template', () => {
+            const manager = new ChatTemplateManager({}, mockLogger);
+            expect(manager.getWidgetHeaderTemplate()).toBe(DEFAULT_WIDGET_HEADER_TEMPLATE);
         });
     });
 }); 

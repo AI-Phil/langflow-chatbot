@@ -101,19 +101,18 @@ export class FloatingChatWidget {
     ) {
         this.chatClient = chatClient;
         this.enableStream = enableStream;
-        // Validate position before merging config
         const validatedPosition = FloatingChatWidget.validatePosition(userConfig.position ?? DEFAULT_FLOATING_CONFIG.position);
-        // Initialize logger: use provided one or create a new one with log level from userConfig or default to 'info'.
         this.logger = logger || new Logger(userConfig.logLevel || 'info', 'FloatingChatWidget');
 
-        // Merge user-provided configuration with defaults.
+        const resolvedFloatingWidgetTitle = userConfig.widgetTitle ?? DEFAULT_FLOATING_CONFIG.widgetTitle;
+
         const mergedFloatingConfig: FloatingWidgetInternalConfig = {
             isOpen: userConfig.isOpen ?? DEFAULT_FLOATING_CONFIG.isOpen,
-            position: validatedPosition, // Use the validated position
+            position: validatedPosition, 
             showCloseButton: userConfig.showCloseButton ?? DEFAULT_FLOATING_CONFIG.showCloseButton,
             showToggleButton: userConfig.showToggleButton ?? DEFAULT_FLOATING_CONFIG.showToggleButton,
             toggleButtonText: userConfig.toggleButtonText ?? DEFAULT_FLOATING_CONFIG.toggleButtonText,
-            widgetTitle: userConfig.widgetTitle ?? DEFAULT_FLOATING_CONFIG.widgetTitle,
+            widgetTitle: resolvedFloatingWidgetTitle, 
             logLevel: userConfig.logLevel,
             initialSessionId: userConfig.initialSessionId,
             onSessionIdUpdate: userConfig.onSessionIdUpdate,
@@ -121,7 +120,7 @@ export class FloatingChatWidget {
             floatingPanelWidth: userConfig.floatingPanelWidth,
             chatWidgetConfig: {
                 labels: {
-                    widgetTitle: userConfig.chatWidgetConfig?.labels?.widgetTitle,
+                    widgetTitle: resolvedFloatingWidgetTitle,
                     userSender: userConfig.chatWidgetConfig?.labels?.userSender,
                     botSender: userConfig.chatWidgetConfig?.labels?.botSender,
                     errorSender: userConfig.chatWidgetConfig?.labels?.errorSender,
@@ -132,13 +131,13 @@ export class FloatingChatWidget {
                     mainContainerTemplate: userConfig.chatWidgetConfig?.template?.mainContainerTemplate,
                     inputAreaTemplate: userConfig.chatWidgetConfig?.template?.inputAreaTemplate,
                     messageTemplate: userConfig.chatWidgetConfig?.template?.messageTemplate,
+                    widgetHeaderTemplate: userConfig.chatWidgetConfig?.template?.widgetHeaderTemplate,
                 },
                 datetimeFormat: userConfig.chatWidgetConfig?.datetimeFormat,
             }
         };
         this.config = mergedFloatingConfig;
 
-        // Log the merged config if a logger is available (useful for tests)
         if (this.logger && typeof this.logger.info === 'function') {
             this.logger.info('FloatingChatWidget initialized with config:', this.config);
         }
@@ -148,15 +147,13 @@ export class FloatingChatWidget {
 
         this.isChatVisible = this.config.isOpen;
         if (this.config.isOpen) {
-            this.showChat(true); // Show initially if configured
+            this.showChat(true);
         } else {
-            this.hideChat(true); // Hide initially if configured
+            this.hideChat(true);
         }
-        // Append the created elements to the document body.
         document.body.appendChild(this.floatingButton!);
         document.body.appendChild(this.chatContainer!);
 
-        // Apply custom width if provided in config
         if (this.config.floatingPanelWidth && this.chatContainer) {
             this.chatContainer.style.setProperty('--langflow-floating-panel-width', this.config.floatingPanelWidth);
             this.logger.info(`FloatingChatWidget: Panel width set to ${this.config.floatingPanelWidth} via config.`);
@@ -171,7 +168,6 @@ export class FloatingChatWidget {
      * It then instantiates the inner ChatWidget within the host div.
      */
     private _createElements(): void {
-        // Inject CSS for header layout if not already present
         if (!document.getElementById('floating-chat-widget-header-style')) {
             const style = document.createElement('style');
             style.id = 'floating-chat-widget-header-style';
@@ -182,7 +178,6 @@ export class FloatingChatWidget {
                     align-items: center;
                     padding: 0.5em 1em;
                     border-bottom: 1px solid #eee;
-                    /* background: #f0f0f0; */ /* Removed to use CSS var --langflow-chatbot-header-background */
                 }
                 .floating-chat-panel .chat-widget-title-text {
                     font-weight: bold;
@@ -190,9 +185,8 @@ export class FloatingChatWidget {
                     flex: 1 1 auto;
                     text-align: left;
                     margin-right: 1em;
-                    /* color: #333; */ /* Removed to use CSS var --langflow-chatbot-header-text-color */
                 }
-                .floating-chat-panel .minimize-button {
+                .floating-chat-panel .chat-widget-minimize-button {
                     background: none;
                     border: none;
                     cursor: pointer;
@@ -205,48 +199,22 @@ export class FloatingChatWidget {
             document.head.appendChild(style);
         }
 
-        // Create floating toggle button
         this.floatingButton = document.createElement('div');
         this.floatingButton.className = `floating-chat-button ${this.config.position}`;
-        this.floatingButton.innerHTML = SVG_CHAT_ICON; // Use imported constant
-        // Respect showToggleButton: if false, always hide
+        this.floatingButton.innerHTML = SVG_CHAT_ICON;
         if (!this.config.showToggleButton) {
             this.floatingButton.style.display = 'none';
         }
 
-        // Create chat panel container
         this.chatContainer = document.createElement('div');
         this.chatContainer.className = `floating-chat-panel ${this.config.position}`;
         
-        // Create chat panel header
-        const header = document.createElement('div');
-        header.className = 'chat-widget-header';
-        
-        const titleSpan = document.createElement('span');
-        titleSpan.className = 'chat-widget-title-text';
-        titleSpan.textContent = this.config.widgetTitle;
-        
-        const minimizeButton = document.createElement('button');
-        minimizeButton.className = 'minimize-button';
-        minimizeButton.innerHTML = SVG_MINIMIZE_ICON; // Use imported constant
-        minimizeButton.onclick = () => this.toggleChatVisibility();
-        
-        // Append title first, then minimize button (button right)
-        header.appendChild(titleSpan);
-        if (this.config.showCloseButton) {
-            header.appendChild(minimizeButton);
-        }
-        this.chatContainer.appendChild(header);
-
-        // Create host div for the inner ChatWidget
         const chatWidgetDiv = document.createElement('div');
-        // Generate a unique ID for the inner ChatWidget container, though ChatWidget now accepts HTMLElement directly.
         const chatWidgetInnerId = `chat-widget-inner-container-${Date.now()}-${Math.random().toString(36).substring(2)}`;
         chatWidgetDiv.id = chatWidgetInnerId;
         chatWidgetDiv.className = 'chat-widget-inner-host';
         this.chatContainer.appendChild(chatWidgetDiv);
 
-        // Instantiate the inner ChatWidget
         try {
             this.chatWidgetInstance = new ChatWidget(
                 chatWidgetDiv,
@@ -261,9 +229,21 @@ export class FloatingChatWidget {
                 this.config.initialSessionId,
                 this.config.onSessionIdUpdate
             );
+
+            if (this.chatWidgetInstance) {
+                const widgetElement = this.chatWidgetInstance.getWidgetElement();
+                const minimizeButton = widgetElement.querySelector<HTMLButtonElement>('.chat-widget-minimize-button');
+                if (minimizeButton) {
+                    if (this.config.showCloseButton) {
+                        minimizeButton.onclick = () => this.toggleChatVisibility();
+                    } else {
+                        minimizeButton.style.display = 'none';
+                    }
+                }
+            }
+
         } catch (error) {
             this.logger.error("Failed to instantiate ChatWidget.", error);
-            // Display an error message within the chat widget area if instantiation fails.
             chatWidgetDiv.innerHTML = '<p class="chat-load-error">Error: Could not load chat.</p>';
         }
     }
@@ -285,13 +265,13 @@ export class FloatingChatWidget {
         if (this.chatContainer && this.floatingButton) {
             if (this.isChatVisible) {
                 this.chatContainer.style.display = 'flex';
-                this.floatingButton.style.display = 'none'; // Always hide button when chat is open
+                this.floatingButton.style.display = 'none';
             } else {
                 this.chatContainer.style.display = 'none';
                 if (this.config.showToggleButton) {
-                    this.floatingButton.style.display = 'flex'; // Show button if allowed
+                    this.floatingButton.style.display = 'flex';
                 } else {
-                    this.floatingButton.style.display = 'none'; // Keep button hidden if not allowed
+                    this.floatingButton.style.display = 'none';
                 }
             }
         }
@@ -303,13 +283,13 @@ export class FloatingChatWidget {
      */
     public showChat(initial: boolean = false): void {
         if (!this.isChatVisible || initial) {
-            if (!initial) this.toggleChatVisibility(); // Toggle only if not initial setup and currently hidden
-            else { // For initial setup, just set styles if meant to be open
+            if (!initial) this.toggleChatVisibility();
+            else {
                 if (this.chatContainer) this.chatContainer.style.display = 'flex';
                 if (this.floatingButton) {
-                    this.floatingButton.style.display = 'none'; // Always hide button when chat is open
+                    this.floatingButton.style.display = 'none';
                 }
-                this.isChatVisible = true; // Ensure state is correct for initial direct show
+                this.isChatVisible = true;
             }
         }
     }
@@ -320,17 +300,17 @@ export class FloatingChatWidget {
      */
     public hideChat(initial: boolean = false): void {
         if (this.isChatVisible || initial) {
-            if (!initial) this.toggleChatVisibility(); // Toggle only if not initial setup and currently visible
-            else { // For initial setup, just set styles if meant to be closed
+            if (!initial) this.toggleChatVisibility();
+            else {
                 if (this.chatContainer) this.chatContainer.style.display = 'none';
                 if (this.floatingButton) {
                     if (this.config.showToggleButton) {
-                        this.floatingButton.style.display = 'flex'; // Show button if allowed
+                        this.floatingButton.style.display = 'flex';
                     } else {
-                        this.floatingButton.style.display = 'none'; // Keep button hidden if not allowed
+                        this.floatingButton.style.display = 'none';
                     }
                 }
-                this.isChatVisible = false; // Ensure state is correct for initial direct hide
+                this.isChatVisible = false;
             }
         }
     }
@@ -340,13 +320,11 @@ export class FloatingChatWidget {
      * This includes destroying the inner ChatWidget instance and removing the floating widget's DOM elements.
      */
     public destroy(): void {
-        // Destroy the inner ChatWidget instance if it exists
         if (this.chatWidgetInstance && typeof (this.chatWidgetInstance as any).destroy === 'function') {
             (this.chatWidgetInstance as any).destroy();
         }
         this.chatWidgetInstance = null;
 
-        // Remove DOM elements from the document body
         if (this.floatingButton) {
             this.floatingButton.remove();
             this.floatingButton = null;

@@ -15,10 +15,17 @@ export const DEFAULT_ERROR_SENDER = "Error";
 export const DEFAULT_SYSTEM_SENDER = "System";
 
 // Default HTML Templates
+export const DEFAULT_WIDGET_HEADER_TEMPLATE = `
+<div class="chat-widget-header">
+    <span class="chat-widget-title-text">{{widgetTitle}}</span>
+    <button class="chat-widget-minimize-button">{{minimizeButton}}</button>
+</div>
+`;
+
 export const DEFAULT_MAIN_CONTAINER_TEMPLATE = `
 <div class="chat-widget" style="display: flex; flex-direction: column; height: 100%;">
-    <div class="chat-widget-header" style="display: none;">
-        <span class="chat-widget-title-text"></span>
+    <div id="chat-widget-header-container" style="flex-shrink: 0;">
+        <!-- Widget header will be injected here -->
     </div>
     <div class="chat-messages" style="flex-grow: 1; overflow-y: auto;">
         <!-- Messages will appear here -->

@@ -8,13 +8,14 @@ import { DatetimeHandler } from '../utils/datetimeUtils';
 import { SenderConfig, Labels, Template } from '../types';
 import { IMessageParser } from './messageParsers/IMessageParser';
 import { PlaintextMessageParser } from './messageParsers/PlaintextMessageParser';
+import { SVG_MINIMIZE_ICON } from '../config/uiConstants';
 
 /**
  * Configuration options for the ChatWidget.
  */
 export interface ChatWidgetConfigOptions {
     labels?: Partial<Labels>;
-    template?: Partial<Template>;
+    template?: Partial<Template & { widgetHeaderTemplate?: string }>;
     /** Optional datetime format string (e.g., 'HH:mm') for displaying message timestamps. */
     datetimeFormat?: string;
 }
@@ -45,6 +46,7 @@ export class ChatWidget {
         mainContainerTemplate?: string;
         inputAreaTemplate?: string;
         messageTemplate?: string;
+        widgetHeaderTemplate?: string;
         datetimeFormat?: string;
     };
     
@@ -115,6 +117,7 @@ export class ChatWidget {
             mainContainerTemplate: effectiveTemplate.mainContainerTemplate,
             inputAreaTemplate: effectiveTemplate.inputAreaTemplate,
             messageTemplate: effectiveTemplate.messageTemplate,
+            widgetHeaderTemplate: effectiveTemplate.widgetHeaderTemplate,
             datetimeFormat: configOptions.datetimeFormat,
         };
         
@@ -122,6 +125,7 @@ export class ChatWidget {
             mainContainerTemplate: this.config.mainContainerTemplate,
             inputAreaTemplate: this.config.inputAreaTemplate,
             messageTemplate: this.config.messageTemplate,
+            widgetHeaderTemplate: this.config.widgetHeaderTemplate,
         };
         this.templateManager = new ChatTemplateManager(templateMgrConfig, this.logger);
 
@@ -205,17 +209,34 @@ export class ChatWidget {
     private render(): void {
         this.element.innerHTML = this.templateManager.getMainContainerTemplate();
 
-        if (this.config.widgetTitle) {
-            const headerElement = this.element.querySelector<HTMLElement>('.chat-widget-header');
-            const titleTextElement = this.element.querySelector<HTMLElement>('.chat-widget-title-text');
-            if (headerElement && titleTextElement) {
-                titleTextElement.textContent = this.config.widgetTitle;
-                // Assuming header should be visible if title is set. 
-                // Default template might hide it if no title, or CSS could manage visibility.
-                headerElement.style.display = 'flex'; // Or 'block', depending on desired layout
+        const headerContainer = this.element.querySelector<HTMLElement>('#chat-widget-header-container');
+        if (headerContainer) {
+            let headerHTML = this.templateManager.getWidgetHeaderTemplate();
+            if (this.config.widgetTitle) {
+                headerHTML = headerHTML.replace('{{widgetTitle}}', this.config.widgetTitle);
             } else {
-                this.logger.warn("widgetTitle is set, but '.chat-widget-header' or '.chat-widget-title-text' not found in mainContainerTemplate.");
+                // If no title, perhaps replace with empty or remove the title span
+                // For now, let's leave the placeholder or an empty string.
+                // Users can customize this via the template if they want different behavior.
+                headerHTML = headerHTML.replace('{{widgetTitle}}', ''); 
             }
+            // For now, always include the minimize icon. Users can remove it via template if needed.
+            headerHTML = headerHTML.replace('{{minimizeButton}}', SVG_MINIMIZE_ICON);
+            
+            headerContainer.innerHTML = headerHTML;
+
+            // Ensure the header container is visible if it has content.
+            // The template itself should define if it's visible or not by default.
+            // This explicit style might override template's own styling.
+            // Consider if this is desired, or if visibility should be solely template-driven.
+            if (this.config.widgetTitle) { // Only display if there is a title.
+                 headerContainer.style.display = 'block'; // Or 'flex', etc. depending on the template's design.
+            } else {
+                 headerContainer.style.display = 'none';
+            }
+
+        } else {
+            this.logger.warn("#chat-widget-header-container not found in mainContainerTemplate. Widget header will not be rendered.");
         }
 
         const inputAreaContainer = this.element.querySelector('#chat-input-area-container');
@@ -381,5 +402,13 @@ export class ChatWidget {
      */
     public getInternalConfig(): Readonly<typeof this.config> {
         return this.config;
+    }
+
+    /**
+     * Returns the main HTML element of the chat widget.
+     * @returns {HTMLElement} The main widget element.
+     */
+    public getWidgetElement(): HTMLElement {
+        return this.element;
     }
 } 

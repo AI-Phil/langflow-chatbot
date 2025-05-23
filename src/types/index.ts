@@ -30,6 +30,7 @@ export interface Template {
     messageTemplate?: string;
     mainContainerTemplate?: string;
     inputAreaTemplate?: string;
+    widgetHeaderTemplate?: string;
 }
 
 export interface FloatingWidget {

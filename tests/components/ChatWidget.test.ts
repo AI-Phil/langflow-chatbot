@@ -8,6 +8,7 @@ import { ChatDisplayManager, ChatDisplayManagerConfig } from '../../src/componen
 import { ChatTemplateManager, TemplateManagerConfig } from '../../src/components/ChatTemplateManager';
 import { ChatSessionManager } from '../../src/components/ChatSessionManager';
 import { DatetimeHandler } from '../../src/utils/datetimeUtils';
+import { SVG_MINIMIZE_ICON } from '../../src/config/uiConstants';
 
 // Mock child components/managers AND LangflowChatClient
 jest.mock('../../src/clients/LangflowChatClient');
@@ -89,9 +90,10 @@ describe('ChatWidget', () => {
         // Define default return values for getter methods on mocked managers
         // These will be generic and overridden in specific tests if needed.
         mockTemplateManagerInstance = {
-            getMainContainerTemplate: jest.fn().mockReturnValue('<div id="chat-input-area-container"><div class="chat-messages"></div></div>'),
+            getMainContainerTemplate: jest.fn().mockReturnValue('<div id="chat-widget-header-container"></div><div id="chat-input-area-container"></div><div class="chat-messages"></div>'),
             getInputAreaTemplate: jest.fn().mockReturnValue('<input class="chat-input"/><button class="send-button"></button>'),
             getMessageTemplate: jest.fn().mockReturnValue('<div>{{message}}</div>'),
+            getWidgetHeaderTemplate: jest.fn().mockReturnValue('<div class="chat-widget-header"><span class="chat-widget-title-text">{{widgetTitle}}</span><button class="chat-widget-minimize-button">{{minimizeButton}}</button></div>'),
         } as any;
         MockChatTemplateManager.mockImplementation(() => mockTemplateManagerInstance);
 
@@ -156,7 +158,7 @@ describe('ChatWidget', () => {
             new ChatWidget(containerElement, mockChatClientInstance, true, minimalConfig, mockLogger);
 
             expect(MockChatTemplateManager).toHaveBeenCalledWith(
-                { mainContainerTemplate: undefined, inputAreaTemplate: undefined, messageTemplate: undefined }, 
+                { mainContainerTemplate: undefined, inputAreaTemplate: undefined, messageTemplate: undefined, widgetHeaderTemplate: undefined },
                 mockLogger
             );
             expect(MockChatDisplayManager).toHaveBeenCalledWith(
@@ -204,6 +206,7 @@ describe('ChatWidget', () => {
                     mainContainerTemplate: "<main></main>",
                     inputAreaTemplate: "<input />",
                     messageTemplate: "<msg></msg>",
+                    widgetHeaderTemplate: "<header>{{widgetTitle}}</header>",
                 },
                 datetimeFormat: "HH:mm",
             };
@@ -217,7 +220,8 @@ describe('ChatWidget', () => {
                 { 
                     mainContainerTemplate: customConfig.template?.mainContainerTemplate, 
                     inputAreaTemplate: customConfig.template?.inputAreaTemplate, 
-                    messageTemplate: customConfig.template?.messageTemplate 
+                    messageTemplate: customConfig.template?.messageTemplate, 
+                    widgetHeaderTemplate: customConfig.template?.widgetHeaderTemplate
                 }, 
                 mockLogger
             );
@@ -316,49 +320,78 @@ describe('ChatWidget', () => {
         beforeEach(() => {
             containerElement.innerHTML = '';
             jest.spyOn(containerElement, 'appendChild'); 
+            // Reset template manager mocks for this describe block to ensure clean state
+            mockTemplateManagerInstance.getMainContainerTemplate.mockReturnValue('<div id="chat-widget-header-container"></div><div id="chat-input-area-container"></div><div class="chat-messages"></div>');
+            mockTemplateManagerInstance.getInputAreaTemplate.mockReturnValue('<input class="chat-input"/><button class="send-button"></button>');
+            mockTemplateManagerInstance.getWidgetHeaderTemplate.mockReturnValue('<div class="chat-widget-header"><span class="chat-widget-title-text">{{widgetTitle}}</span><button class="chat-widget-minimize-button">{{minimizeButton}}</button></div>');
         });
 
-        it('should render main container and input area from template manager', () => {
-            const mainTpl = '<div id="main"><div id="chat-input-area-container"></div><div class="chat-messages"></div><input class="chat-input"><button class="send-button"></button></div>';
+        it('should render main container, header, and input area from template manager', () => {
+            const mainTpl = '<div id="chat-widget-header-container">HEADER_PLACEHOLDER</div><div id="chat-input-area-container">INPUT_AREA_PLACEHOLDER</div><div class="chat-messages"></div>';
+            const headerTpl = '<header id="actual-header">{{widgetTitle}} {{minimizeButton}}</header>';
             const inputTpl = '<div id="input-area"><input class="chat-input"><button class="send-button"></button></div>';
-            mockTemplateManagerInstance.getMainContainerTemplate.mockReturnValue(mainTpl);
-            mockTemplateManagerInstance.getInputAreaTemplate.mockReturnValue(inputTpl);
+            
+            mockTemplateManagerInstance.getMainContainerTemplate.mockReturnValueOnce(mainTpl);
+            mockTemplateManagerInstance.getWidgetHeaderTemplate.mockReturnValueOnce(headerTpl);
+            mockTemplateManagerInstance.getInputAreaTemplate.mockReturnValueOnce(inputTpl);
 
+            const mockHeaderContainer = document.createElement('div');
             const mockInputAreaContainer = document.createElement('div');
+            
             containerElement.querySelector = jest.fn().mockImplementation(selector => {
+                if (selector === '#chat-widget-header-container') return mockHeaderContainer;
                 if (selector === '#chat-input-area-container') return mockInputAreaContainer;
                 if (selector === '.chat-messages') return document.createElement('div');
                 if (selector === '.chat-input') return document.createElement('input');
                 if (selector === '.send-button') return document.createElement('button');
                 return null;
             });
-
-            new ChatWidget(containerElement, mockChatClientInstance, true, minimalConfig, mockLogger);
+            
+            const configWithTitle: ChatWidgetConfigOptions = { labels: { widgetTitle: "My Test Title" } };
+            new ChatWidget(containerElement, mockChatClientInstance, true, configWithTitle, mockLogger);
 
             expect(mockTemplateManagerInstance.getMainContainerTemplate).toHaveBeenCalled();
-            expect(containerElement.innerHTML).toBe(mainTpl);
+            expect(containerElement.innerHTML).toBe(mainTpl); // Main template is set first
+
+            expect(mockTemplateManagerInstance.getWidgetHeaderTemplate).toHaveBeenCalled();
+            const expectedHeaderHTML = headerTpl.replace('{{widgetTitle}}', "My Test Title").replace('{{minimizeButton}}', SVG_MINIMIZE_ICON);
+            expect(mockHeaderContainer.innerHTML).toBe(expectedHeaderHTML);
+            expect(mockHeaderContainer.style.display).toBe('block'); // Or 'flex' etc.
+
             expect(mockTemplateManagerInstance.getInputAreaTemplate).toHaveBeenCalled();
             expect(mockInputAreaContainer.innerHTML).toBe(inputTpl);
-            expect(containerElement.querySelector).toHaveBeenCalledWith('.chat-input');
-            expect(containerElement.querySelector).toHaveBeenCalledWith('.send-button');
         });
 
-        it('should set widget title if provided and header elements exist', () => {
+        it('should hide header container if no widgetTitle is provided', () => {
+            const mockHeaderContainer = document.createElement('div');
+            containerElement.querySelector = jest.fn().mockImplementation(selector => {
+                if (selector === '#chat-widget-header-container') return mockHeaderContainer;
+                if (selector === '#chat-input-area-container') return document.createElement('div');
+                if (selector === '.chat-messages') return document.createElement('div');
+                if (selector === '.chat-input') return document.createElement('input');
+                if (selector === '.send-button') return document.createElement('button');
+                return null;
+            });
+
+            // Explicitly provide an empty widgetTitle to override the default for this test case
+            const configWithoutTitle: ChatWidgetConfigOptions = {
+                labels: { widgetTitle: '' }, // Ensure title is empty
+                template: {}
+            };
+
+            new ChatWidget(containerElement, mockChatClientInstance, true, configWithoutTitle, mockLogger);
+            expect(mockHeaderContainer.style.display).toBe('none');
+        });
+
+        it('should log a warning if #chat-widget-header-container is missing when a title is provided', () => {
             const title = "Test Widget Title";
             const configWithTitle: ChatWidgetConfigOptions = { 
                 labels: { widgetTitle: title },
                 template: {}
             };
-            
-            const mockHeader = document.createElement('div');
-            const mockTitleText = document.createElement('span');
-            mockHeader.appendChild(mockTitleText);
-            mockHeader.style.display = 'none'; // Initial state for testing change
 
             containerElement.querySelector = jest.fn().mockImplementation(selector => {
-                if (selector === '.chat-widget-header') return mockHeader;
-                if (selector === '.chat-widget-title-text') return mockTitleText;
-                // Provide other essential elements to prevent other errors
+                if (selector === '#chat-widget-header-container') return null; // Simulate missing header container
                 if (selector === '#chat-input-area-container') return document.createElement('div');
                 if (selector === '.chat-messages') return document.createElement('div');
                 if (selector === '.chat-input') return document.createElement('input');
@@ -367,31 +400,7 @@ describe('ChatWidget', () => {
             });
 
             new ChatWidget(containerElement, mockChatClientInstance, true, configWithTitle, mockLogger);
-            
-            expect(mockTitleText.textContent).toBe(title);
-            expect(mockHeader.style.display).toBe('flex'); // Or 'block' depending on SUT
-            expect(mockLogger.warn).not.toHaveBeenCalled();
-        });
-
-        it('should log a warning if widgetTitle is set but header elements are missing', () => {
-            const title = "Test Widget Title";
-            const configWithTitle: ChatWidgetConfigOptions = { 
-                labels: { widgetTitle: title },
-                template: {}
-            };
-
-            containerElement.querySelector = jest.fn().mockImplementation(selector => {
-                if (selector === '.chat-widget-header') return null; // Simulate missing header
-                // Provide other essential elements
-                if (selector === '#chat-input-area-container') return document.createElement('div');
-                 if (selector === '.chat-messages') return document.createElement('div');
-                if (selector === '.chat-input') return document.createElement('input');
-                if (selector === '.send-button') return document.createElement('button');
-                return null;
-            });
-
-            new ChatWidget(containerElement, mockChatClientInstance, true, configWithTitle, mockLogger);
-            expect(mockLogger.warn).toHaveBeenCalledWith("widgetTitle is set, but '.chat-widget-header' or '.chat-widget-title-text' not found in mainContainerTemplate.");
+            expect(mockLogger.warn).toHaveBeenCalledWith("#chat-widget-header-container not found in mainContainerTemplate. Widget header will not be rendered.");
         });
 
         it('should fallback to appending input area if #chat-input-area-container is missing but .chat-widget exists', () => {
@@ -404,6 +413,7 @@ describe('ChatWidget', () => {
                 if (selector === '.chat-messages') return document.createElement('div');
                 if (selector === '.chat-input') return document.createElement('input'); 
                 if (selector === '.send-button') return document.createElement('button');
+                if (selector === '#chat-widget-header-container') return document.createElement('div'); // Assume header container exists for this test
                 return null;
             });
 
@@ -627,6 +637,11 @@ describe('ChatWidget', () => {
             expect(internalConfig.botSender).toBe("Bot"); 
             expect(internalConfig.widgetTitle).toBe("Custom Title");
             expect(internalConfig.welcomeMessage).toBe("Welcome to the test!");
+        });
+
+        it('getWidgetElement should return the main container element', () => {
+            const widget = new ChatWidget(containerElement, mockChatClientInstance, true, minimalConfig, mockLogger);
+            expect(widget.getWidgetElement()).toBe(containerElement);
         });
     });
 
