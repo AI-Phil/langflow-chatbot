@@ -3,7 +3,8 @@ import {
     DEFAULT_MAIN_CONTAINER_TEMPLATE,
     DEFAULT_INPUT_AREA_TEMPLATE,
     DEFAULT_MESSAGE_TEMPLATE,
-    DEFAULT_WIDGET_HEADER_TEMPLATE
+    DEFAULT_WIDGET_HEADER_TEMPLATE,
+    DEFAULT_FLOATING_WIDGET_HEADER_TEMPLATE
 } from '../config/uiConstants';
 
 export interface TemplateManagerConfig {
@@ -11,6 +12,7 @@ export interface TemplateManagerConfig {
     inputAreaTemplate?: string;
     messageTemplate?: string;
     widgetHeaderTemplate?: string;
+    floatingWidgetHeaderTemplate?: string;
 }
 
 /**
@@ -23,7 +25,7 @@ export class ChatTemplateManager {
     private _inputAreaTemplate: string;
     private _messageTemplate: string;
     private _widgetHeaderTemplate: string;
-
+    private _floatingWidgetHeaderTemplate: string;
     /**
      * Constructs a ChatTemplateManager instance.
      * @param {TemplateManagerConfig} config - The configuration object containing optional template strings.
@@ -37,7 +39,7 @@ export class ChatTemplateManager {
         this._inputAreaTemplate = config.inputAreaTemplate || DEFAULT_INPUT_AREA_TEMPLATE;
         this._messageTemplate = config.messageTemplate || DEFAULT_MESSAGE_TEMPLATE;
         this._widgetHeaderTemplate = config.widgetHeaderTemplate || DEFAULT_WIDGET_HEADER_TEMPLATE;
-
+        this._floatingWidgetHeaderTemplate = config.floatingWidgetHeaderTemplate || DEFAULT_FLOATING_WIDGET_HEADER_TEMPLATE;
         this.validateTemplates();
     }
 
@@ -105,9 +107,18 @@ export class ChatTemplateManager {
             this.logger.error('Provided widgetHeaderTemplate is missing the {{widgetTitle}} placeholder. This is critical for displaying the widget title.');
             throw new Error('Invalid widgetHeaderTemplate: Missing {{widgetTitle}} placeholder.');
         }
-        if (!this._widgetHeaderTemplate.includes('{{minimizeButton}}')) {
-            this.logger.error('Provided widgetHeaderTemplate is missing the {{minimizeButton}} placeholder. This is critical for the minimize functionality.');
-            throw new Error('Invalid widgetHeaderTemplate: Missing {{minimizeButton}} placeholder.');
+
+        // Validation for Floating Widget Header Template
+        if (!this._floatingWidgetHeaderTemplate.includes('{{widgetTitle}}')) {
+            this.logger.error('Provided floatingWidgetHeaderTemplate is missing the {{widgetTitle}} placeholder. This is critical for displaying the widget title.');
+            throw new Error('Invalid floatingWidgetHeaderTemplate: Missing {{widgetTitle}} placeholder.');
+        }
+
+        const tempFloatingHeaderDiv = document.createElement('div');
+        tempFloatingHeaderDiv.innerHTML = this._floatingWidgetHeaderTemplate;
+        if (!tempFloatingHeaderDiv.querySelector('.chat-widget-minimize-button')) {
+            this.logger.error('Provided floatingWidgetHeaderTemplate is missing an element with class "chat-widget-minimize-button". This is critical for the minimize functionality.');
+            throw new Error('Invalid floatingWidgetHeaderTemplate: Missing element with class "chat-widget-minimize-button".');
         }
     }
 
@@ -142,4 +153,13 @@ export class ChatTemplateManager {
     public getWidgetHeaderTemplate(): string {
         return this._widgetHeaderTemplate;
     }
+
+    /**
+     * Gets the resolved floating widget header HTML template string.
+     * @returns {string} The floating widget header template.
+     */
+    public getFloatingWidgetHeaderTemplate(): string {
+        return this._floatingWidgetHeaderTemplate;
+    }
+
 } 

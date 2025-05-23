@@ -112,13 +112,37 @@
       currentChatbotInstance = await window.LangflowChatbotPlugin.init(pluginConfig);
       console.log("Chatbot instance launched/re-launched successfully.", currentChatbotInstance);
 
+      // --- Direct DOM Event Listener for chatReset ---
+      if (currentChatbotInstance && currentChatbotInstance.widgetInstance) {
+        const internalWidget = currentChatbotInstance.widgetInstance;
+        let widgetElementForDomEvent = null;
+
+        if (typeof internalWidget.getPanelElement === 'function') { // Likely FloatingChatWidget
+          widgetElementForDomEvent = internalWidget.getPanelElement();
+        } else if (typeof internalWidget.getWidgetElement === 'function') { // Likely ChatWidget
+          widgetElementForDomEvent = internalWidget.getWidgetElement();
+        }
+
+        if (widgetElementForDomEvent) {
+          widgetElementForDomEvent.addEventListener('chatReset', () => {
+            const sessionIdInput = document.getElementById('session-id-input');
+            if (sessionIdInput) {
+              sessionIdInput.value = ''; // Direct clear
+            }
+            
+            // Inform example-app-logic to clear its state/UI for session ID.
+            if (window.ChatbotExampleApp && window.ChatbotExampleApp.ui && typeof window.ChatbotExampleApp.ui.updateSessionIdField === 'function') {
+              window.ChatbotExampleApp.ui.updateSessionIdField('');
+            }
+          });
+        } 
+      } 
+      // --- End Direct DOM Event Listener ---
+
       // --- Beyond the minimal: Interacting with the Chatbot Instance --- 
-      // Once initialized, you can interact with the chatbot instance, primarily by listening to events.
       if (currentChatbotInstance && typeof currentChatbotInstance.on === 'function') {
-        // Example: Listen for session ID changes (e.g., if a new session is started by the plugin)
         currentChatbotInstance.on('sessionChanged', (newSessionId) => {
           console.log('Chatbot (in ejs) received sessionChanged event:', newSessionId);
-          // Update the UI input field (this specific UI update is handled by example-app-logic.js)
           window.ChatbotExampleApp.ui.updateSessionIdField(newSessionId);
         });
         

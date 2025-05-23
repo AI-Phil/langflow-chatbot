@@ -260,19 +260,42 @@
 }
 
 /* Styles for the minimize button, typically only used in Floating Widget context */
-.chat-widget-header .minimize-button { 
+.chat-widget-header .chat-widget-minimize-button {
     background: none;
     border: none;
     color: var(--langflow-chatbot-header-icon-color);
-    font-size: 1.2em;
     cursor: pointer;
-    padding: 5px;
+    padding: 5px; /* Adjust as needed, similar to reset button's padding */
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.chat-widget-header .minimize-button svg {
-    stroke: var(--langflow-chatbot-header-icon-color) !important; /* Ensure SVG icon inside button is visible */
-    width: 18px; 
-    height: 18px; 
+.chat-widget-header .chat-widget-minimize-button svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor; /* Use button's color property */
+}
+
+.chat-widget-reset-button {
+    background: none;
+    border: none;
+    padding: 4px; /* Adjust as needed */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--langflow-chatbot-header-icon-color); /* Match icon color */
+}
+
+.chat-widget-reset-button svg {
+    width: 18px; /* Or your preferred size */
+    height: 18px; /* Or your preferred size */
+    stroke: currentColor; /* Inherit color from parent button */
+}
+
+.chat-widget-reset-button:hover {
+    opacity: 0.8; /* Simple hover effect */
 }
 
 /* --- Floating Widget Specifics --- */

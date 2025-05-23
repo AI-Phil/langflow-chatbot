@@ -4,7 +4,7 @@ import { FloatingChatWidget, FloatingChatWidgetConfig } from '../../src/componen
 import { ChatWidget, ChatWidgetConfigOptions } from '../../src/components/ChatWidget';
 import { LangflowChatClient } from '../../src/clients/LangflowChatClient';
 import { Logger, LogLevel } from '../../src/utils/logger';
-import { SVG_MINIMIZE_ICON } from '../../src/config/uiConstants';
+import { SVG_MINIMIZE_ICON, DEFAULT_FLOATING_WIDGET_HEADER_TEMPLATE } from '../../src/config/uiConstants';
 
 // Mock LangflowChatClient
 jest.mock('../../src/clients/LangflowChatClient');
@@ -140,7 +140,7 @@ describe('FloatingChatWidget', () => {
                     mainContainerTemplate: undefined,
                     inputAreaTemplate: undefined,
                     messageTemplate: undefined,
-                    widgetHeaderTemplate: undefined,
+                    widgetHeaderTemplate: DEFAULT_FLOATING_WIDGET_HEADER_TEMPLATE,
                 },
                 datetimeFormat: undefined,
             };

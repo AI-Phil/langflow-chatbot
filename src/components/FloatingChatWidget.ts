@@ -1,7 +1,7 @@
 import { LangflowChatClient } from '../clients/LangflowChatClient';
 import { ChatWidget, ChatWidgetConfigOptions } from './ChatWidget';
 import { Logger, LogLevel } from '../utils/logger';
-import { SVG_CHAT_ICON, SVG_MINIMIZE_ICON } from '../config/uiConstants';
+import { SVG_CHAT_ICON, SVG_MINIMIZE_ICON, DEFAULT_FLOATING_WIDGET_HEADER_TEMPLATE } from '../config/uiConstants';
 
 /**
  * Configuration options for the FloatingChatWidget.
@@ -31,6 +31,8 @@ export interface FloatingChatWidgetConfig {
     logLevel?: LogLevel;
     /** Optional custom width for the floating panel (e.g., '500px'). Applied as a CSS variable. */
     floatingPanelWidth?: string;
+    /** Optional custom HTML template for the floating widget's header. */
+    floatingWidgetHeaderTemplate?: string;
 }
 
 /** Helper interface defining the structure for default floating widget-specific config values. */
@@ -57,7 +59,7 @@ const DEFAULT_FLOATING_CONFIG: DefaultFloatingConfigValues = {
  * Internal configuration structure for FloatingChatWidget after merging user-provided 
  * config with defaults. Ensures all necessary fields for the floating behavior are present.
  */
-interface FloatingWidgetInternalConfig extends Required<Omit<FloatingChatWidgetConfig, 'chatWidgetConfig' | 'initialSessionId' | 'onSessionIdUpdate' | 'logLevel' | 'datetimeFormat' | 'floatingPanelWidth' >> {
+interface FloatingWidgetInternalConfig extends Required<Omit<FloatingChatWidgetConfig, 'chatWidgetConfig' | 'initialSessionId' | 'onSessionIdUpdate' | 'logLevel' | 'datetimeFormat' | 'floatingPanelWidth' | 'floatingWidgetHeaderTemplate' >> {
     /** Configuration to be passed to the internal ChatWidget instance. Templates here are optional. */
     chatWidgetConfig: Partial<ChatWidgetConfigOptions>; 
     initialSessionId?: string;
@@ -65,6 +67,7 @@ interface FloatingWidgetInternalConfig extends Required<Omit<FloatingChatWidgetC
     logLevel?: LogLevel;
     datetimeFormat?: string;
     floatingPanelWidth?: string;
+    floatingWidgetHeaderTemplate?: string;
 }
 
 /**
@@ -119,6 +122,7 @@ export class FloatingChatWidget {
             onSessionIdUpdate: userConfig.onSessionIdUpdate,
             datetimeFormat: userConfig.datetimeFormat,
             floatingPanelWidth: userConfig.floatingPanelWidth,
+            floatingWidgetHeaderTemplate: userConfig.floatingWidgetHeaderTemplate,
             chatWidgetConfig: {
                 labels: {
                     widgetTitle: resolvedFloatingWidgetTitle,
@@ -132,7 +136,7 @@ export class FloatingChatWidget {
                     mainContainerTemplate: userConfig.chatWidgetConfig?.template?.mainContainerTemplate,
                     inputAreaTemplate: userConfig.chatWidgetConfig?.template?.inputAreaTemplate,
                     messageTemplate: userConfig.chatWidgetConfig?.template?.messageTemplate,
-                    widgetHeaderTemplate: userConfig.chatWidgetConfig?.template?.widgetHeaderTemplate,
+                    widgetHeaderTemplate: userConfig.floatingWidgetHeaderTemplate || userConfig.chatWidgetConfig?.template?.widgetHeaderTemplate || DEFAULT_FLOATING_WIDGET_HEADER_TEMPLATE,
                 },
                 datetimeFormat: userConfig.chatWidgetConfig?.datetimeFormat,
             }

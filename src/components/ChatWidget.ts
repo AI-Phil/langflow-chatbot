@@ -8,7 +8,7 @@ import { DatetimeHandler } from '../utils/datetimeUtils';
 import { SenderConfig, Labels, Template } from '../types';
 import { IMessageParser } from './messageParsers/IMessageParser';
 import { PlaintextMessageParser } from './messageParsers/PlaintextMessageParser';
-import { SVG_MINIMIZE_ICON, SVG_RESET_ICON } from '../config/uiConstants';
+import { SVG_RESET_ICON } from '../config/uiConstants';
 
 /**
  * Configuration options for the ChatWidget.
@@ -221,8 +221,7 @@ export class ChatWidget {
                 // Users can customize this via the template if they want different behavior.
                 headerHTML = headerHTML.replace('{{widgetTitle}}', ''); 
             }
-            // For now, always include the minimize icon. Users can remove it via template if needed.
-            headerHTML = headerHTML.replace('{{minimizeButton}}', SVG_MINIMIZE_ICON);
+
             if (headerHTML.includes('{{resetButton}}')) {
                 headerHTML = headerHTML.replace('{{resetButton}}', SVG_RESET_ICON);
             }

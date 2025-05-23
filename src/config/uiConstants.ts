@@ -20,7 +20,14 @@ export const DEFAULT_WIDGET_HEADER_TEMPLATE = `
 <div class="chat-widget-header">
     <span class="chat-widget-title-text">{{widgetTitle}}</span>
     <button class="chat-widget-reset-button">{{resetButton}}</button>
-    <button class="chat-widget-minimize-button">{{minimizeButton}}</button>
+</div>
+`;
+
+export const DEFAULT_FLOATING_WIDGET_HEADER_TEMPLATE = `
+<div class="chat-widget-header">
+    <span class="chat-widget-title-text">{{widgetTitle}}</span>
+    <button class="chat-widget-reset-button">{{resetButton}}</button>
+    <button class="chat-widget-minimize-button">${SVG_MINIMIZE_ICON}</button>
 </div>
 `;
 
