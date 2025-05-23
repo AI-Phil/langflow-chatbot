@@ -27,14 +27,6 @@ export interface LangflowChatbotInitConfig {
   floatingPanelWidth?: string; 
 }
 
-// This now directly uses the imported ChatbotProfile type from server/types
-// It represents the data structure fetched from the server's config endpoint.
-// type FullChatbotProfile = ServerChatbotProfileData;
-// No, FullChatbotProfile is the type of this.serverProfile which is the result of the fetch
-// which is defined in configHandlers.ts to be ChatbotProfile from '../types' (which is src/types/index.ts)
-// So FullChatbotProfile should be ServerChatbotProfileData which refers to the ChatbotProfile in src/types/index.ts
-// interface FullChatbotProfile extends ServerChatbotProfileData {}
-
 // Represents the full data structure fetched from the server's config endpoint.
 interface FullServerProfile extends ServerChatbotUIData, ServerBehaviorData {}
 

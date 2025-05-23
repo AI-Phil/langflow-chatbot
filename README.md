@@ -1,29 +1,43 @@
 # langflow-chatbot
 
-A Node.js package for interacting with Langflow using [@datastax/langflow-client](https://www.npmjs.com/package/@datastax/langflow-client).
+A toolkit for embedding Langflow-powered chatbots in your app, with both server (proxy) and browser plugin components.
 
-## Installation
+## Configuration
 
-```bash
-npm install langflow-chatbot
-```
+Chatbot profiles and flow mappings are defined in a YAML file (see `examples/basic/app-chatbots.yaml`).
 
-## Usage
+Langflow connection details (endpoint URL, API key) can be set in the YAML or via environment variables (see `.env.example`).
 
-This package re-exports `LangflowClient` from `@datastax/langflow-client` for convenience.
+**Environment variables override YAML for connection details.**
 
-```typescript
-import { LangflowClient } from "langflow-chatbot";
+## Proxy Example (Node.js/Express)
 
-const client = new LangflowClient({
-  baseUrl: "http://localhost:7860", // or your Langflow instance URL
-  apiKey: "your-api-key" // if required
+```ts
+import express from 'express';
+import { LangflowProxyService } from 'langflow-chatbot';
+
+const app = express();
+const proxy = new LangflowProxyService({
+  instanceConfigPath: './app-chatbots.yaml',
+  proxyApiBasePath: '/api/langflow',
 });
-
-// Example: run a flow
-const flowId = "your-flow-id";
-const response = await client.flow(flowId).run("Hello!");
-console.log(response.outputs);
+app.use(express.json());
+app.all('/api/langflow/*', (req, res) => proxy.handleRequest(req, res));
+app.listen(3001);
 ```
 
-See the [@datastax/langflow-client documentation](https://www.npmjs.com/package/@datastax/langflow-client) for more details on configuration and advanced usage.
+## Browser Plugin Example
+
+```html
+<div id="chatbot-container"></div>
+<script src="/static/LangflowChatbotPlugin.js"></script>
+<script>
+LangflowChatbotPlugin.init({
+  containerId: 'chatbot-container',
+  profileId: 'your-profile-id',
+  proxyApiBasePath: '/api/langflow',
+});
+</script>
+```
+
+See `examples/basic/server.ts` and `examples/basic/views/partials/chatbot.ejs` for more details.
