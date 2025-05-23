@@ -117,17 +117,28 @@ async function startServer() {
         console.error("Basic Server (Express): LangflowProxyService was not initialized. Cannot start server.");
         process.exit(1);
     }
+    // LangflowProxyService now handles its initialization internally.
+    // The constructor kicks off an async initialization process.
+    // Public methods like handleRequest will await this internal initialization.
+    // Therefore, we don't need to explicitly call an initializeFlows() method here.
+
+    // We should, however, wait for the internal initialization to complete before 
+    // declaring the server fully ready, or at least be aware that requests might 
+    // be processed by the proxy only after its internal init finishes.
+    // For this basic example, we can await the internal promise before starting the server 
+    // to ensure all profiles are loaded and logged.
     try {
-        await langflowProxy.initializeFlows();
-        console.log("Basic Server (Express): LangflowProxyService flow mappings initialized.");
-        
+        // @ts-expect-error Accessing private member for robust startup logging
+        await langflowProxy.initializationPromise; 
+        console.log("Basic Server (Express): LangflowProxyService internal initialization complete. Profiles processed.");
+
         const httpServer = http.createServer(app); // Use the Express app
         httpServer.listen(port, hostname, () => {
             console.log(`Server running at http://${hostname}:${port}/`);
         });
     } catch (error) {
-        console.error("Basic Server (Express): CRITICAL - Failed to initialize flow mappings for LangflowProxyService:", error);
-        process.exit(1); // Exit if mappings can't be initialized
+        console.error("Basic Server (Express): CRITICAL - Error during LangflowProxyService internal initialization:", error);
+        process.exit(1); // Exit if internal async initialization fails
     }
 }
 

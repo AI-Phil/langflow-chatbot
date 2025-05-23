@@ -1,7 +1,7 @@
 import http from 'http';
 import { LangflowClient } from '@datastax/langflow-client';
 import { loadBaseConfig, loadInstanceConfig } from './lib/startup/config-loader';
-import { initializeFlowMappings } from './lib/startup/flow-mapper';
+import { FlowMapper } from './utils/flow-mapper';
 import { handleRequest as handleRequestFromModule } from './lib/request-handler';
 import { Profile, LangflowProxyConfig } from './types';
 import { sendJsonError } from './lib/request-utils';
@@ -11,65 +11,111 @@ export class LangflowProxyService {
     private flowConfigs: Map<string, Profile> = new Map();
     private langflowConnectionDetails: { endpoint_url: string; api_key?: string };
     private proxyApiBasePath: string;
+    private flowMapper: FlowMapper;
+    private initializationPromise: Promise<void>;
+    private isInitialized: boolean = false;
 
     constructor(config: LangflowProxyConfig) {
         if (!config.proxyApiBasePath || typeof config.proxyApiBasePath !== 'string' || config.proxyApiBasePath.trim() === '') {
             throw new TypeError('LangflowProxyService: proxyApiBasePath is required in config and must be a non-empty string.');
         }
+
+        const { langflowConnection, serverDefaults, chatbotDefaults } = loadBaseConfig();
+        this.langflowConnectionDetails = langflowConnection;
+        this.proxyApiBasePath = config.proxyApiBasePath;
+        console.log(`LangflowProxyService: API Base Path configured to: ${this.proxyApiBasePath}`);
+
+        const clientConfig: { baseUrl: string; apiKey?: string } = {
+            baseUrl: langflowConnection.endpoint_url,
+        };
+        if (langflowConnection.api_key && langflowConnection.api_key.trim() !== '') {
+            clientConfig.apiKey = langflowConnection.api_key;
+        }
+        this.langflowClient = new LangflowClient(clientConfig);
+        console.log(`LangflowProxyService: LangflowClient initialized. Configured Endpoint: ${langflowConnection.endpoint_url}`);
+
+        const rawInstanceProfiles: Profile[] = loadInstanceConfig(config.instanceConfigPath);
+        this.flowMapper = new FlowMapper(langflowConnection.endpoint_url, langflowConnection.api_key);
+
+        this.initializationPromise = this._internalAsyncInit(rawInstanceProfiles, serverDefaults, chatbotDefaults);
+    }
+
+    private async _internalAsyncInit(
+        rawInstanceProfiles: Profile[],
+        serverDefaultValues: Partial<Profile['server']>, 
+        chatbotDefaultValues: Partial<Profile['chatbot']>
+    ): Promise<void> {
         try {
-            const { langflowConnection, serverDefaults, chatbotDefaults } = loadBaseConfig();
-            
-            this.langflowConnectionDetails = langflowConnection;
-            this.proxyApiBasePath = config.proxyApiBasePath;
-            console.log(`LangflowProxyService: API Base Path configured to: ${this.proxyApiBasePath}`);
+            console.log("LangflowProxyService: Starting internal asynchronous initialization...");
+            await this.flowMapper.initialize();
+            console.log("LangflowProxyService: FlowMapper initialized successfully internally.");
 
-            const clientConfig: { baseUrl: string; apiKey?: string } = {
-                baseUrl: langflowConnection.endpoint_url,
-            };
-            if (langflowConnection.api_key && langflowConnection.api_key.trim() !== '') {
-                clientConfig.apiKey = langflowConnection.api_key;
-            }
-            
-            this.langflowClient = new LangflowClient(clientConfig);
-            console.log(`LangflowProxyService: LangflowClient initialized. Configured Endpoint: ${langflowConnection.endpoint_url}`);
-
-            const instanceProfiles = loadInstanceConfig(config.instanceConfigPath);
-            instanceProfiles.forEach(profile => {
-                // Merge with defaults
+            rawInstanceProfiles.forEach(profile => {
                 const completeProfile: Profile = {
-                    profileId: profile.profileId, // Already validated by loadInstanceConfig
+                    profileId: profile.profileId,
                     server: {
-                        flowId: profile.server.flowId, // Already validated
-                        enableStream: profile.server.enableStream ?? serverDefaults.enableStream,
-                        datetimeFormat: profile.server.datetimeFormat ?? serverDefaults.datetimeFormat,
+                        flowId: profile.server.flowId,
+                        enableStream: profile.server.enableStream ?? serverDefaultValues.enableStream,
+                        datetimeFormat: profile.server.datetimeFormat ?? serverDefaultValues.datetimeFormat,
                     },
                     chatbot: {
-                        labels: { ...chatbotDefaults.labels, ...profile.chatbot?.labels }, 
-                        template: { ...chatbotDefaults.template, ...profile.chatbot?.template },
-                        floatingWidget: { ...chatbotDefaults.floatingWidget, ...profile.chatbot?.floatingWidget }
+                        labels: { ...(chatbotDefaultValues.labels || {}), ...(profile.chatbot?.labels || {}) }, 
+                        template: { ...(chatbotDefaultValues.template || {}), ...(profile.chatbot?.template || {}) },
+                        floatingWidget: { ...(chatbotDefaultValues.floatingWidget || {}), ...(profile.chatbot?.floatingWidget || {}) }
                     }
                 };
-                this.flowConfigs.set(completeProfile.profileId, completeProfile);
 
-                console.log(`LangflowProxyService: Loaded profile: '${completeProfile.profileId}' configured with flow identifier '${completeProfile.server.flowId}'.`);
+                const configuredFlowIdentifier = completeProfile.server.flowId;
+                const resolvedFlowId = this.flowMapper.getTrueFlowId(configuredFlowIdentifier);
+
+                if (resolvedFlowId) {
+                    if (resolvedFlowId !== configuredFlowIdentifier) {
+                         console.log(`LangflowProxyService: Resolved flow identifier '${configuredFlowIdentifier}' to UUID '${resolvedFlowId}' for profile '${completeProfile.profileId}'.`);
+                    }
+                    completeProfile.server.flowId = resolvedFlowId;
+                } else {
+                    console.error(`LangflowProxyService: CRITICAL - Could not resolve flow identifier '${configuredFlowIdentifier}' for profile '${completeProfile.profileId}'. This profile will not function correctly as the identifier is not a valid UUID and was not found in the flow map.`);
+                }
+                this.flowConfigs.set(completeProfile.profileId, completeProfile);
+                console.log(`LangflowProxyService: Loaded profile: '${completeProfile.profileId}' configured with resolved flowId '${completeProfile.server.flowId}'.`);
             });
 
             if (this.flowConfigs.size === 0) {
-                console.warn("LangflowProxyService: No chatbot profiles were loaded. The service may not function as expected.");
+                console.warn("LangflowProxyService: No chatbot profiles were loaded after async init. The service may not function as expected.");
+            } else {
+                const unresolvedCount = Array.from(this.flowConfigs.values()).filter(p => !(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(p.server.flowId))).length;
+                if (unresolvedCount > 0) {
+                    console.warn(`LangflowProxyService: Finished async profile loading. ${this.flowConfigs.size - unresolvedCount} profiles have a valid resolved flowId. ${unresolvedCount} profiles have unresolved flow identifiers and may not function.`);
+                } else {
+                    console.log(`LangflowProxyService: Finished async profile loading. All ${this.flowConfigs.size} profiles have a valid resolved flowId.`);
+                }
             }
-
+            this.isInitialized = true;
+            console.log("LangflowProxyService: Internal asynchronous initialization complete.");
         } catch (error: any) {
-            console.error(`LangflowProxyService: CRITICAL - Failed to initialize due to configuration error: ${error.message}`);
+            console.error(`LangflowProxyService: CRITICAL - Error during internal asynchronous initialization: ${error.message}`);
+            this.isInitialized = false;
             throw error; 
         }
     }
 
-    public async initializeFlows(): Promise<void> {
-        await initializeFlowMappings(
-            this.langflowConnectionDetails.endpoint_url, 
-            this.langflowConnectionDetails.api_key, 
-            this.flowConfigs
-        );
+    public async getChatbotProfile(profileId: string): Promise<Profile | undefined> {
+        await this.initializationPromise;
+        return this.flowConfigs.get(profileId);
+    }
+
+    public getLangflowConnectionDetails(): { endpoint_url: string; api_key?: string } {
+        return this.langflowConnectionDetails;
+    }
+
+    public async getAllFlowConfigs(): Promise<Map<string, Profile>> {
+        await this.initializationPromise;
+        return this.flowConfigs;
+    }
+
+    public async getAllChatbotProfiles(): Promise<Map<string, Profile>> {
+        await this.initializationPromise;
+        return this.flowConfigs;
     }
 
     private async _makeDirectLangflowApiRequest(
@@ -118,45 +164,36 @@ export class LangflowProxyService {
     }
 
     public async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-        const entryReqUrl = req.url || ''; // Store URL at method entry
+        await this.initializationPromise;
+
+        const entryReqUrl = req.url || '';
         let effectiveFullPath: string;
 
-        // 1. Determine effective full path
         if ((req as any).originalUrl) {
             effectiveFullPath = (req as any).originalUrl;
-            // console.log(`[LangflowProxyService] Using req.originalUrl: ${effectiveFullPath}`);
         } else {
             effectiveFullPath = entryReqUrl;
-            // console.log(`[LangflowProxyService] Using req.url (fallback): ${effectiveFullPath}`);
         }
 
         let internalRoutePath: string;
 
-        // 2. Strip proxyApiBasePath to get internalRoutePath
         if (effectiveFullPath.startsWith(this.proxyApiBasePath)) {
             internalRoutePath = effectiveFullPath.substring(this.proxyApiBasePath.length);
             if (!internalRoutePath.startsWith('/')) {
                 internalRoutePath = '/' + internalRoutePath;
             }
-            // console.log(`[LangflowProxyService] Stripped internalRoutePath: ${internalRoutePath}`);
         } else {
-            // console.warn(`[LangflowProxyService] Request path "${effectiveFullPath}" does not start with proxyApiBasePath "${this.proxyApiBasePath}". Rejecting.`);
             sendJsonError(res, 404, "Endpoint not found. Path mismatch with proxy base.");
             return;
         }
 
-        // 3. Temporarily set req.url for handleRequestFromModule
         req.url = internalRoutePath;
-        // console.log(`[LangflowProxyService] Temporarily setting req.url to: ${req.url}`);
 
-        // 4. Body Handling Preparation
         const preParsedBody: any | undefined = (req as any).body;
         const isBodyPreParsed: boolean = preParsedBody !== undefined;
 
         if (isBodyPreParsed) {
-            // console.log("[LangflowProxyService] Pre-parsed body detected:", preParsedBody);
         } else {
-            // console.log("[LangflowProxyService] Pre-parsed body not detected. Downstream handlers will parse if needed.");
         }
 
         try {
@@ -169,29 +206,11 @@ export class LangflowProxyService {
                 this.langflowConnectionDetails.api_key,
                 this._makeDirectLangflowApiRequest.bind(this),
                 this.proxyApiBasePath,
-                preParsedBody, // New argument
-                isBodyPreParsed // New argument
+                preParsedBody,
+                isBodyPreParsed
             );
         } finally {
-            // 5. Restore original req.url
             req.url = entryReqUrl;
-            // console.log(`[LangflowProxyService] Restored req.url to: ${req.url}`);
         }
-    }
-
-    public getChatbotProfile(profileId: string): Profile | undefined {
-        return this.flowConfigs.get(profileId);
-    }
-
-    public getLangflowConnectionDetails(): { endpoint_url: string; api_key?: string } {
-        return this.langflowConnectionDetails;
-    }
-
-    public getAllFlowConfigs(): Map<string, Profile> {
-        return this.flowConfigs;
-    }
-
-    public getAllChatbotProfiles(): Map<string, Profile> {
-        return this.flowConfigs;
     }
 } 
