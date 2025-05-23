@@ -1,7 +1,7 @@
 {
   "name": "langflow-chatbot",
   "version": "0.1.0",
-  "description": "A Node.js package for interacting with Langflow using @datastax/langflow-client.",
+  "description": "Add a Langflow-powered chatbot to your website.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -16,7 +16,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yourusername/langflow-chatbot.git"
+    "url": "git+https://github.com/AI-Phil/langflow-chatbot.git"
   },
   "keywords": [
     "langflow",

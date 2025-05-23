@@ -1,0 +1,11 @@
+src/
+tests/
+coverage/
+*.config.js
+*.test.*
+*.spec.*
+.gitignore
+tsconfig*.json
+babel.config.js
+node_modules/
+examples/ 

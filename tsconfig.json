@@ -8,7 +8,10 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "lib": ["ES2020", "DOM", "DOM.AsyncIterable"]
+    "lib": ["ES2020", "DOM", "DOM.AsyncIterable"],
+    "declaration": true,
+    "declarationDir": "dist",
+    "emitDeclarationOnly": false
   },
   "include": ["src/**/*"]
 } 
