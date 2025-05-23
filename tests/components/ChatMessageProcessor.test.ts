@@ -474,7 +474,7 @@ describe('ChatMessageProcessor', () => {
                     { event: 'end', data: { flowResponse: { reply: "Done", sessionId: "s10" } } },
                 ]));
                 await processor.process(userMessage);
-                expect(mockLogger.info).toHaveBeenCalledWith("handleStreamAddMessageEvent: Received 'add_message' event. Full data:", { data: { message: "Auxiliary message", sender: "Machine", is_bot: true } });
+                expect(mockLogger.debug).toHaveBeenCalledWith("handleStreamAddMessageEvent: Received 'add_message' event. Full data:", { data: { message: "Auxiliary message", sender: "Machine", is_bot: true } });
             });
 
             it('should log a warning if .message-text-content span is missing during token event', async () => {
@@ -561,7 +561,7 @@ describe('ChatMessageProcessor', () => {
                 await processor.process(userMessage);
 
                 // Check that the primary log for receiving the event was called
-                expect(mockLogger.info).toHaveBeenCalledWith(
+                expect(mockLogger.debug).toHaveBeenCalledWith(
                     "handleStreamAddMessageEvent: Received 'add_message' event. Full data:", 
                     { data: { sender: "Machine", text: "" } }
                 );

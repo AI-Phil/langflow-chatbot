@@ -270,7 +270,7 @@ export class ChatMessageProcessor {
      * @param data The data associated with the add_message event.
      */
     private handleStreamAddMessageEvent(data: StreamEventDataMap['add_message']): void {
-        this.logger.info("handleStreamAddMessageEvent: Received 'add_message' event. Full data:", { data });
+        this.logger.debug("handleStreamAddMessageEvent: Received 'add_message' event. Full data:", { data });
 
         const eventData = data as any;
 
