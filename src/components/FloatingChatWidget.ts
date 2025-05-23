@@ -80,6 +80,7 @@ export class FloatingChatWidget {
     private chatClient: LangflowChatClient;
     private enableStream: boolean;
     private logger: Logger;
+    private chatResetListener?: (event: Event) => void;
 
     private static validatePosition(pos: any): 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' {
         const allowedPositions = ['bottom-right', 'bottom-left', 'top-right', 'top-left'];
@@ -240,6 +241,15 @@ export class FloatingChatWidget {
                         minimizeButton.style.display = 'none';
                     }
                 }
+
+                // Listen for the chatReset event from the inner ChatWidget
+                this.chatResetListener = (event) => {
+                    this.logger.info('FloatingChatWidget: Detected chatReset event from inner ChatWidget. Re-dispatching.');
+                    if (this.chatContainer) {
+                        this.chatContainer.dispatchEvent(new CustomEvent('chatReset', { bubbles: true, composed: true }));
+                    }
+                };
+                widgetElement.addEventListener('chatReset', this.chatResetListener);
             }
 
         } catch (error) {
@@ -321,6 +331,12 @@ export class FloatingChatWidget {
      */
     public destroy(): void {
         if (this.chatWidgetInstance && typeof (this.chatWidgetInstance as any).destroy === 'function') {
+            // Remove event listener before destroying the inner widget
+            const widgetElement = this.chatWidgetInstance.getWidgetElement();
+            if (widgetElement && this.chatResetListener) {
+                widgetElement.removeEventListener('chatReset', this.chatResetListener);
+                this.chatResetListener = undefined;
+            }
             (this.chatWidgetInstance as any).destroy();
         }
         this.chatWidgetInstance = null;

@@ -8,7 +8,7 @@ import { DatetimeHandler } from '../utils/datetimeUtils';
 import { SenderConfig, Labels, Template } from '../types';
 import { IMessageParser } from './messageParsers/IMessageParser';
 import { PlaintextMessageParser } from './messageParsers/PlaintextMessageParser';
-import { SVG_MINIMIZE_ICON } from '../config/uiConstants';
+import { SVG_MINIMIZE_ICON, SVG_RESET_ICON } from '../config/uiConstants';
 
 /**
  * Configuration options for the ChatWidget.
@@ -52,6 +52,7 @@ export class ChatWidget {
     
     private sendButtonClickListener?: () => void;
     private chatInputKeyPressListener?: (event: KeyboardEvent) => void;
+    private resetButtonClickListener?: () => void;
 
     private logger: Logger;
     private messageProcessor: ChatMessageProcessor;
@@ -222,6 +223,9 @@ export class ChatWidget {
             }
             // For now, always include the minimize icon. Users can remove it via template if needed.
             headerHTML = headerHTML.replace('{{minimizeButton}}', SVG_MINIMIZE_ICON);
+            if (headerHTML.includes('{{resetButton}}')) {
+                headerHTML = headerHTML.replace('{{resetButton}}', SVG_RESET_ICON);
+            }
             
             headerContainer.innerHTML = headerHTML;
 
@@ -283,6 +287,7 @@ export class ChatWidget {
     private setupEventListeners(): void {
         const sendButton = this.element.querySelector<HTMLButtonElement>('.send-button');
         const chatInput = this.element.querySelector<HTMLInputElement>('.chat-input');
+        const resetButton = this.element.querySelector<HTMLButtonElement>('.chat-widget-reset-button');
 
         if (sendButton && chatInput) {
             this.sendButtonClickListener = () => this.handleSendButtonClick(chatInput);
@@ -295,6 +300,11 @@ export class ChatWidget {
             sendButton.addEventListener('click', this.sendButtonClickListener);
             chatInput.addEventListener('keypress', this.chatInputKeyPressListener);
         }
+
+        if (resetButton) {
+            this.resetButtonClickListener = () => this.handleResetButtonClick();
+            resetButton.addEventListener('click', this.resetButtonClickListener);
+        }
     }
 
     /**
@@ -304,6 +314,7 @@ export class ChatWidget {
     private removeEventListeners(): void {
         const sendButton = this.element.querySelector<HTMLButtonElement>('.send-button');
         const chatInput = this.element.querySelector<HTMLInputElement>('.chat-input');
+        const resetButton = this.element.querySelector<HTMLButtonElement>('.chat-widget-reset-button');
 
         if (sendButton && this.sendButtonClickListener) {
             sendButton.removeEventListener('click', this.sendButtonClickListener);
@@ -312,6 +323,11 @@ export class ChatWidget {
         if (chatInput && this.chatInputKeyPressListener) {
             chatInput.removeEventListener('keypress', this.chatInputKeyPressListener);
             this.chatInputKeyPressListener = undefined;
+        }
+
+        if (resetButton && this.resetButtonClickListener) {
+            resetButton.removeEventListener('click', this.resetButtonClickListener);
+            this.resetButtonClickListener = undefined;
         }
     }
 
@@ -410,5 +426,15 @@ export class ChatWidget {
      */
     public getWidgetElement(): HTMLElement {
         return this.element;
+    }
+
+    /**
+     * Handles the click event for the reset button.
+     * Clears the current session and dispatches a 'chatReset' event.
+     */
+    private async handleResetButtonClick(): Promise<void> {
+        this.logger.info('Reset button clicked. Clearing session.');
+        await this.sessionManager.setSessionIdAndLoadHistory(undefined); 
+        this.element.dispatchEvent(new CustomEvent('chatReset', { bubbles: true, composed: true }));
     }
 } 

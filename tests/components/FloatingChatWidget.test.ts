@@ -24,7 +24,7 @@ describe('FloatingChatWidget', () => {
     let mockChatWidgetInstance: jest.Mocked<ChatWidget>; // This will hold the most recent mock ChatWidget
     let mockLoggerInstance: jest.Mocked<Logger>;
     let minimalUserConfig: FloatingChatWidgetConfig;
-    let mockChatWidgetElement: HTMLElement; // To hold the mocked ChatWidget's main element
+    let mockChatWidgetElement: HTMLElement;
 
     beforeAll(() => {
         const originalAppendChild = document.body.appendChild.bind(document.body);
@@ -53,12 +53,20 @@ describe('FloatingChatWidget', () => {
         mockChatClientInstance = new MockLangflowChatClient('test-proxy', 'http://dummy.api') as jest.Mocked<LangflowChatClient>;
         
         mockChatWidgetElement = document.createElement('div'); 
+        // Add spies for event listener methods directly to the created element for testing
+        // These will be genuine spies on the actual element's methods for this instance
+        jest.spyOn(mockChatWidgetElement, 'addEventListener');
+        jest.spyOn(mockChatWidgetElement, 'removeEventListener');
+
         const mockTitleTextSpan = document.createElement('span');
         mockTitleTextSpan.className = 'chat-widget-title-text';
         mockChatWidgetElement.appendChild(mockTitleTextSpan);
         const mockMinimizeButtonElement = document.createElement('button'); // Renamed to avoid conflict
         mockMinimizeButtonElement.className = 'chat-widget-minimize-button';
         mockChatWidgetElement.appendChild(mockMinimizeButtonElement);
+        // Add spies for event listener methods
+        (mockChatWidgetElement as any).addEventListener = jest.fn();
+        (mockChatWidgetElement as any).removeEventListener = jest.fn();
 
         MockChatWidget.mockImplementation((containerElement, client, enableStream, config, logger, initialSessionId, onSessionIdUpdate) => {
             const titleSpanInMock = mockChatWidgetElement.querySelector<HTMLSpanElement>('.chat-widget-title-text');
@@ -375,6 +383,19 @@ describe('FloatingChatWidget', () => {
             expect(internalChatWidgetInstance.destroy).toHaveBeenCalled();
             expect(document.body.querySelector('.floating-chat-button')).toBeNull();
             expect(document.body.querySelector('.floating-chat-panel')).toBeNull();
+        });
+
+        it('should remove chatReset event listener from inner widget on destroy', () => {
+            const widget = new FloatingChatWidget(mockChatClientInstance, true, minimalUserConfig, mockLoggerInstance);
+            // mockChatWidgetInstance.getWidgetElement() returns our mockChatWidgetElement
+            // which now has spied addEventListener/removeEventListener
+            
+            expect(mockChatWidgetElement.addEventListener).toHaveBeenCalledWith('chatReset', expect.any(Function));
+            const addedListener = (mockChatWidgetElement.addEventListener as jest.Mock).mock.calls[0][1];
+
+            widget.destroy();
+
+            expect(mockChatWidgetElement.removeEventListener).toHaveBeenCalledWith('chatReset', addedListener);
         });
     }); 
 }); 

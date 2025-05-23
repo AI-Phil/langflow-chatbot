@@ -8,7 +8,7 @@ import { ChatDisplayManager, ChatDisplayManagerConfig } from '../../src/componen
 import { ChatTemplateManager, TemplateManagerConfig } from '../../src/components/ChatTemplateManager';
 import { ChatSessionManager } from '../../src/components/ChatSessionManager';
 import { DatetimeHandler } from '../../src/utils/datetimeUtils';
-import { SVG_MINIMIZE_ICON } from '../../src/config/uiConstants';
+import { SVG_MINIMIZE_ICON, SVG_RESET_ICON } from '../../src/config/uiConstants';
 
 // Mock child components/managers AND LangflowChatClient
 jest.mock('../../src/clients/LangflowChatClient');
@@ -93,7 +93,7 @@ describe('ChatWidget', () => {
             getMainContainerTemplate: jest.fn().mockReturnValue('<div id="chat-widget-header-container"></div><div id="chat-input-area-container"></div><div class="chat-messages"></div>'),
             getInputAreaTemplate: jest.fn().mockReturnValue('<input class="chat-input"/><button class="send-button"></button>'),
             getMessageTemplate: jest.fn().mockReturnValue('<div>{{message}}</div>'),
-            getWidgetHeaderTemplate: jest.fn().mockReturnValue('<div class="chat-widget-header"><span class="chat-widget-title-text">{{widgetTitle}}</span><button class="chat-widget-minimize-button">{{minimizeButton}}</button></div>'),
+            getWidgetHeaderTemplate: jest.fn().mockReturnValue('<div class="chat-widget-header"><span class="chat-widget-title-text">{{widgetTitle}}</span><button class="chat-widget-reset-button">{{resetButton}}</button><button class="chat-widget-minimize-button">{{minimizeButton}}</button></div>'),
         } as any;
         MockChatTemplateManager.mockImplementation(() => mockTemplateManagerInstance);
 
@@ -323,7 +323,7 @@ describe('ChatWidget', () => {
             // Reset template manager mocks for this describe block to ensure clean state
             mockTemplateManagerInstance.getMainContainerTemplate.mockReturnValue('<div id="chat-widget-header-container"></div><div id="chat-input-area-container"></div><div class="chat-messages"></div>');
             mockTemplateManagerInstance.getInputAreaTemplate.mockReturnValue('<input class="chat-input"/><button class="send-button"></button>');
-            mockTemplateManagerInstance.getWidgetHeaderTemplate.mockReturnValue('<div class="chat-widget-header"><span class="chat-widget-title-text">{{widgetTitle}}</span><button class="chat-widget-minimize-button">{{minimizeButton}}</button></div>');
+            mockTemplateManagerInstance.getWidgetHeaderTemplate.mockReturnValue('<div class="chat-widget-header"><span class="chat-widget-title-text">{{widgetTitle}}</span><button class="chat-widget-reset-button">{{resetButton}}</button><button class="chat-widget-minimize-button">{{minimizeButton}}</button></div>');
         });
 
         it('should render main container, header, and input area from template manager', () => {
@@ -354,9 +354,12 @@ describe('ChatWidget', () => {
             expect(containerElement.innerHTML).toBe(mainTpl); // Main template is set first
 
             expect(mockTemplateManagerInstance.getWidgetHeaderTemplate).toHaveBeenCalled();
-            const expectedHeaderHTML = headerTpl.replace('{{widgetTitle}}', "My Test Title").replace('{{minimizeButton}}', SVG_MINIMIZE_ICON);
+            const expectedHeaderHTML = headerTpl
+                .replace('{{widgetTitle}}', "My Test Title")
+                .replace('{{resetButton}}', SVG_RESET_ICON)
+                .replace('{{minimizeButton}}', SVG_MINIMIZE_ICON);
             expect(mockHeaderContainer.innerHTML).toBe(expectedHeaderHTML);
-            expect(mockHeaderContainer.style.display).toBe('block'); // Or 'flex' etc.
+            expect(mockHeaderContainer.style.display).toBe('block');
 
             expect(mockTemplateManagerInstance.getInputAreaTemplate).toHaveBeenCalled();
             expect(mockInputAreaContainer.innerHTML).toBe(inputTpl);
@@ -463,6 +466,59 @@ describe('ChatWidget', () => {
             expect(mockChatInput.addEventListener).toHaveBeenCalledWith('keypress', expect.any(Function));
         });
 
+        it('should render reset button if placeholder exists in template', () => {
+            const configWithTitle: ChatWidgetConfigOptions = { labels: { widgetTitle: "Test Title" } };
+            new ChatWidget(containerElement, mockChatClientInstance, true, configWithTitle, mockLogger);
+            const resetButton = containerElement.querySelector('.chat-widget-reset-button');
+            expect(resetButton).toBeTruthy();
+            expect(resetButton?.innerHTML).toBe(SVG_RESET_ICON);
+        });
+
+        it('should NOT render reset button if placeholder is missing from template', () => {
+            mockTemplateManagerInstance.getWidgetHeaderTemplate.mockReturnValueOnce('<div class="chat-widget-header"><span class="chat-widget-title-text">{{widgetTitle}}</span><button class="chat-widget-minimize-button">{{minimizeButton}}</button></div>');
+            const configWithTitle: ChatWidgetConfigOptions = { labels: { widgetTitle: "Test Title" } };
+            new ChatWidget(containerElement, mockChatClientInstance, true, configWithTitle, mockLogger);
+            const resetButton = containerElement.querySelector('.chat-widget-reset-button');
+            expect(resetButton).toBeNull();
+        });
+
+        it('should setup event listener for reset button if present', () => {
+            const widget = new ChatWidget(containerElement, mockChatClientInstance, true, minimalConfig, mockLogger);
+            const resetButton = containerElement.querySelector<HTMLButtonElement>('.chat-widget-reset-button');
+            expect(resetButton).toBeTruthy();
+            
+            const clickSpy = jest.spyOn(widget as any, 'handleResetButtonClick');
+            resetButton?.click();
+            expect(clickSpy).toHaveBeenCalled();
+            clickSpy.mockRestore();
+        });
+    });
+
+    describe('handleResetButtonClick', () => {
+        it('should call sessionManager.setSessionIdAndLoadHistory with undefined and dispatch chatReset event', async () => {
+            const widget = new ChatWidget(containerElement, mockChatClientInstance, true, minimalConfig, mockLogger);
+            
+            // Ensure the reset button is part of the rendered output for this test
+            const headerContainer = containerElement.querySelector<HTMLElement>('#chat-widget-header-container');
+            if (headerContainer) {
+                 headerContainer.innerHTML = `<button class="chat-widget-reset-button">${SVG_RESET_ICON}</button>`;
+            }
+            const resetButton = containerElement.querySelector<HTMLButtonElement>('.chat-widget-reset-button');
+            expect(resetButton).toBeTruthy(); // Sanity check
+
+            const dispatchEventSpy = jest.spyOn(containerElement, 'dispatchEvent');
+            
+            // Directly call the method to test its isolated behavior,
+            // or find the button and click it if testing full integration.
+            // Here, we are testing the handler method itself.
+            await (widget as any).handleResetButtonClick();
+
+            expect(mockSessionManagerInstance.setSessionIdAndLoadHistory).toHaveBeenCalledWith(undefined);
+            expect(dispatchEventSpy).toHaveBeenCalledWith(expect.any(CustomEvent));
+            expect(dispatchEventSpy.mock.calls[0][0].type).toBe('chatReset');
+
+            dispatchEventSpy.mockRestore();
+        });
     });
 
     describe('user interaction (sending messages, input state)', () => {
@@ -591,25 +647,35 @@ describe('ChatWidget', () => {
             mockChatInput.className = 'chat-input';
             const mockSendButton = document.createElement('button');
             mockSendButton.className = 'send-button';
-            // Add to a temporary parent for querySelector to find them if it were real.
-            // However, our mock below will directly return them.
-            // containerElement.appendChild(mockChatInput);
-            // containerElement.appendChild(mockSendButton);
-            jest.spyOn(mockChatInput, 'removeEventListener');
-            jest.spyOn(mockSendButton, 'removeEventListener');
+            const mockResetButton = document.createElement('button'); // Create reset button
+            mockResetButton.className = 'chat-widget-reset-button';  // Assign class
 
-            // Specific mock for this test
+            // Spy on removeEventListener for all buttons
+            const chatInputSpy = jest.spyOn(mockChatInput, 'removeEventListener');
+            const sendButtonSpy = jest.spyOn(mockSendButton, 'removeEventListener');
+            const resetButtonSpy = jest.spyOn(mockResetButton, 'removeEventListener');
+
+            // Specific mock for this test, including reset button
             containerElement.querySelector = jest.fn().mockImplementation(selector => {
                 if (selector === '.chat-input') return mockChatInput;
                 if (selector === '.send-button') return mockSendButton;
+                if (selector === '.chat-widget-reset-button') return mockResetButton; // Return reset button
                 return null;
             });
-
+            
+            // Ensure a widget instance is created which would attach listeners
             const widget = new ChatWidget(containerElement, mockChatClientInstance, true, minimalConfig, mockLogger);
+            
+            // Manually set the listener for reset button for this test to ensure it's there to be removed
+            // This is because the actual setup depends on render which we are heavily mocking here.
+            (widget as any).resetButtonClickListener = jest.fn();
+
             widget.destroy();
 
-            expect(mockSendButton.removeEventListener).toHaveBeenCalledWith('click', expect.any(Function));
-            expect(mockChatInput.removeEventListener).toHaveBeenCalledWith('keypress', expect.any(Function));
+            expect(sendButtonSpy).toHaveBeenCalledWith('click', expect.any(Function));
+            expect(chatInputSpy).toHaveBeenCalledWith('keypress', expect.any(Function));
+            expect(resetButtonSpy).toHaveBeenCalledWith('click', expect.any(Function)); // Check reset button
+            
             expect(containerElement.innerHTML).toBe('');
             expect(mockLogger.info).toHaveBeenCalledWith("ChatWidget instance destroyed.");
         });

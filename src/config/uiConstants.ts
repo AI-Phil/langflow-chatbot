@@ -1,5 +1,6 @@
 export const SVG_CHAT_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"></path></svg>';
 export const SVG_MINIMIZE_ICON = '<svg viewBox="0 0 24 24" stroke-width="2"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M18 12H6"></path></svg>';
+export const SVG_RESET_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>';
 
 // Default Chatbot Behaviors
 export const DEFAULT_ENABLE_STREAM = true;
@@ -18,6 +19,7 @@ export const DEFAULT_SYSTEM_SENDER = "System";
 export const DEFAULT_WIDGET_HEADER_TEMPLATE = `
 <div class="chat-widget-header">
     <span class="chat-widget-title-text">{{widgetTitle}}</span>
+    <button class="chat-widget-reset-button">{{resetButton}}</button>
     <button class="chat-widget-minimize-button">{{minimizeButton}}</button>
 </div>
 `;
