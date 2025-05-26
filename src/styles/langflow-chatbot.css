@@ -87,9 +87,15 @@
     --langflow-chatbot-message-datetime-font-size: 0.8em;
 
     /* Customizable Floating Panel Dimensions */
-    --langflow-floating-panel-width: 370px; /* Default width */
-    --langflow-floating-panel-max-width: none; /* Optional: for responsiveness */
+    --langflow-floating-panel-width: 600px; /* Default width */
+    --langflow-floating-panel-max-width: 95vw; /* Responsive max width */
     --langflow-floating-panel-min-width: 300px; /* Optional: for responsiveness */
+    
+    /* Responsive Breakpoints */
+    --langflow-floating-panel-tablet-width: 600px; /* Width for tablet screens */
+    --langflow-floating-panel-tablet-max-width: 90vw; /* Max width for tablet screens */
+    --langflow-floating-panel-mobile-width: 100vw; /* Width for mobile screens */
+    --langflow-floating-panel-mobile-max-width: 100vw; /* Max width for mobile screens */
 }
 
 /* --- Core Chat Widget Structure --- */
@@ -238,7 +244,7 @@
 
 /* Message content specific style (if any) - currently just for text formatting */
 .message-bubble .message-text-content {
-    white-space: pre-wrap; /* Preserve whitespace and newlines */
+    white-space: normal; /* Normal whitespace handling for better formatting */
     word-wrap: break-word; /* Break long words to prevent overflow */
 }
 
@@ -250,8 +256,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    /* Note: border-top-left-radius and border-top-right-radius should apply
-       to the main .chat-widget or .chat-widget-container for overall rounding. */
+    border-bottom: none;
 }
 
 .chat-widget-header .chat-widget-title-text {
@@ -388,6 +393,23 @@
     margin: auto; /* Centers the paragraph block in the flex container */
     text-align: center;
     border-radius: var(--langflow-chatbot-widget-border-radius); /* Use existing widget border radius */
+}
+
+/* --- Responsive Design --- */
+/* Tablet adjustments */
+@media screen and (max-width: 992px) {
+    .floating-chat-panel {
+        width: var(--langflow-floating-panel-tablet-width);
+        max-width: var(--langflow-floating-panel-tablet-max-width);
+    }
+}
+
+/* Mobile adjustments */
+@media screen and (max-width: 768px) {
+    .floating-chat-panel {
+        width: var(--langflow-floating-panel-mobile-width);
+        max-width: var(--langflow-floating-panel-mobile-max-width);
+    }
 }
 
 /* --- Animations --- */
