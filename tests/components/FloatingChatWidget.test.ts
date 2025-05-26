@@ -428,5 +428,52 @@ describe('FloatingChatWidget', () => {
 
             expect(mockChatWidgetElement.removeEventListener).toHaveBeenCalledWith('chatReset', addedListener);
         });
+
+        it('should call scrollChatToBottom when panel becomes visible to handle history loaded while hidden', () => {
+            setupWidgetAndElements({ isOpen: false, showToggleButton: true });
+            
+            // Mock the displayManager and its scrollChatToBottom method
+            const mockDisplayManager = {
+                scrollChatToBottom: jest.fn()
+            };
+            (widget as any).chatWidgetInstance.displayManager = mockDisplayManager;
+            
+            // Initially hidden, so no scroll should have been called yet
+            expect(mockDisplayManager.scrollChatToBottom).not.toHaveBeenCalled();
+            
+            // Show the chat panel
+            widget.showChat();
+            
+            // Should trigger scroll to bottom after requestAnimationFrame
+            return new Promise<void>((resolve) => {
+                requestAnimationFrame(() => {
+                    expect(mockDisplayManager.scrollChatToBottom).toHaveBeenCalled();
+                    widget.destroy();
+                    resolve();
+                });
+            });
+        });
+
+        it('should call scrollChatToBottom when toggling visibility from hidden to visible', () => {
+            setupWidgetAndElements({ isOpen: false, showToggleButton: true });
+            
+            // Mock the displayManager and its scrollChatToBottom method
+            const mockDisplayManager = {
+                scrollChatToBottom: jest.fn()
+            };
+            (widget as any).chatWidgetInstance.displayManager = mockDisplayManager;
+            
+            // Toggle to show the chat
+            widget.toggleChatVisibility();
+            
+            // Should trigger scroll to bottom after requestAnimationFrame
+            return new Promise<void>((resolve) => {
+                requestAnimationFrame(() => {
+                    expect(mockDisplayManager.scrollChatToBottom).toHaveBeenCalled();
+                    widget.destroy();
+                    resolve();
+                });
+            });
+        });
     }); 
 }); 

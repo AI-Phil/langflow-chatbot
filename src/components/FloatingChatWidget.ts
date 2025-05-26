@@ -284,6 +284,7 @@ export class FloatingChatWidget {
             if (this.isChatVisible) {
                 this.chatContainer.style.display = 'flex';
                 this.floatingButton.style.display = 'none';
+                this.scrollToBottomWhenVisible();
             } else {
                 this.chatContainer.style.display = 'none';
                 if (this.config.showToggleButton) {
@@ -308,7 +309,25 @@ export class FloatingChatWidget {
                     this.floatingButton.style.display = 'none';
                 }
                 this.isChatVisible = true;
+                this.scrollToBottomWhenVisible();
             }
+        }
+    }
+
+    /**
+     * Scrolls to bottom when the panel becomes visible.
+     * Uses requestAnimationFrame to ensure the panel is fully rendered before scrolling.
+     */
+    private scrollToBottomWhenVisible(): void {
+        if (this.chatWidgetInstance) {
+            requestAnimationFrame(() => {
+                if (this.chatWidgetInstance) {
+                    const displayManager = (this.chatWidgetInstance as any).displayManager;
+                    if (displayManager && typeof displayManager.scrollChatToBottom === 'function') {
+                        displayManager.scrollChatToBottom();
+                    }
+                }
+            });
         }
     }
 
