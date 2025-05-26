@@ -28,6 +28,7 @@ app.listen(3001);
 
 ## Browser Plugin Example
 
+### Embedded Mode (default when containerId provided)
 ```html
 <div id="chatbot-container"></div>
 <script src="/static/LangflowChatbotPlugin.js"></script>
@@ -36,7 +37,42 @@ LangflowChatbotPlugin.init({
   containerId: 'chatbot-container',
   profileId: 'your-profile-id',
   proxyApiBasePath: '/api/langflow',
+  mode: 'embedded' // optional - defaults to embedded when containerId provided
 });
+</script>
+```
+
+### Floating Mode
+```html
+<script src="/static/LangflowChatbotPlugin.js"></script>
+<script>
+LangflowChatbotPlugin.init({
+  profileId: 'your-profile-id',
+  proxyApiBasePath: '/api/langflow',
+  mode: 'floating' // creates a floating chat widget
+});
+</script>
+```
+
+### Floating Mode with Container for Listeners
+```html
+<div id="my-chatbot-container"></div>
+<script src="/static/LangflowChatbotPlugin.js"></script>
+<script>
+// Create floating chatbot but provide containerId for attaching listeners
+const chatbot = await LangflowChatbotPlugin.init({
+  containerId: 'my-chatbot-container', // For attaching listeners/custom behavior
+  profileId: 'your-profile-id',
+  proxyApiBasePath: '/api/langflow',
+  mode: 'floating' // Explicitly specify floating mode
+});
+
+// Attach listeners to the container
+const container = chatbot.getContainerElement();
+if (container) {
+  container.addEventListener('click', () => console.log('Container clicked!'));
+  // Add any other custom behavior...
+}
 </script>
 ```
 

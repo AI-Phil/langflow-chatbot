@@ -8,11 +8,13 @@ import { ChatbotProfile as ServerChatbotUIData, ServerProfile as ServerBehaviorD
 
 // Interface for the initial configuration passed to the plugin's init function
 export interface LangflowChatbotInitConfig {
-  containerId?: string; // Required if useFloating is false or undefined
+  containerId?: string; // Required for embedded mode
   profileId: string; // The ID of the chatbot profile to load
   proxyApiBasePath: string; // base API path for the proxy server
   sessionId?: string; // Optional: Resume a specific session
-  useFloating?: boolean;
+  mode?: 'floating' | 'embedded'; // Widget display mode - defaults to 'embedded' if containerId provided, 'floating' otherwise
+  // Legacy support - will be deprecated in future versions
+  useFloating?: boolean; // @deprecated Use 'mode' instead
   enableStream?: boolean; // User can still suggest this for the client
   widgetTitle?: string;
   userSender?: string;
@@ -67,6 +69,62 @@ export class LangflowChatbotInstance {
 
   private _handleInternalSessionIdUpdate = (sessionId: string): void => {
     this._emit('sessionChanged', sessionId);
+  }
+
+  /**
+   * Returns the container element for attaching listeners or custom behavior.
+   * For floating widgets, this returns the element specified by containerId (if provided).
+   * For embedded widgets, this returns the container element where the widget is embedded.
+   * @returns {HTMLElement | null} The container element, or null if not available.
+   */
+  public getContainerElement(): HTMLElement | null {
+    if (!this.initialConfig.containerId) {
+      return null;
+    }
+    
+    if (this.widgetInstance && typeof this.widgetInstance.getContainerElement === 'function') {
+      // FloatingChatWidget case
+      return this.widgetInstance.getContainerElement();
+    }
+    
+    // Embedded ChatWidget case
+    return document.getElementById(this.initialConfig.containerId);
+  }
+
+  // Helper method to determine the effective floating mode from config options
+  private _determineFloatingMode(config: LangflowChatbotInitConfig, serverFloatingConfig: any): boolean {
+    // Priority order for determining floating mode:
+    // 1. mode ('floating' | 'embedded') - primary API
+    // 2. useFloating (legacy support)
+    // 3. Server configuration (when explicitly set)
+    // 4. containerId presence (default to embedded if containerId provided)
+    // 5. Default to floating when no containerId
+
+    if (config.mode === 'floating') {
+      return true;
+    }
+
+    if (config.mode === 'embedded') {
+      return false;
+    }
+
+    // Legacy support for useFloating
+    if (typeof config.useFloating === 'boolean') {
+      return config.useFloating;
+    }
+
+    // Server configuration takes precedence when explicitly set
+    if (serverFloatingConfig?.useFloating !== undefined) {
+      return serverFloatingConfig.useFloating;
+    }
+
+    // If containerId is provided and no explicit preferences, default to embedded
+    if (config.containerId) {
+      return false;
+    }
+
+    // Default to floating when no containerId
+    return true;
   }
 
   async init(): Promise<void> {
@@ -130,13 +188,7 @@ export class LangflowChatbotInstance {
           inputAreaTemplate: safeServerTemplate.inputAreaTemplate || this.initialConfig.inputAreaTemplate,
         },
         floatingWidget: {
-          // If initialConfig.useFloating is explicitly set, it takes precedence.
-          // Otherwise, use serverProfile setting. If neither, default to false (embedded).
-          useFloating: typeof this.initialConfig.useFloating === 'boolean' 
-              ? this.initialConfig.useFloating 
-              : (safeServerFloatingWidget.useFloating !== undefined 
-                  ? safeServerFloatingWidget.useFloating 
-                  : false),
+          useFloating: this._determineFloatingMode(this.initialConfig, safeServerFloatingWidget),
           floatPosition: safeServerFloatingWidget.floatPosition || this.initialConfig.floatPosition || 'bottom-right',
         },
       };
@@ -177,6 +229,7 @@ export class LangflowChatbotInstance {
             initialSessionId: this.initialConfig.sessionId,
             onSessionIdUpdate: onSessionIdUpdateCallback,
             floatingPanelWidth: this.initialConfig.floatingPanelWidth,
+            containerId: this.initialConfig.containerId, // Pass containerId for listener attachment
           },
           this.logger
         );
@@ -210,7 +263,7 @@ export class LangflowChatbotInstance {
     } catch (error) {
       this.isInitialized = false;
       this.logger.error("Error during initialization:", error);
-      if (this.initialConfig.containerId && !this.initialConfig.useFloating) {
+      if (this.initialConfig.containerId && !this._determineFloatingMode(this.initialConfig, {})) {
         try {
           const container = document.getElementById(this.initialConfig.containerId);
           if (container) {
@@ -230,7 +283,7 @@ export class LangflowChatbotInstance {
     }
     this.widgetInstance = null;
 
-    if (this.initialConfig.containerId && !this.initialConfig.useFloating) {
+    if (this.initialConfig.containerId && !this._determineFloatingMode(this.initialConfig, {})) {
       const chatContainer = document.getElementById(this.initialConfig.containerId);
       if (chatContainer) chatContainer.innerHTML = '';
     }

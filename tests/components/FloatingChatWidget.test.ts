@@ -264,6 +264,37 @@ describe('FloatingChatWidget', () => {
             expect(toggleSpy).toHaveBeenCalled();
             widget.destroy();
         });
+
+        it('should support containerId for listener attachment', () => {
+            const testContainerId = 'test-container-for-listeners';
+            const testContainer = document.createElement('div');
+            testContainer.id = testContainerId;
+            document.body.appendChild(testContainer);
+
+            const userConfig: FloatingChatWidgetConfig = {
+                containerId: testContainerId,
+                widgetTitle: 'Test Widget with Container'
+            };
+            
+            const widget = new FloatingChatWidget(mockChatClientInstance, true, userConfig, mockLoggerInstance);
+            
+            // Should be able to get the container element
+            const containerElement = widget.getContainerElement();
+            expect(containerElement).toBe(testContainer);
+            expect(containerElement?.id).toBe(testContainerId);
+
+            widget.destroy();
+            document.body.removeChild(testContainer);
+        });
+
+        it('should return null from getContainerElement when no containerId provided', () => {
+            const widget = new FloatingChatWidget(mockChatClientInstance, true, {}, mockLoggerInstance);
+            
+            const containerElement = widget.getContainerElement();
+            expect(containerElement).toBeNull();
+
+            widget.destroy();
+        });
     });
 
     describe('FloatingChatWidget Visibility and Interactions', () => {

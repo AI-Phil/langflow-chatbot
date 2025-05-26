@@ -594,6 +594,155 @@ describe('LangflowChatbotInstance', () => {
                  if(mainContainer) expect(mainContainer.style.display).toBe('none');
             }
         });
+
+        it('should default to embedded mode when containerId is provided without explicit mode settings (bug fix)', async () => {
+            // This test verifies the fix for the bug where containerId was ignored
+            // and the plugin always created a FloatingChatWidget
+            const configWithContainerIdOnly: LangflowChatbotInitConfig = {
+                profileId: mockProfileId,
+                proxyApiBasePath: mockProxyApiBasePath,
+                containerId: mockContainerId,
+                // No mode, useFloating, or other floating-related settings
+            };
+            
+            // Server doesn't specify floating preference either
+            const serverWithoutFloatingPreference = {
+                labels: { widgetTitle: 'Test Title' },
+                // No floatingWidget configuration
+            };
+            
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                json: async () => serverWithoutFloatingPreference,
+                text: async () => JSON.stringify(serverWithoutFloatingPreference)
+            });
+            
+            instance = new LangflowChatbotInstance(configWithContainerIdOnly);
+            await instance.init();
+
+            // Should create ChatWidget (embedded), not FloatingChatWidget
+            expect(MockedChatWidget).toHaveBeenCalledTimes(1);
+            expect(MockedFloatingChatWidget).not.toHaveBeenCalled();
+            expect(mockChatContainer.style.display).toBe('block');
+            expect((instance as any)['widgetInstance']).toBe(MockedChatWidget.mock.instances[0]);
+        });
+
+        it('should support new mode API - mode: "embedded"', async () => {
+            const configWithModeEmbedded: LangflowChatbotInitConfig = {
+                profileId: mockProfileId,
+                proxyApiBasePath: mockProxyApiBasePath,
+                containerId: mockContainerId,
+                mode: 'embedded'
+            };
+            
+            instance = new LangflowChatbotInstance(configWithModeEmbedded);
+            await instance.init();
+
+            expect(MockedChatWidget).toHaveBeenCalledTimes(1);
+            expect(MockedFloatingChatWidget).not.toHaveBeenCalled();
+        });
+
+        it('should support new mode API - mode: "floating"', async () => {
+            const configWithModeFloating: LangflowChatbotInitConfig = {
+                profileId: mockProfileId,
+                proxyApiBasePath: mockProxyApiBasePath,
+                mode: 'floating'
+                // Note: no containerId needed for floating mode
+            };
+            
+            instance = new LangflowChatbotInstance(configWithModeFloating);
+            await instance.init();
+
+            expect(MockedFloatingChatWidget).toHaveBeenCalledTimes(1);
+            expect(MockedChatWidget).not.toHaveBeenCalled();
+        });
+
+        it('should prioritize mode over containerId presence', async () => {
+            // Even with containerId, mode: 'floating' should force floating mode
+            const configWithModeFloatingAndContainer: LangflowChatbotInitConfig = {
+                profileId: mockProfileId,
+                proxyApiBasePath: mockProxyApiBasePath,
+                containerId: mockContainerId,
+                mode: 'floating'
+            };
+            
+            instance = new LangflowChatbotInstance(configWithModeFloatingAndContainer);
+            await instance.init();
+
+            expect(MockedFloatingChatWidget).toHaveBeenCalledTimes(1);
+            expect(MockedChatWidget).not.toHaveBeenCalled();
+            // Container should be hidden when floating mode is used
+            expect(mockChatContainer.style.display).toBe('none');
+        });
+
+        it('should pass containerId to FloatingChatWidget for listener attachment', async () => {
+            const configWithModeFloatingAndContainer: LangflowChatbotInitConfig = {
+                profileId: mockProfileId,
+                proxyApiBasePath: mockProxyApiBasePath,
+                containerId: mockContainerId,
+                mode: 'floating'
+            };
+            
+            instance = new LangflowChatbotInstance(configWithModeFloatingAndContainer);
+            await instance.init();
+
+            // Verify FloatingChatWidget was called with containerId in config
+            expect(MockedFloatingChatWidget).toHaveBeenCalledTimes(1);
+            const constructorArgs = MockedFloatingChatWidget.mock.calls[0];
+            const configArg = constructorArgs[2] as any; // userConfig is the 3rd argument
+            expect(configArg.containerId).toBe(mockContainerId);
+        });
+
+        it('should expose container element via getContainerElement() for floating mode', async () => {
+            const mockGetContainerElement = jest.fn().mockReturnValue(mockChatContainer);
+            MockedFloatingChatWidget.mockImplementation(() => ({
+                getContainerElement: mockGetContainerElement,
+                destroy: jest.fn(),
+            } as any));
+
+            const configWithModeFloatingAndContainer: LangflowChatbotInitConfig = {
+                profileId: mockProfileId,
+                proxyApiBasePath: mockProxyApiBasePath,
+                containerId: mockContainerId,
+                mode: 'floating'
+            };
+            
+            instance = new LangflowChatbotInstance(configWithModeFloatingAndContainer);
+            await instance.init();
+
+            const containerElement = instance.getContainerElement();
+            expect(containerElement).toBe(mockChatContainer);
+            expect(mockGetContainerElement).toHaveBeenCalledTimes(1);
+        });
+
+        it('should expose container element via getContainerElement() for embedded mode', async () => {
+            const configWithModeEmbedded: LangflowChatbotInitConfig = {
+                profileId: mockProfileId,
+                proxyApiBasePath: mockProxyApiBasePath,
+                containerId: mockContainerId,
+                mode: 'embedded'
+            };
+            
+            instance = new LangflowChatbotInstance(configWithModeEmbedded);
+            await instance.init();
+
+            const containerElement = instance.getContainerElement();
+            expect(containerElement).toBe(mockChatContainer);
+        });
+
+        it('should return null from getContainerElement() when no containerId provided', async () => {
+            const configWithoutContainer: LangflowChatbotInitConfig = {
+                profileId: mockProfileId,
+                proxyApiBasePath: mockProxyApiBasePath,
+                mode: 'floating'
+            };
+            
+            instance = new LangflowChatbotInstance(configWithoutContainer);
+            await instance.init();
+
+            const containerElement = instance.getContainerElement();
+            expect(containerElement).toBeNull();
+        });
     });
 
     describe('destroy', () => {

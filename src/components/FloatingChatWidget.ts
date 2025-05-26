@@ -33,6 +33,8 @@ export interface FloatingChatWidgetConfig {
     floatingPanelWidth?: string;
     /** Optional custom HTML template for the floating widget's header. */
     floatingWidgetHeaderTemplate?: string;
+    /** Optional container ID for attaching listeners or custom behavior. The container element will be available via getContainerElement(). */
+    containerId?: string;
 }
 
 /** Helper interface defining the structure for default floating widget-specific config values. */
@@ -59,7 +61,7 @@ const DEFAULT_FLOATING_CONFIG: DefaultFloatingConfigValues = {
  * Internal configuration structure for FloatingChatWidget after merging user-provided 
  * config with defaults. Ensures all necessary fields for the floating behavior are present.
  */
-interface FloatingWidgetInternalConfig extends Required<Omit<FloatingChatWidgetConfig, 'chatWidgetConfig' | 'initialSessionId' | 'onSessionIdUpdate' | 'logLevel' | 'datetimeFormat' | 'floatingPanelWidth' | 'floatingWidgetHeaderTemplate' >> {
+interface FloatingWidgetInternalConfig extends Required<Omit<FloatingChatWidgetConfig, 'chatWidgetConfig' | 'initialSessionId' | 'onSessionIdUpdate' | 'logLevel' | 'datetimeFormat' | 'floatingPanelWidth' | 'floatingWidgetHeaderTemplate' | 'containerId' >> {
     /** Configuration to be passed to the internal ChatWidget instance. Templates here are optional. */
     chatWidgetConfig: Partial<ChatWidgetConfigOptions>; 
     initialSessionId?: string;
@@ -68,6 +70,7 @@ interface FloatingWidgetInternalConfig extends Required<Omit<FloatingChatWidgetC
     datetimeFormat?: string;
     floatingPanelWidth?: string;
     floatingWidgetHeaderTemplate?: string;
+    containerId?: string;
 }
 
 /**
@@ -139,7 +142,8 @@ export class FloatingChatWidget {
                     widgetHeaderTemplate: userConfig.floatingWidgetHeaderTemplate || userConfig.chatWidgetConfig?.template?.widgetHeaderTemplate || DEFAULT_FLOATING_WIDGET_HEADER_TEMPLATE,
                 },
                 datetimeFormat: userConfig.chatWidgetConfig?.datetimeFormat,
-            }
+            },
+            containerId: userConfig.containerId,
         };
         this.config = mergedFloatingConfig;
 
@@ -362,5 +366,13 @@ export class FloatingChatWidget {
      */
     public getPanelElement(): HTMLElement | null {
         return this.chatContainer;
+    }
+
+    /**
+     * Returns the container element for attaching listeners or custom behavior.
+     * @returns {HTMLElement | null} The container element.
+     */
+    public getContainerElement(): HTMLElement | null {
+        return this.config.containerId ? document.getElementById(this.config.containerId) : null;
     }
 } 
