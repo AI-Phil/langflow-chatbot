@@ -4,6 +4,19 @@
   "description": "Add a Langflow-powered chatbot to your website.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./langflow-proxy": {
+      "types": "./dist/langflow-proxy.d.ts",
+      "default": "./dist/langflow-proxy.js"
+    },
+    "./plugin": "./dist/plugins/LangflowChatbotPlugin.js",
+    "./styles": "./dist/styles/langflow-chatbot.css",
+    "./dist/*": "./dist/*"
+  },
   "scripts": {
     "clean": "rm -rf dist",
     "build:tsc": "tsc",
@@ -11,6 +24,7 @@
     "build:example-ui-logic": "esbuild examples/basic/static/example-app-logic.ts --bundle --outfile=examples/basic/static/example-app-logic.js --format=iife --platform=browser",
     "build:copy-assets": "mkdir -p dist/styles && cp src/styles/langflow-chatbot.css dist/styles/langflow-chatbot.css",
     "build": "npm run clean && npm run build:tsc && npm run build:plugin && npm run build:example-ui-logic && npm run build:copy-assets",
+    "prepare": "npm run build",
     "test": "jest --coverage",
     "examples:basic": "ts-node examples/basic/server.ts"
   },
@@ -25,6 +39,11 @@
   ],
   "author": "DataStax, Inc. (Phil Miesle)",
   "license": "MIT",
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
   "dependencies": {
     "@datastax/langflow-client": "^0.2.1",
     "date-fns": "^4.1.0",

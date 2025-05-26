@@ -4,8 +4,9 @@ import path from 'path';
 import { readFile as readFileAsync } from 'fs/promises';
 import ejs from 'ejs';
 import dotenv from 'dotenv';
-import { LangflowProxyService } from '../../src/langflow-proxy';
-import { LangflowProxyConfig } from '../../src/types';
+// For development, we import from the local src directory
+// In production, you would use: import { LangflowProxyService, LangflowProxyConfig } from 'langflow-chatbot';
+import { LangflowProxyService, LangflowProxyConfig } from '../../src';
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
@@ -59,27 +60,15 @@ app.get('/', (req, res) => {
     });
 });
 
-app.get('/static/LangflowChatbotPlugin.js', async (req, res) => {
-    const pluginPath = path.join(__dirname, '..', '..', 'dist', 'plugins', 'LangflowChatbotPlugin.js');
-    try {
-        const data = await readFileAsync(pluginPath);
-        res.status(200).type('application/javascript').send(data);
-    } catch (err) {
-        res.status(404).type('text/plain').send('Plugin JS file not found');
-        console.error(`Error reading ${pluginPath}:`, err);
-    }
-});
-
-app.get('/static/langflow-chatbot.css', async (req, res) => {
-    const cssPath = path.join(__dirname, '..', '..', 'dist', 'styles', 'langflow-chatbot.css');
-    try {
-        const data = await readFileAsync(cssPath);
-        res.status(200).type('text/css').send(data);
-    } catch (err) {
-        res.status(404).type('text/plain').send('CSS file not found');
-        console.error(`Error reading ${cssPath}:`, err);
-    }
-});
+// Serve static assets
+// For development, we use local paths
+// In production, you would use: require.resolve('langflow-chatbot/plugin') and require.resolve('langflow-chatbot/styles')
+app.use('/static/LangflowChatbotPlugin.js', express.static(
+    path.join(__dirname, '..', '..', 'dist', 'plugins', 'LangflowChatbotPlugin.js')
+));
+app.use('/static/langflow-chatbot.css', express.static(
+    path.join(__dirname, '..', '..', 'dist', 'styles', 'langflow-chatbot.css')
+));
 
 app.get('/static/example-app-logic.js', async (req, res) => {
     const exampleLogicPath = path.join(__dirname, 'static', 'example-app-logic.js');
