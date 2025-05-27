@@ -10,8 +10,8 @@ import { LangflowProxyService, LangflowProxyConfig } from '../../src';
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-const hostname = '127.0.0.1';
-const port = 3001;
+const hostname = process.env.SERVER_HOST || '127.0.0.1';
+const port = parseInt(process.env.PORT || '0', 10); // Use 0 to let Node.js pick an available port
 const langflowApiPath = "/api/langflow";
 
 // Base data object for all EJS templates
@@ -123,11 +123,13 @@ async function startServer() {
 
         const httpServer = http.createServer(app); // Use the Express app
         httpServer.listen(port, hostname, () => {
-            console.log(`Server running at http://${hostname}:${port}/`);
+            const address = httpServer.address();
+            const actualPort = typeof address === 'object' && address ? address.port : port;
+            console.log(`Server running at http://${hostname}:${actualPort}/`);
         });
     } catch (error) {
-        console.error("Basic Server (Express): CRITICAL - Error during LangflowProxyService internal initialization:", error);
-        process.exit(1); // Exit if internal async initialization fails
+        console.error("Basic Server (Express): CRITICAL - Error during server startup:", error);
+        process.exit(1); // Exit if server startup fails
     }
 }
 
